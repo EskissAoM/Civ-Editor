@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AoM Retold Civ Creator - Draft</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div>
+      <p class="eyebrow">Static GitHub Pages prototype</p>
+      <h1>AoM Retold Civ Creator</h1>
+      <p class="subtitle">Choose a civilization setup and generate a local ZIP mod draft in your browser.</p>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="card">
+      <h2>1. Civilization</h2>
+      <label>
+        Display name
+        <input id="displayName" type="text" value="Atlantean Remnants" maxlength="48" />
+      </label>
+
+      <label>
+        Internal ID
+        <input id="internalId" type="text" value="atlantean_remnants" maxlength="48" />
+      </label>
+      <p class="hint">Use lowercase letters, numbers, and underscores. The app will sanitize this when exporting.</p>
+
+      <label>
+        Description
+        <textarea id="description" rows="3">A custom civilization generated with the browser civ creator prototype.</textarea>
+      </label>
+
+      <label>
+        Culture template
+        <select id="culture"></select>
+      </label>
+
+      <label>
+        Major god template
+        <select id="majorGod"></select>
+      </label>
+
+      <label>
+        Optional civ icon
+        <input id="iconFile" type="file" accept="image/png,image/jpeg,image/webp" />
+      </label>
+      <p class="hint">The icon stays in your browser. Nothing is uploaded.</p>
+    </section>
+
+    <section class="card">
+      <h2>2. Minor gods</h2>
+      <label>
+        Classical Age
+        <select id="minorClassical"></select>
+      </label>
+      <label>
+        Heroic Age
+        <select id="minorHeroic"></select>
+      </label>
+      <label>
+        Mythic Age
+        <select id="minorMythic"></select>
+      </label>
+    </section>
+
+    <section class="card">
+      <h2>3. Bonuses</h2>
+      <div id="bonusList" class="checkbox-grid"></div>
+      <p class="hint">Pick up to 4 bonuses. This draft stores them in generated XML comments/placeholders.</p>
+    </section>
+
+    <section class="card wide">
+      <h2>4. Export</h2>
+      <div id="messages" class="messages"></div>
+      <div class="button-row">
+        <button id="savePreset" type="button">Save preset locally</button>
+        <button id="loadPreset" type="button">Load preset</button>
+        <button id="downloadPreset" type="button">Export preset JSON</button>
+        <button id="generateZip" class="primary" type="button">Generate ZIP</button>
+      </div>
+      <details>
+        <summary>Preview generated XML</summary>
+        <pre id="xmlPreview"></pre>
+      </details>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>This is a prototype. You still need to replace placeholder XML with confirmed AoM Retold mod files/paths after testing a manual mod.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
