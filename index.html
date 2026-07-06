@@ -15,7 +15,7 @@
     </header>
 
     <section class="panel warning">
-      <strong>Draft status:</strong> this outputs <code>major_gods_mods.xml</code>, <code>techtree_mods.xml</code>, <code>stringmods.txt</code>, and GodPicker/TechTree XAML files. The pregame GodPicker and TechTree files use compact generated Archaic Age power blocks and real vanilla blocks for the selected minor gods. It is still a test generator: major-god-specific bonuses such as Hades shades will be handled later.
+      <strong>Draft status:</strong> this outputs <code>major_gods_mods.xml</code>, <code>techtree_mods.xml</code>, <code>stringmods.txt</code>, and GodPicker/TechTree XAML files. The pregame GodPicker and TechTree files use compact generated Archaic Age power blocks and real vanilla blocks for the selected minor gods. It is still a test generator: major-god bonuses can now be selected from the implementation map, but some complex mixed-file bonuses may still need in-game iteration.
     </section>
 
     <section class="grid">
@@ -26,10 +26,11 @@
           <input id="displayName" value="My Custom Major God" required maxlength="48" />
         </label>
         <label>
-          Internal name / folder
-          <input id="internalName" value="MyCustomMajorGod" required maxlength="48" />
-          <small>Only letters/numbers are safest. The app will sanitize it.</small>
+          Major god title
+          <input id="majorTitle" value="My Custom Major God followers" required maxlength="80" />
+          <small>This is written to <code>STR_CIV_&lt;NAME&gt;_T</code>, for example “Poseidon followers”.</small>
         </label>
+        <p class="muted">Internal name/folder is generated automatically from the display name.</p>
         <label>
           Pantheon
           <select id="baseMajor"></select>
@@ -43,15 +44,50 @@
         <label>
           Archaic Age god power
           <select id="godPower"></select>
-          <small>Choose any existing Archaic Age god power. Each option is labeled by pantheon for easier recognition; only the power name is written into the generated mod.</small>
+          <small>Choose any existing Archaic Age god power. Powers are grouped by pantheon for easier recognition; only the power name is written into the generated mod.</small>
         </label>
 
-        <h2>2. Minor gods</h2>
+        <h2>2. Unique technologies</h2>
+        <p class="muted">Choose up to two major-god unique technologies. The list is filtered by the selected pantheon, with special availability rules where needed.</p>
+        <div class="minor-grid">
+          <label>
+            Unique technology 1
+            <select id="uniqueTech1"></select>
+          </label>
+          <label>
+            Unique technology 2
+            <select id="uniqueTech2"></select>
+          </label>
+        </div>
+
+
+        <h2>3. God bonuses</h2>
+        <p class="muted">Choose up to four major-god bonuses. The list is filtered by the selected pantheon using the compatibility column from the spreadsheet.</p>
+        <div id="bonusPickers" class="minor-grid">
+          <label>
+            God bonus 1
+            <select id="bonus1"></select>
+          </label>
+          <label>
+            God bonus 2
+            <select id="bonus2"></select>
+          </label>
+          <label>
+            God bonus 3
+            <select id="bonus3"></select>
+          </label>
+          <label>
+            God bonus 4
+            <select id="bonus4"></select>
+          </label>
+        </div>
+
+        <h2>4. Minor gods</h2>
         <p class="muted">Choose exactly two existing minor gods for each age. By default the list is filtered to the selected pantheon, but you can unlock all pantheons for testing.</p>
         <label class="inline"><input id="sameCultureOnly" type="checkbox" checked /> Show only minor gods from the selected pantheon</label>
         <div id="minorPickers" class="minor-grid"></div>
 
-        <h2>3. Export</h2>
+        <h2>5. Export</h2>
         <div class="buttons">
           <button type="button" id="downloadZip">Generate mod ZIP</button>
           <button type="button" id="savePreset" class="secondary">Save preset locally</button>
@@ -70,6 +106,7 @@
     </section>
   </main>
   <script src="aomData.js"></script>
+  <script src="bonusData.js"></script>
   <script src="godPickerTemplates.js"></script>
   <script src="techTreeTemplates.js"></script>
   <script src="app.js"></script>

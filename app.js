@@ -2,6 +2,55 @@
    This is intentionally backend-free. All files are generated locally in the browser. */
 
 const AGES = ["ClassicalAge", "HeroicAge", "MythicAge"];
+const MAX_BONUS_CHOICES = 4;
+const EXCLUDED_MINOR_GOD_NAMES = new Set(["malinalxochitldummy"]);
+
+
+const UNIQUE_TECH_GROUPS = [
+  { id: "OlympianParentage", techs: ["OlympianParentage"], pantheon: "All", label: "Olympian Parentage" },
+  { id: "VaultsOfErebus", techs: ["VaultsOfErebus"], pantheon: "All", label: "Vaults Of Erebus" },
+  { id: "LordOfHorses", techs: ["LordOfHorses"], pantheon: "All", label: "Lord Of Horses" },
+  { id: "DivineLabor", techs: ["DivineLabor"], pantheon: "All", label: "Divine Labor" },
+  { id: "SkinOfTheRhino", techs: ["SkinOfTheRhino"], pantheon: "Egyptian", label: "Skin Of The Rhino" },
+  { id: "FloodOfTheNile", techs: ["FloodOfTheNile"], pantheon: "All", label: "Flood Of The Nile" },
+  { id: "Clairvoyance", techs: ["Clairvoyance"], pantheon: "All", label: "Clairvoyance", requiresGodPower: "Vision" },
+  { id: "HammerOfThunder", techs: ["HammerOfThunder"], pantheon: "Norse", label: "Hammer Of Thunder" },
+  { id: "Hamask", techs: ["Hamask"], pantheon: "Norse", label: "Hamask" },
+  { id: "EyesInTheForest", techs: ["EyesInTheForest"], pantheon: "All", label: "Eyes In The Forest" },
+  { id: "FreyrsGift", techs: ["FreyrsGift"], pantheon: "All", label: "Freyr's Gift", extraArchaicEffect: "FreyrTechCostBonus" },
+  { id: "TemporalChaos", techs: ["TemporalChaos"], pantheon: "Atlantean", label: "Temporal Chaos" },
+  { id: "EmpyreanSpeed", techs: ["EmpyreanSpeed"], pantheon: "All", label: "Empyrean Speed" },
+  { id: "Channels", techs: ["Channels"], pantheon: "Atlantean" },
+  { id: "CelestialWeapons", techs: ["CelestialWeapons"], pantheon: "All", label: "Celestial Weapons" },
+  { id: "TaiChi", techs: ["TaiChi"], pantheon: "All", label: "TaiChi" },
+  { id: "MountainousMight", techs: ["MountainousMight"], pantheon: "Chinese", label: "Mountainous Might" },
+  { id: "KuafuChieftain", techs: ["KuafuChieftain"], pantheon: "All", label: "Kuafu Chieftain" },
+  { id: "PeachOfImmortality", techs: ["PeachOfImmortality"], pantheon: "All", label: "Peach Of Immortality" },
+  { id: "HerbalMedicine", techs: ["HerbalMedicine"], pantheon: "Chinese", label: "Herbal Medicine" },
+  { id: "Kagura", techs: ["Kagura"], pantheon: "Japanese", label: "Kagura" },
+  { id: "Tenshu", techs: ["Tenshu"], pantheon: "All", label: "Tenshu" },
+  { id: "CrushingWaves", techs: ["CrushingWaves"], pantheon: "All", label: "Crushing Waves" },
+  { id: "WingsOfTheSouth", techs: ["WingsOfTheSouth"], pantheon: "Aztec", label: "Wings Of The South" },
+  { id: "TepeyollotlsReach", techs: ["TepeyollotlsReach"], pantheon: "Aztec", label: "TepeyollotlsReach" },
+  { id: "FeastOfTlaxochimaco", techs: ["FeastOfTlaxochimaco"], pantheon: "All", label: "Feast Of Tlaxochimaco" },
+];
+
+
+
+const TECH_DISPLAY_NAME_OVERRIDES = {
+  FreyrsGift: "Freyr's Gift",
+  TaiChi: "Tai Chi",
+  TepeyollotlsReach: "Tepeyollotl's Reach",
+};
+
+function displayTechName(internalName) {
+  if (!internalName) return "";
+  if (TECH_DISPLAY_NAME_OVERRIDES[internalName]) return TECH_DISPLAY_NAME_OVERRIDES[internalName];
+  return String(internalName)
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .trim();
+}
 
 const DEFAULT_TEMPLATE_MAJOR_BY_CULTURE = {
   Greek: "Zeus",
@@ -70,9 +119,16 @@ const $ = (id) => document.getElementById(id);
 
 const els = {
   displayName: $("displayName"),
-  internalName: $("internalName"),
+  majorTitle: $("majorTitle"),
   baseMajor: $("baseMajor"),
   godPower: $("godPower"),
+  uniqueTech1: $("uniqueTech1"),
+  uniqueTech2: $("uniqueTech2"),
+  bonusPickers: $("bonusPickers"),
+  bonus1: $("bonus1"),
+  bonus2: $("bonus2"),
+  bonus3: $("bonus3"),
+  bonus4: $("bonus4"),
   iconFile: $("iconFile"),
   sameCultureOnly: $("sameCultureOnly"),
   minorPickers: $("minorPickers"),
@@ -127,23 +183,40 @@ function selectedBaseMajor() {
 }
 
 function displayGodName(name) {
-  return String(name || "").toUpperCase();
+  return String(name || "")
+    .trim()
+    .split(/([\s_-]+)/)
+    .map((part) => {
+      if (!part || /^[\s_-]+$/.test(part)) return part;
+      if (part === part.toLowerCase() || part === part.toUpperCase()) {
+        return part.slice(0, 1).toUpperCase() + part.slice(1).toLowerCase();
+      }
+      return part.slice(0, 1).toUpperCase() + part.slice(1);
+    })
+    .join("");
 }
 
 function minorLabel(god) {
   return `${displayGodName(god.name)} (${god.culture})`;
 }
 
+function isExcludedMinorGod(god) {
+  if (!god) return false;
+  const name = String(god.name || "").toLowerCase();
+  const tech = String(god.tech || "").toLowerCase();
+  return EXCLUDED_MINOR_GOD_NAMES.has(name) || [...EXCLUDED_MINOR_GOD_NAMES].some((blocked) => tech.includes(blocked));
+}
+
 function canonicalMinorTech(godOrTech, ageHint = "") {
   if (!godOrTech) return "";
-  if (typeof godOrTech === "object") return `${godOrTech.age}${sanitizeId(godOrTech.name)}`;
+  if (typeof godOrTech === "object") return `${godOrTech.age}${pascal(godOrTech.name)}`;
   const raw = String(godOrTech);
-  const found = window.AOM_DATA.minors.find((g) => g.tech === raw || `${g.age}${sanitizeId(g.name)}` === raw);
-  if (found) return `${found.age}${sanitizeId(found.name)}`;
+  const found = window.AOM_DATA.minors.find((g) => !isExcludedMinorGod(g) && (g.tech === raw || `${g.age}${pascal(g.name)}` === raw));
+  if (found) return `${found.age}${pascal(found.name)}`;
   const m = raw.match(/^(ClassicalAge|HeroicAge|MythicAge)(.+)$/i);
   if (m) {
     const properAge = AGES.find((a) => a.toLowerCase() === m[1].toLowerCase()) || ageHint || m[1];
-    return `${properAge}${sanitizeId(m[2])}`;
+    return `${properAge}${pascal(m[2])}`;
   }
   return sanitizeId(raw);
 }
@@ -179,7 +252,7 @@ function initGodPowerSelect(keep = true) {
       const opt = document.createElement("option");
       opt.value = entry.power;
       opt.dataset.pantheon = entry.culture;
-      opt.textContent = `${entry.culture} — ${entry.power}`;
+      opt.textContent = entry.power;
       group.appendChild(opt);
     }
     els.godPower.appendChild(group);
@@ -191,6 +264,176 @@ function initGodPowerSelect(keep = true) {
     const matchingPantheonPower = options.find((entry) => entry.culture === selectedPantheon());
     els.godPower.value = matchingPantheonPower?.power || options[0]?.power || "";
   }
+}
+
+function availableUniqueTechGroups() {
+  const pantheon = selectedPantheon();
+  const godPower = els.godPower.value;
+  return UNIQUE_TECH_GROUPS.filter((group) => {
+    if (group.pantheon !== "All" && group.pantheon !== pantheon) return false;
+    if (group.requiresGodPower && group.requiresGodPower !== godPower) return false;
+    return true;
+  });
+}
+
+function selectedUniqueTechGroups() {
+  return [els.uniqueTech1?.value || "", els.uniqueTech2?.value || ""].filter(Boolean);
+}
+
+function getUniqueTechGroup(id) {
+  return UNIQUE_TECH_GROUPS.find((group) => group.id === id);
+}
+
+function uniqueTechEntries(configOrIds) {
+  const ids = Array.isArray(configOrIds) ? configOrIds : (configOrIds.uniqueTechs || []);
+  return ids.map(getUniqueTechGroup).filter(Boolean);
+}
+
+function uniqueTechNames(configOrIds) {
+  const seen = new Set();
+  const names = [];
+  for (const group of uniqueTechEntries(configOrIds)) {
+    for (const tech of group.techs) {
+      if (!seen.has(tech)) {
+        seen.add(tech);
+        names.push(tech);
+      }
+    }
+  }
+  return names;
+}
+
+function initUniqueTechSelects(keep = true) {
+  const previous = keep ? selectedUniqueTechGroups() : [];
+  const options = availableUniqueTechGroups();
+  for (const [index, select] of [els.uniqueTech1, els.uniqueTech2].entries()) {
+    if (!select) continue;
+    const current = previous[index] || "";
+    select.innerHTML = "";
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "None";
+    select.appendChild(none);
+
+    const allGroup = document.createElement("optgroup");
+    allGroup.label = "Available to all pantheons";
+    const pantheonGroup = document.createElement("optgroup");
+    pantheonGroup.label = `${selectedPantheon()} only`;
+
+    for (const group of options) {
+      const opt = document.createElement("option");
+      opt.value = group.id;
+      opt.textContent = displayTechName(group.label || group.id);
+      opt.title = group.techs.map(displayTechName).join(", ");
+      if (group.requiresGodPower) opt.textContent += ` (requires ${group.requiresGodPower})`;
+      if (group.pantheon === "All") allGroup.appendChild(opt);
+      else pantheonGroup.appendChild(opt);
+    }
+    if (allGroup.children.length) select.appendChild(allGroup);
+    if (pantheonGroup.children.length) select.appendChild(pantheonGroup);
+
+    if (current && options.some((group) => group.id === current)) select.value = current;
+    else select.value = "";
+  }
+  enforceUniqueTechDifference();
+}
+
+function enforceUniqueTechDifference(changedSelect) {
+  if (!els.uniqueTech1 || !els.uniqueTech2) return;
+  if (els.uniqueTech1.value && els.uniqueTech1.value === els.uniqueTech2.value) {
+    if (changedSelect === els.uniqueTech1) els.uniqueTech2.value = "";
+    else els.uniqueTech1.value = "";
+  }
+  const one = els.uniqueTech1.value;
+  const two = els.uniqueTech2.value;
+  for (const opt of els.uniqueTech1.options) opt.disabled = Boolean(two && opt.value === two);
+  for (const opt of els.uniqueTech2.options) opt.disabled = Boolean(one && opt.value === one);
+}
+
+function bonusSelects() {
+  return [els.bonus1, els.bonus2, els.bonus3, els.bonus4].filter(Boolean);
+}
+
+function bonusAllowedForPantheon(entry, pantheon) {
+  const allowed = entry.allowedPantheons || [];
+  return allowed.includes("All") || allowed.includes(pantheon);
+}
+
+function availableBonuses() {
+  const pantheon = selectedPantheon();
+  return (window.AOM_BONUS_DATA || [])
+    .filter((entry) => bonusAllowedForPantheon(entry, pantheon))
+    .sort((a, b) => a.sourcePantheon.localeCompare(b.sourcePantheon) || a.sourceMajor.localeCompare(b.sourceMajor) || a.label.localeCompare(b.label));
+}
+
+function selectedBonusIds() {
+  return bonusSelects().map((select) => select.value).filter(Boolean);
+}
+
+function getBonusById(id) {
+  return (window.AOM_BONUS_DATA || []).find((entry) => entry.id === id);
+}
+
+function selectedBonusEntries(configOrIds) {
+  const ids = Array.isArray(configOrIds) ? configOrIds : (configOrIds.bonuses || []);
+  return ids.map(getBonusById).filter(Boolean);
+}
+
+function initBonusSelects(keep = true) {
+  const previous = keep ? selectedBonusIds() : [];
+  const options = availableBonuses();
+  for (const [index, select] of bonusSelects().entries()) {
+    const current = previous[index] || "";
+    select.innerHTML = "";
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "None";
+    select.appendChild(none);
+
+    for (const sourcePantheon of Array.from(new Set(options.map((entry) => entry.sourcePantheon)))) {
+      const group = document.createElement("optgroup");
+      group.label = sourcePantheon;
+      for (const entry of options.filter((item) => item.sourcePantheon === sourcePantheon)) {
+        const opt = document.createElement("option");
+        opt.value = entry.id;
+        opt.textContent = `${entry.sourceMajor}: ${entry.label}`;
+        opt.title = `Allowed: ${(entry.allowedPantheons || []).join(", ")} | Files: ${entry.files}`;
+        group.appendChild(opt);
+      }
+      if (group.children.length) select.appendChild(group);
+    }
+
+    if (current && options.some((entry) => entry.id === current)) select.value = current;
+    else select.value = "";
+  }
+  enforceBonusDifference();
+}
+
+function enforceBonusDifference(changedSelect) {
+  const selected = selectedBonusIds();
+  if (changedSelect && changedSelect.value && selected.filter((id) => id === changedSelect.value).length > 1) {
+    changedSelect.value = "";
+  }
+  const active = new Set(selectedBonusIds());
+  for (const select of bonusSelects()) {
+    for (const opt of select.options) {
+      opt.disabled = Boolean(opt.value && active.has(opt.value) && opt.value !== select.value);
+    }
+  }
+}
+
+function bonusTechEffects(config) {
+  return selectedBonusEntries(config)
+    .map((entry) => entry.techEffects || "")
+    .filter(Boolean)
+    .join("\n");
+}
+
+function bonusMajorXml(config) {
+  return selectedBonusEntries(config)
+    .map((entry) => entry.majorXml || "")
+    .filter(Boolean)
+    .join("\n");
 }
 
 function makeMinorPicker(age, slot) {
@@ -224,6 +467,7 @@ function refreshMinorOptions(keep = true) {
   const current = keep ? collectMinorSelectionLoose() : {};
   for (const age of AGES) {
     const options = window.AOM_DATA.minors.filter((g) => {
+      if (isExcludedMinorGod(g)) return false;
       if (g.age !== age) return false;
       return !els.sameCultureOnly.checked || g.culture === base.culture;
     });
@@ -242,7 +486,35 @@ function refreshMinorOptions(keep = true) {
       else if (options[0]) select.value = canonicalMinorTech(options[0]);
     }
   }
+  enforceMinorDifference();
   updatePreview();
+}
+
+function setMinorOptionsDisabled(age) {
+  const first = $(`${age}_1`);
+  const second = $(`${age}_2`);
+  if (!first || !second) return;
+  for (const opt of first.options) opt.disabled = opt.value === second.value;
+  for (const opt of second.options) opt.disabled = opt.value === first.value;
+}
+
+function pickFirstAvailable(select, blockedValue) {
+  const option = Array.from(select.options).find((opt) => opt.value !== blockedValue && !opt.disabled);
+  if (option) select.value = option.value;
+}
+
+function enforceMinorDifference(changedSelect) {
+  const ages = changedSelect?.dataset?.age ? [changedSelect.dataset.age] : AGES;
+  for (const age of ages) {
+    const first = $(`${age}_1`);
+    const second = $(`${age}_2`);
+    if (!first || !second) continue;
+    if (first.value && first.value === second.value) {
+      if (changedSelect === first) pickFirstAvailable(second, first.value);
+      else pickFirstAvailable(first, second.value);
+    }
+    setMinorOptionsDisabled(age);
+  }
 }
 
 function collectMinorSelectionLoose() {
@@ -259,15 +531,18 @@ function collectMinorSelectionLoose() {
 
 function getMinorByTech(tech) {
   const canonical = canonicalMinorTech(tech);
-  return window.AOM_DATA.minors.find((g) => g.tech === tech || canonicalMinorTech(g) === canonical);
+  return window.AOM_DATA.minors.find((g) => !isExcludedMinorGod(g) && (g.tech === tech || canonicalMinorTech(g) === canonical));
 }
 
 function getConfig() {
   const base = selectedBaseMajor();
-  const internal = sanitizeFolder(els.internalName.value || els.displayName.value);
+  const internal = sanitizeFolder(els.displayName.value);
   const minorGods = collectMinorSelectionLoose();
+  const uniqueTechs = selectedUniqueTechGroups();
+  const bonuses = selectedBonusIds();
   return {
     displayName: els.displayName.value.trim() || "Custom Major God",
+    majorTitle: els.majorTitle.value.trim() || `${els.displayName.value.trim() || "Custom Major God"} followers`,
     internalName: internal,
     lowerName: lower(internal),
     baseMajorName: base.name,
@@ -275,6 +550,8 @@ function getConfig() {
     baseMajor: base,
     godPower: els.godPower.value,
     godPowerPantheon: els.godPower.selectedOptions[0]?.dataset.pantheon || "",
+    uniqueTechs,
+    bonuses,
     minorGods,
     stringPrefix: `STR_CIV_${internal.toUpperCase()}`,
     ageTechs: {
@@ -289,11 +566,25 @@ function getConfig() {
 function validateConfig(config) {
   const errors = [];
   if (!config.displayName) errors.push("Major god display name is required.");
-  if (!/^[A-Za-z][A-Za-z0-9]*$/.test(config.internalName)) errors.push("Internal name must start with a letter and use only letters/numbers after sanitizing.");
+  if (!/^[A-Za-z][A-Za-z0-9]*$/.test(config.internalName)) errors.push("Display name must contain at least one letter so a valid internal name can be generated.");
   if (!config.godPower) errors.push("Choose a starting god power.");
   const validStartingPowers = archaicGodPowerOptions().map((entry) => entry.power);
   if (config.godPower && !validStartingPowers.includes(config.godPower)) {
     errors.push("Starting god power must be one of the existing Archaic Age god powers.");
+  }
+  const availableUniqueIds = new Set(availableUniqueTechGroups().map((group) => group.id));
+  const uniquePicks = config.uniqueTechs || [];
+  if (uniquePicks.length > 2) errors.push("Choose no more than two unique technologies.");
+  if (new Set(uniquePicks).size !== uniquePicks.length) errors.push("Unique technology choices must be different.");
+  for (const id of uniquePicks) {
+    if (!availableUniqueIds.has(id)) errors.push(`Unique technology ${id} is not available for this pantheon/god-power choice.`);
+  }
+  const availableBonusIds = new Set(availableBonuses().map((entry) => entry.id));
+  const bonusPicks = config.bonuses || [];
+  if (bonusPicks.length > MAX_BONUS_CHOICES) errors.push(`Choose no more than ${MAX_BONUS_CHOICES} god bonuses.`);
+  if (new Set(bonusPicks).size !== bonusPicks.length) errors.push("God bonus choices must be different.");
+  for (const id of bonusPicks) {
+    if (!availableBonusIds.has(id)) errors.push(`God bonus ${id} is not available for this pantheon.`);
   }
   for (const age of AGES) {
     const picks = config.minorGods[age] || [];
@@ -329,6 +620,8 @@ function cloneAndPatchMajorGodXml(config, iconPath) {
   const ageTech = civ.querySelector("agetech[age='ArchaicAge'] tech") || civ.querySelector("agetech tech");
   if (ageTech) ageTech.textContent = config.ageTechs.archaic;
 
+  applyMajorGodBonusFragments(doc, civ, bonusMajorXml(config));
+
   const xml = new XMLSerializer().serializeToString(civ);
   return `<civmods>\n${indent(xml, 1)}\n</civmods>\n`;
 }
@@ -340,6 +633,34 @@ function setText(doc, root, tag, text) {
     root.appendChild(node);
   }
   node.textContent = text;
+}
+
+function applyMajorGodBonusFragments(doc, civ, fragmentXml) {
+  if (!fragmentXml || !fragmentXml.trim()) return;
+  const parser = new DOMParser();
+  const wrapped = `<root>${fragmentXml}</root>`;
+  const fragmentDoc = parser.parseFromString(wrapped, "application/xml");
+  if (fragmentDoc.querySelector("parsererror")) {
+    console.warn("Skipping unparsable major_gods bonus fragment", fragmentXml);
+    return;
+  }
+  for (const node of Array.from(fragmentDoc.documentElement.children)) {
+    const tag = node.tagName.toLowerCase();
+    const imported = doc.importNode(node, true);
+    if (tag === "startingresources" || tag === "startingunits") {
+      civ.querySelector(tag)?.remove();
+      civ.appendChild(imported);
+    } else if (tag === "unit") {
+      let startingUnits = civ.querySelector("startingunits");
+      if (!startingUnits) {
+        startingUnits = doc.createElement("startingunits");
+        civ.appendChild(startingUnits);
+      }
+      startingUnits.appendChild(imported);
+    } else {
+      civ.appendChild(imported);
+    }
+  }
 }
 
 function indent(xml, level = 1) {
@@ -361,6 +682,12 @@ function godPowerEffect(power) {
 			</effect>`;
 }
 
+function indentTabBlock(block, level = 0) {
+  if (!block || !block.trim()) return "";
+  const pad = "	".repeat(level);
+  return String(block).split("\n").map((line) => line.trim() ? pad + line : line).join("\n");
+}
+
 function generateTechTreeMods(config) {
   const c = config.ageTechs;
   const classical = config.minorGods.ClassicalAge;
@@ -374,8 +701,11 @@ function generateTechTreeMods(config) {
 		<flag>AgeTech</flag>
 		<effects>
 ${techStatusEffects([...classical, c.classical])}
+${techStatusEffects(uniqueTechNames(config), "obtainable")}
+${indentTabBlock(bonusTechEffects(config), 3)}
 			<effect type="TechStatus" status="active">ArchaicAgeWeakenUnits</effect>
-${godPowerEffect(config.godPower)}
+${uniqueTechEntries(config).some((group) => group.extraArchaicEffect === "FreyrTechCostBonus") ? `			<effect type="SetOnTechResearchedTech" amount="1.00">FreyrTechCostBonus</effect>
+` : ""}${godPowerEffect(config.godPower)}
 		</effects>
 	</tech>
 
@@ -434,40 +764,17 @@ function techStringBase(techName) {
 }
 
 function generateStringMods(config) {
-  const archaic = techStringBase(config.ageTechs.archaic);
-  const classical = techStringBase(config.ageTechs.classical);
-  const heroic = techStringBase(config.ageTechs.heroic);
-  const mythic = techStringBase(config.ageTechs.mythic);
   return `Language = "English"
 
 // GENERATED BY AOM RETOLD MAJOR GOD CREATOR DRAFT
-// Keep this file small: only new custom major-god strings are generated.
+// Only the mandatory General strings used by major_gods_mods.xml are generated.
+// Existing minor-god and age-tech strings remain vanilla.
 
 // GENERAL
 
 ID = "${config.stringPrefix}"   ;   Str = "${escapeStringMod(config.displayName)}"
 ID = "${config.stringPrefix}_LR"   ;   Str = "${escapeStringMod(config.displayName)}"
-ID = "${config.stringPrefix}_T"   ;   Str = "${escapeStringMod(config.displayName)} followers"
-
-// CUSTOM AGE TECHS
-
-ID = "${archaic}_NAME"   ;   Str = "${escapeStringMod(config.displayName)}"
-ID = "${archaic}_LR"   ;   Str = "Start under ${escapeStringMod(config.displayName)}."
-
-ID = "${classical}_NAME"   ;   Str = "Classical Age"
-ID = "${classical}_LR"   ;   Str = "Advance to the Classical Age."
-ID = "${classical}_SELF"   ;   Str = "You have advanced to the Classical Age."
-ID = "${classical}_OTHER"   ;   Str = "{0} advances to the Classical Age."
-
-ID = "${heroic}_NAME"   ;   Str = "Heroic Age"
-ID = "${heroic}_LR"   ;   Str = "Advance to the Heroic Age."
-ID = "${heroic}_SELF"   ;   Str = "You have advanced to the Heroic Age."
-ID = "${heroic}_OTHER"   ;   Str = "{0} advances to the Heroic Age."
-
-ID = "${mythic}_NAME"   ;   Str = "Mythic Age"
-ID = "${mythic}_LR"   ;   Str = "Advance to the Mythic Age."
-ID = "${mythic}_SELF"   ;   Str = "You have advanced to the Mythic Age."
-ID = "${mythic}_OTHER"   ;   Str = "{0} advances to the Mythic Age."
+ID = "${config.stringPrefix}_T"   ;   Str = "${escapeStringMod(config.majorTitle)}"
 `;
 }
 
@@ -477,7 +784,7 @@ function escapeStringMod(value) {
 
 function generateGodPickerXaml(config) {
   const className = `GodPicker_${config.baseCulture}_${config.internalName}`;
-  const archaicBlock = godPickerArchaicPowerBlock(config.godPower);
+  const archaicBlock = godPickerArchaicPowerBlock(config.godPower, uniqueTechNames(config));
   return `﻿<local:GodPickerPageBase
     x:Class="athenswpf.Content.Pregame.GodPicker.${escapeXml(className)}"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -497,19 +804,32 @@ ${AGES.map((age) => generateGodPickerAge(age, config.minorGods[age])).join("\n")
 `;
 }
 
-function godPickerArchaicPowerBlock(power) {
+function godPickerArchaicPowerBlock(power, uniqueTechs = []) {
+  const techNodes = uniqueTechs.map((tech) => `        <techTree:TechTreeNode Tech="${escapeXml(tech)}" />`).join("\n");
   return `<techTree:TechTreeAge AgeName="ArchaicAge">
     <techTree:TechTreeAge.Technologies>
-        <techTree:TechTreeNode Power="${escapeXml(power)}" />
+        <techTree:TechTreeNode Power="${escapeXml(power)}" />${techNodes ? "\n" + techNodes : ""}
     </techTree:TechTreeAge.Technologies>
 </techTree:TechTreeAge>`;
 }
 
+function lookupTemplateBlock(map, key) {
+  if (!map || !key) return "";
+  if (map[key]) return map[key];
+  const lowerKey = String(key).toLowerCase();
+  const foundKey = Object.keys(map).find((candidate) => candidate.toLowerCase() === lowerKey);
+  return foundKey ? map[foundKey] : "";
+}
+
 function godPickerBonusTrack(tech) {
   const templates = window.AOM_GODPICKER || {};
-  const block = templates.bonusTrackByGod?.[tech];
+  const canonical = canonicalMinorTech(tech);
+  const block = lookupTemplateBlock(templates.bonusTrackByGod, canonical);
   if (block) return block;
-  return `<techTree:TechTreeBonusTrack God="${escapeXml(tech)}" />`;
+  return `<techTree:TechTreeBonusTrack God="${escapeXml(canonical)}">
+    <techTree:TechTreeBonusTrack.Technologies>
+    </techTree:TechTreeBonusTrack.Technologies>
+</techTree:TechTreeBonusTrack>`;
 }
 
 function indentBlock(block, level = 0) {
@@ -542,7 +862,7 @@ function generateTechTreeXaml(config) {
       Style="{StaticResource TechTreePageStyle}"${defaultColorAttr}>
 
     <local:TechTreePageBase.Ages>
-${indentBlock(techTreeArchaicPowerBlock(config.godPower), 2)}
+${indentBlock(techTreeArchaicPowerBlock(config.godPower, uniqueTechNames(config)), 2)}
 ${AGES.map((age) => generateTechTreeAge(age, config)).join("\n")}
         <local:TechTreeAge AgeName="TitanAge">
         </local:TechTreeAge>
@@ -555,10 +875,11 @@ function techTreeDefaultColor(sourceMajor) {
   return window.AOM_TECHTREE?.defaultPlayerColorByMajor?.[sourceMajor] || "";
 }
 
-function techTreeArchaicPowerBlock(power) {
+function techTreeArchaicPowerBlock(power, uniqueTechs = []) {
+  const techNodes = uniqueTechs.map((tech) => `        <local:TechTreeNode Tech="${escapeXml(tech)}" />`).join("\n");
   return `<local:TechTreeAge AgeName="ArchaicAge">
     <local:TechTreeAge.Technologies>
-        <local:TechTreeNode Power="${escapeXml(power)}" />
+        <local:TechTreeNode Power="${escapeXml(power)}" />${techNodes ? "\n" + techNodes : ""}
     </local:TechTreeAge.Technologies>
 </local:TechTreeAge>`;
 }
@@ -570,9 +891,13 @@ function techTreeAgeTechnologiesBlock(sourceMajor, age) {
 
 function techTreeBonusTrack(tech) {
   const templates = window.AOM_TECHTREE || {};
-  const block = templates.bonusTrackByGod?.[tech];
+  const canonical = canonicalMinorTech(tech);
+  const block = lookupTemplateBlock(templates.bonusTrackByGod, canonical);
   if (block) return block;
-  return `<local:TechTreeBonusTrack God="${escapeXml(tech)}" />`;
+  return `<local:TechTreeBonusTrack God="${escapeXml(canonical)}">
+    <local:TechTreeBonusTrack.Technologies>
+    </local:TechTreeBonusTrack.Technologies>
+</local:TechTreeBonusTrack>`;
 }
 
 function generateTechTreeAge(age, config) {
@@ -596,8 +921,10 @@ Internal name: ${config.internalName}
 Pantheon: ${config.baseCulture}
 Hidden culture template used for starting units/resources: ${config.baseMajorName}
 Starting god power: ${config.godPower}${config.godPowerPantheon ? ` (${config.godPowerPantheon})` : ""}
-GodPicker Archaic block generated from the selected god power only.
-TechTree Archaic block generated from the selected god power only.
+Unique technologies: ${uniqueTechNames(config).map(displayTechName).join(", ") || "None"}
+God bonuses: ${selectedBonusEntries(config).map((entry) => `${entry.sourceMajor}: ${entry.label}`).join("; ") || "None"}
+GodPicker Archaic block generated from the selected god power and unique technologies.
+TechTree Archaic block generated from the selected god power and unique technologies.
 TechTree age technology layout uses the selected pantheon template: ${config.baseMajorName}
 
 Generated files follow this mod shape:
@@ -611,7 +938,7 @@ ${config.internalName}/game/ui_myth/content/pregame/techtree/TechTree_${config.b
 Install by extracting the folder into your AoM Retold local mods folder.
 
 Known draft limitation:
-GodPicker and TechTree XAML use compact generated ArchaicAge blocks for the selected god power, plus full vanilla bonus tracks for the selected minor gods. TechTree age technology layouts use the selected pantheon template, while the bonus tracks are replaced with the selected minor gods. The remaining likely test points are age-tech effects and whether any selected cross-pantheon minor god requires additional gameplay files.
+GodPicker and TechTree XAML use compact generated ArchaicAge blocks for the selected god power and unique technologies, plus full vanilla bonus tracks for the selected minor gods. stringmods.txt intentionally contains only the mandatory General strings referenced by major_gods_mods.xml. The remaining likely test points are age-tech effects and whether any selected minor god requires additional gameplay files.
 `;
 }
 
@@ -735,10 +1062,12 @@ function presetFromForm() {
   const config = getConfig();
   return {
     displayName: config.displayName,
-    internalName: config.internalName,
+    majorTitle: config.majorTitle,
     baseCulture: config.baseCulture,
     godPower: config.godPower,
     godPowerPantheon: config.godPowerPantheon,
+    uniqueTechs: config.uniqueTechs,
+    bonuses: config.bonuses,
     sameCultureOnly: els.sameCultureOnly.checked,
     minorGods: config.minorGods,
   };
@@ -746,7 +1075,7 @@ function presetFromForm() {
 function applyPreset(preset) {
   if (!preset) return;
   els.displayName.value = preset.displayName || "My Custom Major God";
-  els.internalName.value = preset.internalName || sanitizeFolder(preset.displayName);
+  els.majorTitle.value = preset.majorTitle || `${els.displayName.value} followers`;
   if (preset.baseCulture) els.baseMajor.value = preset.baseCulture;
   else if (preset.baseMajorName) {
     const oldMajor = window.AOM_DATA.majors.find((m) => m.name === preset.baseMajorName);
@@ -754,6 +1083,24 @@ function applyPreset(preset) {
   }
   initGodPowerSelect(false);
   if (preset.godPower && Array.from(els.godPower.options).some((o) => o.value === preset.godPower)) els.godPower.value = preset.godPower;
+  initUniqueTechSelects(false);
+  if (preset.uniqueTechs) {
+    const selects = [els.uniqueTech1, els.uniqueTech2];
+    for (const [index, value] of preset.uniqueTechs.entries()) {
+      const select = selects[index];
+      if (select && value && Array.from(select.options).some((o) => o.value === value)) select.value = value;
+    }
+    enforceUniqueTechDifference();
+  }
+  initBonusSelects(false);
+  if (preset.bonuses) {
+    const selects = bonusSelects();
+    for (const [index, value] of preset.bonuses.entries()) {
+      const select = selects[index];
+      if (select && value && Array.from(select.options).some((o) => o.value === value)) select.value = value;
+    }
+    enforceBonusDifference();
+  }
   els.sameCultureOnly.checked = preset.sameCultureOnly !== false;
   refreshMinorOptions(false);
   if (preset.minorGods) {
@@ -765,6 +1112,7 @@ function applyPreset(preset) {
       }
     }
   }
+  enforceMinorDifference();
   updatePreview();
 }
 
@@ -792,11 +1140,13 @@ function updatePreview() {
         ${els.iconFile.files[0] ? "<uploaded icon>" : "(none; base icon path reused)"}`;
   const friendly = {
     displayName: config.displayName,
-    internalName: config.internalName,
+    majorTitle: config.majorTitle,
     pantheon: config.baseCulture,
     hiddenTemplateMajor: config.baseMajorName,
-    startingGodPower: config.godPowerPantheon ? `${config.godPowerPantheon} — ${config.godPower}` : config.godPower,
+    startingGodPower: config.godPower,
     godPowerPantheon: config.godPowerPantheon,
+    uniqueTechs: uniqueTechEntries(config).map((group) => ({ choice: displayTechName(group.label || group.id), grants: group.techs.map(displayTechName), internal: group.techs })),
+    godBonuses: selectedBonusEntries(config).map((entry) => ({ source: `${entry.sourcePantheon} / ${entry.sourceMajor}`, bonus: entry.label, files: entry.files })),
     minorGods: Object.fromEntries(AGES.map((age) => [age, config.minorGods[age].map((t) => {
       const g = getMinorByTech(t);
       return g ? `${canonicalMinorTech(g)} — ${displayGodName(g.name)} (${g.culture})` : canonicalMinorTech(t);
@@ -806,16 +1156,15 @@ function updatePreview() {
 }
 
 function wireEvents() {
-  els.baseMajor.addEventListener("change", () => { initGodPowerSelect(true); refreshMinorOptions(true); });
+  els.baseMajor.addEventListener("change", () => { initGodPowerSelect(true); initUniqueTechSelects(true); initBonusSelects(true); refreshMinorOptions(true); });
   els.sameCultureOnly.addEventListener("change", () => refreshMinorOptions(true));
-  els.displayName.addEventListener("input", () => {
-    if (!els.internalName.dataset.touched) els.internalName.value = sanitizeFolder(els.displayName.value);
-    updatePreview();
-  });
-  els.internalName.addEventListener("input", () => { els.internalName.dataset.touched = "true"; updatePreview(); });
+  els.displayName.addEventListener("input", updatePreview);
   els.iconFile.addEventListener("change", updatePreview);
-  els.godPower.addEventListener("change", updatePreview);
-  els.minorPickers.addEventListener("change", updatePreview);
+  els.godPower.addEventListener("change", () => { initUniqueTechSelects(true); updatePreview(); });
+  els.uniqueTech1.addEventListener("change", (event) => { enforceUniqueTechDifference(event.target); updatePreview(); });
+  els.uniqueTech2.addEventListener("change", (event) => { enforceUniqueTechDifference(event.target); updatePreview(); });
+  if (els.bonusPickers) els.bonusPickers.addEventListener("change", (event) => { enforceBonusDifference(event.target); updatePreview(); });
+  els.minorPickers.addEventListener("change", (event) => { enforceMinorDifference(event.target); updatePreview(); });
   els.downloadZip.addEventListener("click", handleDownload);
   els.savePreset.addEventListener("click", () => { localStorage.setItem("aomCivCreatorPreset", JSON.stringify(presetFromForm())); setMessage("Preset saved in this browser."); });
   els.loadPreset.addEventListener("click", () => { const raw = localStorage.getItem("aomCivCreatorPreset"); if (!raw) return setMessage("No local preset found.", true); applyPreset(JSON.parse(raw)); setMessage("Preset loaded."); });
@@ -827,6 +1176,8 @@ function wireEvents() {
 
 initMajorSelect();
 initGodPowerSelect(false);
+initUniqueTechSelects(false);
+initBonusSelects(false);
 initMinorPickers();
 wireEvents();
 updatePreview();

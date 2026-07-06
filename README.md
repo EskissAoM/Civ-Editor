@@ -1,82 +1,80 @@
-# AoM Retold Major God Creator - pantheon draft
+# AoM Retold Major God Creator - GitHub Pages Draft
 
-Static GitHub Pages prototype. No backend, no build step, no paid hosting.
+Static, backend-free prototype for generating a custom Age of Mythology: Retold major god mod ZIP in the browser.
 
-This version is based on the uploaded vanilla files, the example mod folder layout, the GodPicker files, and the TechTree files.
+## Current features
 
-## What it currently generates
+- Choose a pantheon/culture.
+- Choose a custom major god display name.
+- Choose a custom major god title for `STR_CIV_<NAME>_T`.
+- Internal name is generated automatically from the display name.
+- Choose any existing Archaic Age god power, grouped by pantheon.
+- Choose up to two major-god unique technologies.
+  - Options are filtered by pantheon.
+  - `Clairvoyance` only appears when the selected god power is `Vision`.
+  - `NepheleanHarpy` is intentionally excluded.
+  - Unique technology labels are shown in readable form, while exports keep the exact internal tech IDs. For example, `Olympian Parentage` exports as `OlympianParentage`.
+- `Channels` is treated as the exact unique technology only; old leftover entries like `Plow` and `HuntingEquipment` are not granted.
+  - `FreyrsGift` adds the extra `SetOnTechResearchedTech` effect for `FreyrTechCostBonus`.
+- Choose two existing minor gods for each age.
+- Prevents duplicate minor gods in the same age.
+- Excludes `malinalxochitldummy`.
+- Generates:
+  - `major_gods_mods.xml`
+  - `minor_gods_mods.xml`
+  - `techtree_mods.xml`
+  - `stringmods.txt`
+  - GodPicker XAML
+  - TechTree XAML
+  - empty placeholder `proto_mods.xml`
+  - empty placeholder `powers_mods.xml`
 
-The app generates a ZIP like:
+## GitHub Pages usage
 
-```text
-<MyMajorGod>/
-  README_INSTALL.txt
-  game/
-    data/
-      gameplay/
-        major_gods_mods.xml
-        minor_gods_mods.xml
-        techtree_mods.xml
-        proto_mods.xml
-        powers_mods.xml
-      strings/
-        English/
-          stringmods.txt
-    ui_myth/
-      content/pregame/godpicker/
-        GodPicker_<Culture>_<Name>.xaml
-      content/pregame/techtree/
-        TechTree_<Culture>_<Name>.xaml
-      resources/<name>/
-        <uploaded icon>
-```
+Upload these files to a GitHub repository root:
 
-## Current behavior
+- `index.html`
+- `style.css`
+- `app.js`
+- `aomData.js`
+- `godPickerTemplates.js`
+- `techTreeTemplates.js`
+- `bonusData.js`
+- `README.md`
 
-- Creates a new **major god** for a selected pantheon/culture.
-- Does **not** ask the user to clone a major god anymore.
-- Uses a hidden default template major only for basic pantheon data such as starting units/resources until custom rules are added.
-- Lets the user choose any existing Archaic Age god power, labeled by pantheon.
-- Uses that source major's real Archaic GodPicker and TechTree block.
-- Lets the user choose two existing minor gods per age.
-- Displays minor god names in uppercase in the UI.
-- Writes selected minor god tech names with correct casing, for example `ClassicalAgeAthena`.
-- Adds the selected god power in `techtree_mods.xml` using a `Data / GodPower` effect.
-- Adds age tech effects such as `ClassicalAgeGeneral`, `ClassicalAgeGreek`, etc.
-- Adds `ArchaicAgeWeakenUnits` to the custom Archaic age tech.
-- Builds `GodPicker_<Culture>_<Name>.xaml` from the real uploaded GodPicker XAML blocks.
-- Builds `TechTree_<Culture>_<Name>.xaml` from the real uploaded TechTree XAML blocks.
-- Replaces each age's GodPicker/TechTree bonus tracks with the selected minor gods.
-- Writes `stringmods.txt` using the `ID = "..." ; Str = "..."` format.
+Then enable GitHub Pages from **Settings → Pages → Deploy from branch → main → root**.
 
-## GitHub Pages
+## Notes
 
-Upload these files to the root of your GitHub repository:
+The app generates the ZIP locally in the user's browser. Nothing is uploaded to a server.
 
-```text
-index.html
-style.css
-app.js
-aomData.js
-godPickerTemplates.js
-techTreeTemplates.js
-README.md
-```
+The generated ArchaicAge block now includes:
 
-Then enable GitHub Pages:
+- selected god power node/effect
+- selected unique tech nodes/effects
+- selected god-bonus techtree effects from `bonusData.js`
+- `ArchaicAgeWeakenUnits`
+- the extra Freyr cost-bonus effect when `FreyrsGift` is chosen
 
-1. Repository Settings
-2. Pages
-3. Deploy from branch
-4. Branch: `main`
-5. Folder: `/root`
+The generated strings are intentionally limited to the mandatory General strings referenced from `major_gods_mods.xml`.
 
-## Size note
 
-The site stays efficient by storing only extracted data/blocks needed for generation, not the full original game assets. The generated ZIP is created locally in the user's browser and is not hosted by GitHub Pages.
+## God bonus implementation notes
 
-## Important limitation
+This draft adds up to four major-god bonuses from `major_god_bonus_implementation_map_v1.xlsx`. Bonuses are filtered by the selected pantheon using the compatibility column.
 
-This is still a structural/testing draft. The generated mod format is much closer to AoM Retold, but you should test in-game and compare the generated age techs and pregame UI against the real vanilla definitions if something is missing.
+Runtime behavior:
 
-Major-god-specific bonuses such as Hades shades, Poseidon militia details, and similar custom rules are intentionally left for the next pass.
+- `major_gods.xml` snippets are inserted into `major_gods_mods.xml`. `startingresources` and `startingunits` replace the template's matching sections; standalone `<unit>` snippets are appended under `<startingunits>`.
+- `techtree.xml` snippets are inserted into the custom Archaic Age tech in `techtree_mods.xml`, so they activate at game start.
+- Complex age-scaling bonuses may still need refinement if the effect should be split across Classical/Heroic/Mythic instead of applied immediately.
+
+
+## Latest fixes
+
+- Unique technology labels now display as readable names, for example `Olympian Parentage`, while exported XML still uses `OlympianParentage`.
+- Susanoo's `Unit abilities recharge faster` bonus is now under the Japanese pantheon and is Japanese-only.
+
+## Latest change
+
+- Susanoo's `Unit abilities recharge faster` bonus keeps Japanese/Susanoo as its source, but is now allowed for all pantheons.
