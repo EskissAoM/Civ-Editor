@@ -430,6 +430,7 @@ function enforceBonusDifference(changedSelect) {
 }
 
 const GAIA_ECON_GUILD_BONUS_LABEL = "Economic Guild and upgrades are cheaper and available earlier";
+const KRONOS_EXTRA_MYTH_UNITS_BONUS_LABEL = "Receives 2 free Temple myth units instead of 1 on age-up";
 
 const GAIA_ECON_GUILD_ARCHAIC_EFFECTS = `<effect type="TechStatus" status="obtainable">Plow</effect>
 <effect type="TechStatus" status="obtainable">HuntingEquipment</effect>
@@ -522,6 +523,7 @@ function bonusTechEffects(config) {
   return selectedBonusEntries(config)
     .map((entry) => {
       if (entry.label === GAIA_ECON_GUILD_BONUS_LABEL) return GAIA_ECON_GUILD_ARCHAIC_EFFECTS;
+      if (entry.label === KRONOS_EXTRA_MYTH_UNITS_BONUS_LABEL) return "";
       return sanitizeBonusTechEffects(entry.techEffects || "");
     })
     .filter(Boolean)
@@ -534,6 +536,65 @@ function bonusClassicalTechEffects(config) {
 
 function bonusHeroicTechEffects(config) {
   return selectedHasBonusLabel(config, GAIA_ECON_GUILD_BONUS_LABEL) ? GAIA_ECON_GUILD_HEROIC_EFFECTS : "";
+}
+
+function hasKronosExtraMythUnitBonus(config) {
+  return selectedHasBonusLabel(config, KRONOS_EXTRA_MYTH_UNITS_BONUS_LABEL);
+}
+
+function kronosExtraMythUnitPlans(config) {
+  if (!hasKronosExtraMythUnitBonus(config)) return [];
+  const agePairs = [
+    { ownerAge: "ArchaicAge", nextMinorAge: "ClassicalAge" },
+    { ownerAge: "ClassicalAge", nextMinorAge: "HeroicAge" },
+    { ownerAge: "HeroicAge", nextMinorAge: "MythicAge" },
+  ];
+  const db = window.AOM_MINOR_GOD_MYTH_UNITS || {};
+  const usedNames = new Set();
+  const plans = [];
+  for (const pair of agePairs) {
+    const selectedMinorGods = config.minorGods[pair.nextMinorAge] || [];
+    for (const rawMinorTech of selectedMinorGods) {
+      const minorTech = canonicalMinorTech(rawMinorTech);
+      const mythUnit = db[minorTech] || db[minorTech.toLowerCase()] || "";
+      if (!mythUnit) {
+        console.warn(`No temple myth-unit mapping found for ${minorTech}; skipping Kronos extra myth-unit tech.`);
+        continue;
+      }
+      let techName = `${config.internalName}Extra${mythUnit}`;
+      if (usedNames.has(techName)) techName = `${techName}For${minorTech}`;
+      usedNames.add(techName);
+      plans.push({ ownerAge: pair.ownerAge, minorTech, mythUnit, techName });
+    }
+  }
+  return plans;
+}
+
+function kronosExtraMythUnitStatusEffects(config, ownerAge) {
+  const techs = kronosExtraMythUnitPlans(config)
+    .filter((plan) => plan.ownerAge === ownerAge)
+    .map((plan) => plan.techName);
+  return techStatusEffects(techs, "obtainable");
+}
+
+function kronosExtraMythUnitTechs(config) {
+  return kronosExtraMythUnitPlans(config).map((plan) => `<tech name="${escapeXml(plan.techName)}">
+		<researchpoints>0.0000</researchpoints>
+		<delay>0.1000</delay>
+		<status>UNOBTAINABLE</status>
+		<flag>AgeTech</flag>
+		<flag>HideAllNotifications</flag>
+		<prereqs>
+			<techstatus status="Active">${escapeXml(plan.minorTech)}</techstatus>
+		</prereqs>
+		<effects>
+			<effect type="CreateUnit" unit="${escapeXml(plan.mythUnit)}" generator="AbstractTemple">
+				<pattern type="Leaving" speed="0.00" radius="0.00" quantity="1.00" minradius="0.00">
+					<offset x="-5.00" y="0.00" z="0.00"></offset>
+				</pattern>
+			</effect>
+		</effects>
+	</tech>`).join("\n\n\t");
 }
 
 function sanitizeBonusTechEffects(xml) {
@@ -847,6 +908,7 @@ function generateTechTreeMods(config) {
 		<flag>AgeTech</flag>
 		<effects>
 ${techStatusEffects([...classical, c.classical])}
+${kronosExtraMythUnitStatusEffects(config, "ArchaicAge")}
 ${techStatusEffects(uniqueTechNames(config), "obtainable")}
 ${indentTabBlock(bonusTechEffects(config), 3)}
 			<effect type="TechStatus" status="active">ArchaicAgeWeakenUnits</effect>
@@ -867,6 +929,7 @@ ${uniqueTechEntries(config).some((group) => group.extraArchaicEffect === "FreyrT
 			<effect type="TechStatus" status="active">ClassicalAgeGeneral</effect>
 			<effect type="TechStatus" status="active">${escapeXml(cultureAgeTech("ClassicalAge", culture))}</effect>
 ${techStatusEffects([...heroic, c.heroic])}
+${kronosExtraMythUnitStatusEffects(config, "ClassicalAge")}
 ${indentTabBlock(bonusClassicalTechEffects(config), 3)}
 		</effects>
 	</tech>
@@ -883,6 +946,7 @@ ${indentTabBlock(bonusClassicalTechEffects(config), 3)}
 			<effect type="TechStatus" status="active">HeroicAgeGeneral</effect>
 			<effect type="TechStatus" status="active">${escapeXml(cultureAgeTech("HeroicAge", culture))}</effect>
 ${techStatusEffects([...mythic, c.mythic])}
+${kronosExtraMythUnitStatusEffects(config, "HeroicAge")}
 ${indentTabBlock(bonusHeroicTechEffects(config), 3)}
 		</effects>
 	</tech>
@@ -900,6 +964,9 @@ ${indentTabBlock(bonusHeroicTechEffects(config), 3)}
 			<effect type="TechStatus" status="active">${escapeXml(cultureAgeTech("MythicAge", culture))}</effect>
 		</effects>
 	</tech>
+${kronosExtraMythUnitTechs(config) ? `
+
+	${kronosExtraMythUnitTechs(config)}` : ""}
 </techtreemods>\n`;
 }
 

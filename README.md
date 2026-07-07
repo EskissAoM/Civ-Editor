@@ -93,3 +93,54 @@ The generator no longer clones Zeus/Ra/Kronos/etc. for `major_gods_mods.xml`. It
 
 - `Gaia - Starts with 2 Hero Citizens` now patches `major_gods_mods.xml` by replacing `VillagerAtlantean` with `VillagerAtlanteanHero` inside both normal and deathmatch `<startingunits>` blocks instead of appending an extra unit line.
 - `Gaia - Economic buildings grow Lush. Lush heals friendly units and buildings` is now available to all pantheons and inserts the full `terraincreeps` block, including `House`.
+
+## Kronos extra myth-unit bonus
+
+The Kronos bonus **Receives 2 free Temple myth units instead of 1 on age-up** is now handled as a special case.
+
+When selected, the generator:
+
+- Adds `CustomExtra<MythUnit>` obtainability effects to the custom age tech before the relevant minor-god age choice becomes active.
+- Generates one hidden extra tech per selected minor-god option.
+- Uses `minorGodMythUnits.js` as the minor-god → temple myth-unit mapping.
+
+Example:
+
+```xml
+<effect type="TechStatus" status="obtainable">MyCustomExtraSatyr</effect>
+```
+
+and:
+
+```xml
+<tech name="MyCustomExtraSatyr">
+  <prereqs>
+    <techstatus status="Active">HeroicAgeHyperion</techstatus>
+  </prereqs>
+  <effects>
+    <effect type="CreateUnit" unit="Satyr" generator="AbstractTemple">
+      <pattern type="Leaving" speed="0.00" radius="0.00" quantity="1.00" minradius="0.00">
+        <offset x="-5.00" y="0.00" z="0.00"></offset>
+      </pattern>
+    </effect>
+  </effects>
+</tech>
+```
+
+
+## Kronos extra myth-unit mapping update
+
+The `minorGodMythUnits.js` database is now extracted from `techtree(2).xml` by scanning each `ClassicalAge*`, `HeroicAge*`, and `MythicAge*` tech for the first temple-created myth unit (`<effect type="CreateUnit" ... generator="...Temple">`). `ClassicalAgeMalinalxochitlDummy` is excluded.
+
+This database drives the Kronos bonus `Receives 2 free Temple myth units instead of 1 on age-up`.
+
+
+## Kronos myth-unit map corrections
+
+Applied manual corrections:
+
+- Removed Set animal rows: `ClassicalAgeSet`, `HeroicAgeSet`, `MythicAgeSet`.
+- Removed Tsukuyomi Kitsune rows: `ClassicalAgeTsukuyomi`, `HeroicAgeTsukuyomi`, `MythicAgeTsukuyomi`.
+- Forced `HeroicAgeSobek` to `Petsuchos` with count `1` in the verification CSV.
+
+The generator itself creates one extra unit per selected minor god, using `AbstractTemple`, as requested for the Kronos bonus template.
