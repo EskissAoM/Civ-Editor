@@ -144,3 +144,19 @@ Applied manual corrections:
 - Forced `HeroicAgeSobek` to `Petsuchos` with count `1` in the verification CSV.
 
 The generator itself creates one extra unit per selected minor god, using `AbstractTemple`, as requested for the Kronos bonus template.
+
+
+## Latest Aztec bonus fixes
+
+- Quetzalcoatl Eagle Warrior range/LOS bonus is now applied only in HeroicAge and MythicAge custom techs.
+- Tezcatlipoca Devoting Settlers favor bonus is now applied once in Archaic, Classical, Heroic, and Mythic custom age techs.
+- Tezcatlipoca Jaguar Rider bonus is now applied only in HeroicAge custom tech.
+
+## Latest change
+
+- Added special handling for Tezcatlipoca — Every 2 lost trainable myth units can create an Obsidian Shard.
+- The major_gods.xml bonus spawning block remains in major_gods_mods.xml.
+- Companion ObsidianShard action enables are now split by age:
+  - ClassicalAge<CustomGod>: enables MaintainTrainClassical.
+  - HeroicAge<CustomGod>: enables MaintainTrainHeroic and disables MaintainTrainClassical.
+  - MythicAge<CustomGod>: enables MaintainTrainMythic and disables MaintainTrainHeroic.

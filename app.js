@@ -431,6 +431,54 @@ function enforceBonusDifference(changedSelect) {
 
 const GAIA_ECON_GUILD_BONUS_LABEL = "Economic Guild and upgrades are cheaper and available earlier";
 const KRONOS_EXTRA_MYTH_UNITS_BONUS_LABEL = "Receives 2 free Temple myth units instead of 1 on age-up";
+const ORANOS_SKY_PASSAGE_BONUS_LABEL = "Can build a new Sky Passage each age.Units can travel instantly between Sky Passages";
+const HUITZ_TONALLI_RESOURCES_BONUS_LABEL = "Collecting Tonalli grants resources in addition to favor";
+const HUITZ_SHORN_TONALLI_BONUS_LABEL = "Shorn Ones have more hit points. Shorn Ones generate extra Tonalli in combat";
+const QUETZ_EAGLE_RANGE_LOS_BONUS_LABEL = "Eagle Warriors gain +1 range in the Heroic and Mythic Ages.Eagle Warriors gain +1 line of sight in the Heroic and Mythic Ages";
+const TEZCAT_DEVOTE_FAVOR_BONUS_LABEL = "Devoting Settlers gives higher immediate favor by age";
+const TEZCAT_JAGUAR_RIDER_BONUS_LABEL = "Jaguar Riders are available from the Heroic Age";
+const TEZCAT_OBSIDIAN_SHARD_BONUS_LABEL = "Every 2 lost trainable myth units can create an Obsidian Shard. Obsidian Shards may summon a free myth unit";
+
+const ORANOS_SKY_PASSAGE_ARCHAIC_EFFECTS = `<effect type="Data" amount="1.00" subtype="Enable" relativity="Absolute">
+	<target type="ProtoUnit">SkyPassage</target>
+</effect>`;
+
+const ORANOS_SKY_PASSAGE_AGE_EFFECTS = `<effect type="Data" amount="1.00" subtype="BuildLimit" relativity="Absolute">
+	<target type="ProtoUnit">SkyPassage</target>
+</effect>`;
+
+const QUETZ_EAGLE_RANGE_LOS_AGE_EFFECTS = `<effect type="Data" action="RangedAttack" amount="1.0" subtype="MaximumRange" relativity="Absolute">
+	<target type="ProtoUnit">EagleWarrior</target>
+</effect>
+<effect type="Data" amount="1.00" subtype="LOS" relativity="Absolute">
+	<target type="ProtoUnit">EagleWarrior</target>
+</effect>`;
+
+const TEZCAT_DEVOTE_FAVOR_AGE_EFFECTS = `<effect type="Data" action="DevoteMinor" amount="1.10" subtype="WorkRate" unittype="Favor" relativity="BasePercent">
+	<target type="ProtoUnit">VillagerAztec</target>
+</effect>`;
+
+const TEZCAT_JAGUAR_RIDER_HEROIC_EFFECTS = `<effect type="Data" amount="1.00" subtype="Enable" relativity="Absolute">
+	<target type="ProtoUnit">JaguarRider</target>
+</effect>`;
+
+const TEZCAT_OBSIDIAN_SHARD_CLASSICAL_EFFECTS = `<effect type="Data" action="MaintainTrainClassical" amount="1.00" subtype="ActionEnable" relativity="Absolute">
+	<target type="ProtoUnit">ObsidianShard</target>
+</effect>`;
+
+const TEZCAT_OBSIDIAN_SHARD_HEROIC_EFFECTS = `<effect type="Data" action="MaintainTrainHeroic" amount="1.00" subtype="ActionEnable" relativity="Absolute">
+	<target type="ProtoUnit">ObsidianShard</target>
+</effect>
+<effect type="Data" action="MaintainTrainClassical" amount="0.00" subtype="ActionEnable" relativity="Assign">
+	<target type="ProtoUnit">ObsidianShard</target>
+</effect>`;
+
+const TEZCAT_OBSIDIAN_SHARD_MYTHIC_EFFECTS = `<effect type="Data" action="MaintainTrainMythic" amount="1.00" subtype="ActionEnable" relativity="Absolute">
+	<target type="ProtoUnit">ObsidianShard</target>
+</effect>
+<effect type="Data" action="MaintainTrainHeroic" amount="0.00" subtype="ActionEnable" relativity="Assign">
+	<target type="ProtoUnit">ObsidianShard</target>
+</effect>`;
 
 const GAIA_ECON_GUILD_ARCHAIC_EFFECTS = `<effect type="TechStatus" status="obtainable">Plow</effect>
 <effect type="TechStatus" status="obtainable">HuntingEquipment</effect>
@@ -523,7 +571,12 @@ function bonusTechEffects(config) {
   return selectedBonusEntries(config)
     .map((entry) => {
       if (entry.label === GAIA_ECON_GUILD_BONUS_LABEL) return GAIA_ECON_GUILD_ARCHAIC_EFFECTS;
+      if (entry.label === ORANOS_SKY_PASSAGE_BONUS_LABEL) return ORANOS_SKY_PASSAGE_ARCHAIC_EFFECTS;
+      if (entry.label === TEZCAT_DEVOTE_FAVOR_BONUS_LABEL) return TEZCAT_DEVOTE_FAVOR_AGE_EFFECTS;
       if (entry.label === KRONOS_EXTRA_MYTH_UNITS_BONUS_LABEL) return "";
+      if (entry.label === QUETZ_EAGLE_RANGE_LOS_BONUS_LABEL) return "";
+      if (entry.label === TEZCAT_JAGUAR_RIDER_BONUS_LABEL) return "";
+      if (entry.label === TEZCAT_OBSIDIAN_SHARD_BONUS_LABEL) return "";
       return sanitizeBonusTechEffects(entry.techEffects || "");
     })
     .filter(Boolean)
@@ -531,13 +584,31 @@ function bonusTechEffects(config) {
 }
 
 function bonusClassicalTechEffects(config) {
-  return selectedHasBonusLabel(config, GAIA_ECON_GUILD_BONUS_LABEL) ? GAIA_ECON_GUILD_CLASSICAL_EFFECTS : "";
+  const effects = [];
+  if (selectedHasBonusLabel(config, GAIA_ECON_GUILD_BONUS_LABEL)) effects.push(GAIA_ECON_GUILD_CLASSICAL_EFFECTS);
+  if (selectedHasBonusLabel(config, ORANOS_SKY_PASSAGE_BONUS_LABEL)) effects.push(ORANOS_SKY_PASSAGE_AGE_EFFECTS);
+  if (selectedHasBonusLabel(config, TEZCAT_DEVOTE_FAVOR_BONUS_LABEL)) effects.push(TEZCAT_DEVOTE_FAVOR_AGE_EFFECTS);
+  if (selectedHasBonusLabel(config, TEZCAT_OBSIDIAN_SHARD_BONUS_LABEL)) effects.push(TEZCAT_OBSIDIAN_SHARD_CLASSICAL_EFFECTS);
+  return effects.filter(Boolean).join("\n");
 }
-
 function bonusHeroicTechEffects(config) {
-  return selectedHasBonusLabel(config, GAIA_ECON_GUILD_BONUS_LABEL) ? GAIA_ECON_GUILD_HEROIC_EFFECTS : "";
+  const effects = [];
+  if (selectedHasBonusLabel(config, GAIA_ECON_GUILD_BONUS_LABEL)) effects.push(GAIA_ECON_GUILD_HEROIC_EFFECTS);
+  if (selectedHasBonusLabel(config, ORANOS_SKY_PASSAGE_BONUS_LABEL)) effects.push(ORANOS_SKY_PASSAGE_AGE_EFFECTS);
+  if (selectedHasBonusLabel(config, QUETZ_EAGLE_RANGE_LOS_BONUS_LABEL)) effects.push(QUETZ_EAGLE_RANGE_LOS_AGE_EFFECTS);
+  if (selectedHasBonusLabel(config, TEZCAT_DEVOTE_FAVOR_BONUS_LABEL)) effects.push(TEZCAT_DEVOTE_FAVOR_AGE_EFFECTS);
+  if (selectedHasBonusLabel(config, TEZCAT_JAGUAR_RIDER_BONUS_LABEL)) effects.push(TEZCAT_JAGUAR_RIDER_HEROIC_EFFECTS);
+  if (selectedHasBonusLabel(config, TEZCAT_OBSIDIAN_SHARD_BONUS_LABEL)) effects.push(TEZCAT_OBSIDIAN_SHARD_HEROIC_EFFECTS);
+  return effects.filter(Boolean).join("\n");
 }
-
+function bonusMythicTechEffects(config) {
+  const effects = [];
+  if (selectedHasBonusLabel(config, ORANOS_SKY_PASSAGE_BONUS_LABEL)) effects.push(ORANOS_SKY_PASSAGE_AGE_EFFECTS);
+  if (selectedHasBonusLabel(config, QUETZ_EAGLE_RANGE_LOS_BONUS_LABEL)) effects.push(QUETZ_EAGLE_RANGE_LOS_AGE_EFFECTS);
+  if (selectedHasBonusLabel(config, TEZCAT_DEVOTE_FAVOR_BONUS_LABEL)) effects.push(TEZCAT_DEVOTE_FAVOR_AGE_EFFECTS);
+  if (selectedHasBonusLabel(config, TEZCAT_OBSIDIAN_SHARD_BONUS_LABEL)) effects.push(TEZCAT_OBSIDIAN_SHARD_MYTHIC_EFFECTS);
+  return effects.filter(Boolean).join("\n");
+}
 function hasKronosExtraMythUnitBonus(config) {
   return selectedHasBonusLabel(config, KRONOS_EXTRA_MYTH_UNITS_BONUS_LABEL);
 }
@@ -610,6 +681,7 @@ function sanitizeBonusTechEffects(xml) {
 
 function bonusMajorXml(config) {
   return selectedBonusEntries(config)
+    .filter((entry) => ![HUITZ_TONALLI_RESOURCES_BONUS_LABEL, HUITZ_SHORN_TONALLI_BONUS_LABEL].includes(entry.label))
     .map((entry) => entry.majorXml || "")
     .filter(Boolean)
     .join("\n");
@@ -820,6 +892,47 @@ function applyMajorGodSpecialBonusPatches(doc, civ, config) {
   if (hasSelectedBonus(config, "Gaia", "Starts with 2 Hero Citizens")) {
     replaceAtlanteanStartingCitizensWithHeroes(civ);
   }
+  if (hasSelectedBonus(config, "Huitzilopochtli", HUITZ_TONALLI_RESOURCES_BONUS_LABEL)) {
+    insertIntoBountyResourceEarning(doc, civ, HUITZ_TONALLI_RESOURCE_REWARDS);
+  }
+  if (hasSelectedBonus(config, "Huitzilopochtli", HUITZ_SHORN_TONALLI_BONUS_LABEL)) {
+    insertIntoBountyResourceEarning(doc, civ, HUITZ_SHORN_TONALLI_MULTIPLIER);
+  }
+}
+
+const HUITZ_TONALLI_RESOURCE_REWARDS = `<bountyreward unittype="MilitaryUnit" resourcetype="Favor" condition="Destroy" asspawnedunit="Tonalli">0.75</bountyreward>
+<bountyreward unittype="MilitaryUnit" resourcetype="Food" multiplybyunitcost="true" condition="Destroy" asspawnedunit="Tonalli">0.05</bountyreward>
+<bountyreward unittype="MilitaryUnit" resourcetype="Wood" multiplybyunitcost="true" condition="Destroy" asspawnedunit="Tonalli">0.05</bountyreward>
+<bountyreward unittype="MilitaryUnit" resourcetype="Gold" multiplybyunitcost="true" condition="Destroy" asspawnedunit="Tonalli">0.05</bountyreward>`;
+
+const HUITZ_SHORN_TONALLI_MULTIPLIER = `<bountytargetmultiplier relativity="basepercent" unittype="MilitaryUnit" attackertype="ShornOne" condition="Destroy" resourcetype="Favor">1.0</bountytargetmultiplier>`;
+
+function insertIntoBountyResourceEarning(doc, civ, fragmentXml) {
+  const bounty = civ.querySelector("bountyresourceearning");
+  if (!bounty) {
+    console.warn("Selected bonus needs an existing <bountyresourceearning> block, but this pantheon template does not have one. Skipping bounty insertion.");
+    return;
+  }
+  const parser = new DOMParser();
+  const fragmentDoc = parser.parseFromString(`<root>${fragmentXml}</root>`, "application/xml");
+  if (fragmentDoc.querySelector("parsererror")) {
+    console.warn("Skipping unparsable bounty fragment", fragmentXml);
+    return;
+  }
+  const existingKeys = new Set(Array.from(bounty.children).map(nodeSignature));
+  for (const node of Array.from(fragmentDoc.documentElement.children)) {
+    const imported = doc.importNode(node, true);
+    const key = nodeSignature(imported);
+    if (!existingKeys.has(key)) {
+      bounty.appendChild(imported);
+      existingKeys.add(key);
+    }
+  }
+}
+
+function nodeSignature(node) {
+  const attrs = Array.from(node.attributes || []).map((a) => `${a.name}=${a.value}`).sort().join("|");
+  return `${node.tagName}|${attrs}|${(node.textContent || "").trim()}`;
 }
 
 function replaceAtlanteanStartingCitizensWithHeroes(civ) {
@@ -962,6 +1075,7 @@ ${indentTabBlock(bonusHeroicTechEffects(config), 3)}
 		<effects>
 			<effect type="TechStatus" status="active">MythicAgeGeneral</effect>
 			<effect type="TechStatus" status="active">${escapeXml(cultureAgeTech("MythicAge", culture))}</effect>
+${indentTabBlock(bonusMythicTechEffects(config), 3)}
 		</effects>
 	</tech>
 ${kronosExtraMythUnitTechs(config) ? `
