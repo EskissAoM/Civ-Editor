@@ -40,6 +40,7 @@ Upload these files to a GitHub repository root:
 - `godPickerTemplates.js`
 - `techTreeTemplates.js`
 - `bonusData.js`
+- `majorGodTemplates.js`
 - `README.md`
 
 Then enable GitHub Pages from **Settings → Pages → Deploy from branch → main → root**.
@@ -73,8 +74,22 @@ Runtime behavior:
 ## Latest fixes
 
 - Unique technology labels now display as readable names, for example `Olympian Parentage`, while exported XML still uses `OlympianParentage`.
-- Susanoo's `Unit abilities recharge faster` bonus is now under the Japanese pantheon and is Japanese-only.
+- Susanoo's `Unit abilities recharge faster` bonus keeps Japanese/Susanoo as its source, but is allowed for all pantheons.
+- Bonus techtree snippets are sanitized so copied vanilla minor-god age unlocks such as `HeroicAgeTheia`, `HeroicAgeRheia`, or `HeroicAgeGaia` are not injected into the generated custom Archaic age tech. Minor-god age unlocks should only come from the user-selected minor-god dropdowns.
+- `major_gods_mods.xml` is now generated from `majorGodTemplates.js`, which comes from the clean `major_gods_template.xml` pantheon templates, instead of cloning a vanilla major god.
 
-## Latest change
+## Pantheon template change
 
-- Susanoo's `Unit abilities recharge faster` bonus keeps Japanese/Susanoo as its source, but is now allowed for all pantheons.
+The generator no longer clones Zeus/Ra/Kronos/etc. for `major_gods_mods.xml`. It starts from the clean pantheon template matching the selected pantheon, then patches only the custom major god name, string IDs, ArchaicAge tech, optional custom icon, and selected major-god bonus snippets. This is intended to prevent vanilla major-god-specific data from leaking into unrelated custom gods.
+
+
+## Latest fix
+
+- Kronos bonus `Buildings construct faster near Manors` now also adds `ProtoUnitFlag DisplayRange` to `Manor` in the generated Archaic age tech.
+
+- Fixed Oranos bonus “All units gain +4 line of sight” to also add the AbstractOracle AutoGatherFavor ModifyRateCap effect to the generated Archaic age tech.
+
+## Latest Gaia bonus fixes
+
+- `Gaia - Starts with 2 Hero Citizens` now patches `major_gods_mods.xml` by replacing `VillagerAtlantean` with `VillagerAtlanteanHero` inside both normal and deathmatch `<startingunits>` blocks instead of appending an extra unit line.
+- `Gaia - Economic buildings grow Lush. Lush heals friendly units and buildings` is now available to all pantheons and inserts the full `terraincreeps` block, including `House`.

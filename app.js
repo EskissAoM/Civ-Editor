@@ -175,11 +175,18 @@ function selectedPantheon() {
 }
 
 function selectedBaseMajor() {
+  // Kept only for legacy helpers that still need a culture-bearing object.
+  // Major-god XML generation no longer clones this vanilla major god.
   const culture = selectedPantheon();
   const preferred = DEFAULT_TEMPLATE_MAJOR_BY_CULTURE[culture];
   return window.AOM_DATA.majors.find((m) => m.culture === culture && m.name === preferred)
     || window.AOM_DATA.majors.find((m) => m.culture === culture)
     || window.AOM_DATA.majors[0];
+}
+
+function pantheonTemplateXml(culture) {
+  const templates = window.AOM_MAJOR_GOD_TEMPLATES || {};
+  return templates[culture] || templates.Greek || "";
 }
 
 function displayGodName(name) {
@@ -422,11 +429,122 @@ function enforceBonusDifference(changedSelect) {
   }
 }
 
+const GAIA_ECON_GUILD_BONUS_LABEL = "Economic Guild and upgrades are cheaper and available earlier";
+
+const GAIA_ECON_GUILD_ARCHAIC_EFFECTS = `<effect type="TechStatus" status="obtainable">Plow</effect>
+<effect type="TechStatus" status="obtainable">HuntingEquipment</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="ProtoUnit">EconomicGuild</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="ProtoUnit">EconomicGuild</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="Tech">Husbandry</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="Tech">Husbandry</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="Tech">Plow</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="Tech">Plow</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="Tech">HuntingEquipment</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="Tech">HuntingEquipment</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="Tech">Irrigation</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="Tech">Irrigation</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="Tech">FloodControl</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="Tech">FloodControl</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Food" relativity="Percent">
+	<target type="Tech">HandAxe</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="Tech">HandAxe</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Food" relativity="Percent">
+	<target type="Tech">BowSaw</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="Tech">BowSaw</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Food" relativity="Percent">
+	<target type="Tech">Carpenters</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="Tech">Carpenters</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Food" relativity="Percent">
+	<target type="Tech">Pickaxe</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="Tech">Pickaxe</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Food" relativity="Percent">
+	<target type="Tech">ShaftMine</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="Tech">ShaftMine</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Food" relativity="Percent">
+	<target type="Tech">Quarry</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="Tech">Quarry</target>
+</effect>`;
+
+const GAIA_ECON_GUILD_CLASSICAL_EFFECTS = `<effect type="TechStatus" status="obtainable">BowSaw</effect>
+<effect type="TechStatus" status="obtainable">ShaftMine</effect>
+<effect type="TechStatus" status="obtainable">Irrigation</effect>`;
+
+const GAIA_ECON_GUILD_HEROIC_EFFECTS = `<effect type="TechStatus" status="obtainable">Carpenters</effect>
+<effect type="TechStatus" status="obtainable">Quarry</effect>
+<effect type="TechStatus" status="obtainable">FloodControl</effect>`;
+
+function selectedHasBonusLabel(config, label) {
+  return selectedBonusEntries(config).some((entry) => entry.label === label);
+}
+
 function bonusTechEffects(config) {
   return selectedBonusEntries(config)
-    .map((entry) => entry.techEffects || "")
+    .map((entry) => {
+      if (entry.label === GAIA_ECON_GUILD_BONUS_LABEL) return GAIA_ECON_GUILD_ARCHAIC_EFFECTS;
+      return sanitizeBonusTechEffects(entry.techEffects || "");
+    })
     .filter(Boolean)
     .join("\n");
+}
+
+function bonusClassicalTechEffects(config) {
+  return selectedHasBonusLabel(config, GAIA_ECON_GUILD_BONUS_LABEL) ? GAIA_ECON_GUILD_CLASSICAL_EFFECTS : "";
+}
+
+function bonusHeroicTechEffects(config) {
+  return selectedHasBonusLabel(config, GAIA_ECON_GUILD_BONUS_LABEL) ? GAIA_ECON_GUILD_HEROIC_EFFECTS : "";
+}
+
+function sanitizeBonusTechEffects(xml) {
+  if (!xml || !xml.trim()) return "";
+  // Bonus snippets are copied from vanilla major gods. Some vanilla snippets include
+  // their original minor-god age unlocks, for example HeroicAgeTheia / HeroicAgeRheia / HeroicAgeGaia.
+  // Those are not part of the bonus itself and must not be injected into the custom ArchaicAge tech.
+  // Minor-god unlocks are generated only from the user's selected minor-god dropdowns.
+  return String(xml)
+    .replace(/\s*<effect\b(?=[^>]*\btype=["']TechStatus["'])(?=[^>]*\bstatus=["'](?:obtainable|active)["'])[^>]*>\s*(?:ArchaicAge|ClassicalAge|HeroicAge|MythicAge)[A-Za-z0-9_]+\s*<\/effect>/gi, "")
+    .trim();
 }
 
 function bonusMajorXml(config) {
@@ -545,7 +663,8 @@ function getConfig() {
     majorTitle: els.majorTitle.value.trim() || `${els.displayName.value.trim() || "Custom Major God"} followers`,
     internalName: internal,
     lowerName: lower(internal),
-    baseMajorName: base.name,
+    templateSource: `${selectedPantheon()}Template`,
+    uiTemplateMajor: base.name,
     baseCulture: selectedPantheon(),
     baseMajor: base,
     godPower: els.godPower.value,
@@ -600,15 +719,19 @@ function validateConfig(config) {
   return errors;
 }
 
-function cloneAndPatchMajorGodXml(config, iconPath) {
+function generateMajorGodXmlFromPantheonTemplate(config, iconPath) {
+  const templateXml = pantheonTemplateXml(config.baseCulture);
+  if (!templateXml) throw new Error(`Missing clean major_gods template for ${config.baseCulture}.`);
+
   const parser = new DOMParser();
-  const doc = parser.parseFromString(config.baseMajor.xml, "application/xml");
+  const doc = parser.parseFromString(templateXml, "application/xml");
   const parseError = doc.querySelector("parsererror");
-  if (parseError) throw new Error("Could not parse base major god XML.");
+  if (parseError) throw new Error(`Could not parse ${config.baseCulture} major_gods template.`);
   const civ = doc.documentElement;
 
   setText(doc, civ, "name", config.internalName);
   setText(doc, civ, "key", config.internalName.slice(0, 1).toUpperCase());
+  setText(doc, civ, "culture", config.baseCulture);
   setText(doc, civ, "displaynameid", config.stringPrefix);
   setText(doc, civ, "rollovernameid", `${config.stringPrefix}_LR`);
   setText(doc, civ, "titleid", `${config.stringPrefix}_T`);
@@ -621,9 +744,32 @@ function cloneAndPatchMajorGodXml(config, iconPath) {
   if (ageTech) ageTech.textContent = config.ageTechs.archaic;
 
   applyMajorGodBonusFragments(doc, civ, bonusMajorXml(config));
+  applyMajorGodSpecialBonusPatches(doc, civ, config);
 
   const xml = new XMLSerializer().serializeToString(civ);
   return `<civmods>\n${indent(xml, 1)}\n</civmods>\n`;
+}
+
+
+function hasSelectedBonus(config, sourceMajor, label) {
+  return selectedBonusEntries(config).some((entry) => entry.sourceMajor === sourceMajor && entry.label === label);
+}
+
+function applyMajorGodSpecialBonusPatches(doc, civ, config) {
+  if (hasSelectedBonus(config, "Gaia", "Starts with 2 Hero Citizens")) {
+    replaceAtlanteanStartingCitizensWithHeroes(civ);
+  }
+}
+
+function replaceAtlanteanStartingCitizensWithHeroes(civ) {
+  for (const startingUnits of Array.from(civ.querySelectorAll("startingunits"))) {
+    for (const unit of Array.from(startingUnits.querySelectorAll("unit"))) {
+      const value = (unit.textContent || "").trim();
+      if (value === "VillagerAtlantean") {
+        unit.textContent = "VillagerAtlanteanHero";
+      }
+    }
+  }
 }
 
 function setText(doc, root, tag, text) {
@@ -721,6 +867,7 @@ ${uniqueTechEntries(config).some((group) => group.extraArchaicEffect === "FreyrT
 			<effect type="TechStatus" status="active">ClassicalAgeGeneral</effect>
 			<effect type="TechStatus" status="active">${escapeXml(cultureAgeTech("ClassicalAge", culture))}</effect>
 ${techStatusEffects([...heroic, c.heroic])}
+${indentTabBlock(bonusClassicalTechEffects(config), 3)}
 		</effects>
 	</tech>
 
@@ -736,6 +883,7 @@ ${techStatusEffects([...heroic, c.heroic])}
 			<effect type="TechStatus" status="active">HeroicAgeGeneral</effect>
 			<effect type="TechStatus" status="active">${escapeXml(cultureAgeTech("HeroicAge", culture))}</effect>
 ${techStatusEffects([...mythic, c.mythic])}
+${indentTabBlock(bonusHeroicTechEffects(config), 3)}
 		</effects>
 	</tech>
 
@@ -850,7 +998,7 @@ ${techs.map((tech) => indentBlock(godPickerBonusTrack(tech), 4)).join("\n\n")}
 
 function generateTechTreeXaml(config) {
   const className = `TechTree_${config.baseCulture}_${config.internalName}`;
-  const defaultColor = techTreeDefaultColor(config.baseMajorName);
+  const defaultColor = techTreeDefaultColor(config.uiTemplateMajor);
   const defaultColorAttr = defaultColor ? `\n      DefaultPlayerColor="${escapeXml(defaultColor)}"` : "";
   return `﻿<local:TechTreePageBase x:Class="athenswpf.Content.Pregame.TechTree.${escapeXml(className)}"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -902,7 +1050,7 @@ function techTreeBonusTrack(tech) {
 
 function generateTechTreeAge(age, config) {
   const techs = config.minorGods[age] || [];
-  const sourceMajor = config.baseMajorName;
+  const sourceMajor = config.uiTemplateMajor;
   const technologies = techTreeAgeTechnologiesBlock(sourceMajor, age);
   return `        <local:TechTreeAge AgeName="${age}">
 
@@ -919,13 +1067,13 @@ function generateReadme(config) {
 Major god: ${config.displayName}
 Internal name: ${config.internalName}
 Pantheon: ${config.baseCulture}
-Hidden culture template used for starting units/resources: ${config.baseMajorName}
+major_gods pantheon template: ${config.templateSource}
 Starting god power: ${config.godPower}${config.godPowerPantheon ? ` (${config.godPowerPantheon})` : ""}
 Unique technologies: ${uniqueTechNames(config).map(displayTechName).join(", ") || "None"}
 God bonuses: ${selectedBonusEntries(config).map((entry) => `${entry.sourceMajor}: ${entry.label}`).join("; ") || "None"}
 GodPicker Archaic block generated from the selected god power and unique technologies.
 TechTree Archaic block generated from the selected god power and unique technologies.
-TechTree age technology layout uses the selected pantheon template: ${config.baseMajorName}
+TechTree age technology layout fallback: ${config.uiTemplateMajor} pregame layout
 
 Generated files follow this mod shape:
 ${config.internalName}/game/data/gameplay/major_gods_mods.xml
@@ -938,13 +1086,13 @@ ${config.internalName}/game/ui_myth/content/pregame/techtree/TechTree_${config.b
 Install by extracting the folder into your AoM Retold local mods folder.
 
 Known draft limitation:
-GodPicker and TechTree XAML use compact generated ArchaicAge blocks for the selected god power and unique technologies, plus full vanilla bonus tracks for the selected minor gods. stringmods.txt intentionally contains only the mandatory General strings referenced by major_gods_mods.xml. The remaining likely test points are age-tech effects and whether any selected minor god requires additional gameplay files.
+major_gods_mods.xml is generated from the clean pantheon template file, not from a vanilla major god clone. GodPicker and TechTree XAML use compact generated ArchaicAge blocks for the selected god power and unique technologies, plus full vanilla bonus tracks for the selected minor gods. stringmods.txt intentionally contains only the mandatory General strings referenced by major_gods_mods.xml. The remaining likely test points are age-tech effects and whether any selected minor god requires additional gameplay files.
 `;
 }
 
 async function generateFiles(config) {
   const icon = els.iconFile.files[0];
-  let iconPath = config.baseMajor.icon;
+  let iconPath = null;
   let iconBytes = null;
   let iconName = "";
   if (icon) {
@@ -957,7 +1105,7 @@ async function generateFiles(config) {
   const root = `${config.internalName}/`;
   const files = [];
   files.push(textFile(`${root}README_INSTALL.txt`, generateReadme(config)));
-  files.push(textFile(`${root}game/data/gameplay/major_gods_mods.xml`, cloneAndPatchMajorGodXml(config, iconPath)));
+  files.push(textFile(`${root}game/data/gameplay/major_gods_mods.xml`, generateMajorGodXmlFromPantheonTemplate(config, iconPath)));
   files.push(textFile(`${root}game/data/gameplay/minor_gods_mods.xml`, generateMinorGodsMods(config)));
   files.push(textFile(`${root}game/data/gameplay/techtree_mods.xml`, generateTechTreeMods(config)));
   files.push(textFile(`${root}game/data/gameplay/proto_mods.xml`, `<protomods>\n\t<!-- Empty in this draft. -->\n</protomods>\n`));
@@ -1137,12 +1285,13 @@ function updatePreview() {
       content/pregame/techtree/
         TechTree_${config.baseCulture}_${config.internalName}.xaml
       resources/${config.lowerName}/
-        ${els.iconFile.files[0] ? "<uploaded icon>" : "(none; base icon path reused)"}`;
+        ${els.iconFile.files[0] ? "<uploaded icon>" : "(none; pantheon template icon path reused)"}`;
   const friendly = {
     displayName: config.displayName,
     majorTitle: config.majorTitle,
     pantheon: config.baseCulture,
-    hiddenTemplateMajor: config.baseMajorName,
+    majorGodTemplate: config.templateSource,
+    pregameUiLayoutFallback: config.uiTemplateMajor,
     startingGodPower: config.godPower,
     godPowerPantheon: config.godPowerPantheon,
     uniqueTechs: uniqueTechEntries(config).map((group) => ({ choice: displayTechName(group.label || group.id), grants: group.techs.map(displayTechName), internal: group.techs })),
