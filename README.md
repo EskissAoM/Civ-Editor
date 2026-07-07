@@ -160,3 +160,27 @@ The generator itself creates one extra unit per selected minor god, using `Abstr
   - ClassicalAge<CustomGod>: enables MaintainTrainClassical.
   - HeroicAge<CustomGod>: enables MaintainTrainHeroic and disables MaintainTrainClassical.
   - MythicAge<CustomGod>: enables MaintainTrainMythic and disables MaintainTrainHeroic.
+
+## Update - Fuxi Nezha age handling
+
+The bonus `Fuxi - Gains access to Nezha in the Classical Age` is now handled as a special age-split bonus:
+
+- `ClassicalAge<CustomGod>` enables `NezhaChild`.
+- `HeroicAge<CustomGod>` disables `NezhaChild`, enables `NezhaYouth`, and transforms queued/existing `NezhaChild` into `NezhaYouth`.
+- `MythicAge<CustomGod>` disables `NezhaYouth`, enables `Nezha`, and transforms queued/existing `NezhaYouth` into `Nezha`.
+
+## Latest Chinese bonus fixes
+
+- Nüwa — Buildings spread Favored Land farther: now replaces the existing `<buildingchain>` block in `major_gods_mods.xml` instead of appending a second one.
+- Shennong — Myth units regenerate hit points on Favored Land: now adds one `BuildingChainEffect` heal-rate effect to each custom age tech: Archaic, Classical, Heroic, and Mythic.
+
+## Latest Shennong bonus fixes
+
+- `Gift of Beasts summons myth units from the next age as favor is earned` keeps its existing `major_gods.xml` behavior and now adds the required techtree buff icon overrides:
+  - `ClassicalAge<CustomGod>`: `STR_CIV_SHENNONG_GIFT_ICON_AGE_HEROIC`
+  - `HeroicAge<CustomGod>`: `STR_CIV_SHENNONG_GIFT_ICON_AGE_MYTHIC`
+- Renamed `Plow, Irrigation, and Flood Control are researched free and instantly in their respective ages` to `Farm Line Upgrades are researched free and instantly in their respective ages`.
+- The farm-line bonus is now sourced as `Chinese / Shennong`, allowed for all pantheons, and handled by age:
+  - `ClassicalAge<CustomGod>` activates `Plow`
+  - `HeroicAge<CustomGod>` activates `Irrigation`, except Aztec activates `Chinampas`
+  - `MythicAge<CustomGod>` activates `FloodControl`, except Aztec receives no Mythic farm-line effect

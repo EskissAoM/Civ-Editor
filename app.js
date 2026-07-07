@@ -438,6 +438,11 @@ const QUETZ_EAGLE_RANGE_LOS_BONUS_LABEL = "Eagle Warriors gain +1 range in the H
 const TEZCAT_DEVOTE_FAVOR_BONUS_LABEL = "Devoting Settlers gives higher immediate favor by age";
 const TEZCAT_JAGUAR_RIDER_BONUS_LABEL = "Jaguar Riders are available from the Heroic Age";
 const TEZCAT_OBSIDIAN_SHARD_BONUS_LABEL = "Every 2 lost trainable myth units can create an Obsidian Shard. Obsidian Shards may summon a free myth unit";
+const FUXI_NEZHA_BONUS_LABEL = "Gains access to Nezha in the Classical Age";
+const NUWA_FAVORED_LAND_FARTHER_BONUS_LABEL = "Buildings spread Favored Land farther";
+const SHENNONG_MYTH_REGEN_FAVORED_LAND_BONUS_LABEL = "Myth units regenerate hit points on Favored Land. Myth-unit regeneration on Favored Land scales by age";
+const SHENNONG_GIFT_OF_BEASTS_BONUS_LABEL = "Gift of Beasts summons myth units from the next age as favor is earned";
+const SHENNONG_FARM_LINE_UPGRADES_BONUS_LABEL = "Farm Line Upgrades are researched free and instantly in their respective ages";
 
 const ORANOS_SKY_PASSAGE_ARCHAIC_EFFECTS = `<effect type="Data" amount="1.00" subtype="Enable" relativity="Absolute">
 	<target type="ProtoUnit">SkyPassage</target>
@@ -479,6 +484,52 @@ const TEZCAT_OBSIDIAN_SHARD_MYTHIC_EFFECTS = `<effect type="Data" action="Mainta
 <effect type="Data" action="MaintainTrainHeroic" amount="0.00" subtype="ActionEnable" relativity="Assign">
 	<target type="ProtoUnit">ObsidianShard</target>
 </effect>`;
+
+const FUXI_NEZHA_CLASSICAL_EFFECTS = `<effect type="Data" amount="1.00" subtype="Enable" relativity="Absolute">
+	<target type="ProtoUnit">NezhaChild</target>
+</effect>`;
+
+const FUXI_NEZHA_HEROIC_EFFECTS = `<effect type="Data" amount="0.00" subtype="Enable" relativity="Absolute">
+	<target type="ProtoUnit">NezhaChild</target>
+</effect>
+<effect type="Data" amount="1.00" subtype="Enable" relativity="Absolute">
+	<target type="ProtoUnit">NezhaYouth</target>
+</effect>
+<effect type="TransformUnit" toprotoid="NezhaYouth" fromprotoid="NezhaChild" includequeued="true"></effect>`;
+
+const FUXI_NEZHA_MYTHIC_EFFECTS = `<effect type="Data" amount="0.00" subtype="Enable" relativity="Absolute">
+	<target type="ProtoUnit">NezhaYouth</target>
+</effect>
+<effect type="Data" amount="1.00" subtype="Enable" relativity="Absolute">
+	<target type="ProtoUnit">Nezha</target>
+</effect>
+<effect type="TransformUnit" toprotoid="Nezha" fromprotoid="NezhaYouth" includequeued="true"></effect>`;
+
+const SHENNONG_MYTH_REGEN_FAVORED_LAND_AGE_EFFECTS = `<effect type="Data" subtype="BuildingChainEffect" unittype="LogicalTypeMythUnitNotTitan" effecttype="InRange" modifytype="HealRate" amount="1.5" relativity="Absolute">
+	<target type="Player"></target>
+</effect>`;
+
+const SHENNONG_GIFT_OF_BEASTS_CLASSICAL_EFFECTS = `<effect type="Data" subtype="BuffIconOverride" pathstrid="STR_CIV_SHENNONG_GIFT_ICON_AGE_HEROIC" amount="1.0" relativity="Assign">
+	<target type="Player"></target>
+</effect>`;
+
+const SHENNONG_GIFT_OF_BEASTS_HEROIC_EFFECTS = `<effect type="Data" subtype="BuffIconOverride" pathstrid="STR_CIV_SHENNONG_GIFT_ICON_AGE_MYTHIC" amount="1.0" relativity="Assign">
+	<target type="Player"></target>
+</effect>`;
+
+const SHENNONG_FARM_LINE_CLASSICAL_EFFECTS = `<effect type="TechStatus" status="active">Plow</effect>`;
+
+function shennongFarmLineHeroicEffects(config) {
+  return config.baseCulture === "Aztec"
+    ? `<effect type="TechStatus" status="active">Chinampas</effect>`
+    : `<effect type="TechStatus" status="active">Irrigation</effect>`;
+}
+
+function shennongFarmLineMythicEffects(config) {
+  return config.baseCulture === "Aztec"
+    ? ""
+    : `<effect type="TechStatus" status="active">FloodControl</effect>`;
+}
 
 const GAIA_ECON_GUILD_ARCHAIC_EFFECTS = `<effect type="TechStatus" status="obtainable">Plow</effect>
 <effect type="TechStatus" status="obtainable">HuntingEquipment</effect>
@@ -577,6 +628,10 @@ function bonusTechEffects(config) {
       if (entry.label === QUETZ_EAGLE_RANGE_LOS_BONUS_LABEL) return "";
       if (entry.label === TEZCAT_JAGUAR_RIDER_BONUS_LABEL) return "";
       if (entry.label === TEZCAT_OBSIDIAN_SHARD_BONUS_LABEL) return "";
+      if (entry.label === FUXI_NEZHA_BONUS_LABEL) return "";
+      if (entry.label === SHENNONG_GIFT_OF_BEASTS_BONUS_LABEL) return "";
+      if (entry.label === SHENNONG_FARM_LINE_UPGRADES_BONUS_LABEL) return "";
+      if (entry.label === SHENNONG_MYTH_REGEN_FAVORED_LAND_BONUS_LABEL) return SHENNONG_MYTH_REGEN_FAVORED_LAND_AGE_EFFECTS;
       return sanitizeBonusTechEffects(entry.techEffects || "");
     })
     .filter(Boolean)
@@ -589,6 +644,10 @@ function bonusClassicalTechEffects(config) {
   if (selectedHasBonusLabel(config, ORANOS_SKY_PASSAGE_BONUS_LABEL)) effects.push(ORANOS_SKY_PASSAGE_AGE_EFFECTS);
   if (selectedHasBonusLabel(config, TEZCAT_DEVOTE_FAVOR_BONUS_LABEL)) effects.push(TEZCAT_DEVOTE_FAVOR_AGE_EFFECTS);
   if (selectedHasBonusLabel(config, TEZCAT_OBSIDIAN_SHARD_BONUS_LABEL)) effects.push(TEZCAT_OBSIDIAN_SHARD_CLASSICAL_EFFECTS);
+  if (selectedHasBonusLabel(config, FUXI_NEZHA_BONUS_LABEL)) effects.push(FUXI_NEZHA_CLASSICAL_EFFECTS);
+  if (selectedHasBonusLabel(config, SHENNONG_GIFT_OF_BEASTS_BONUS_LABEL)) effects.push(SHENNONG_GIFT_OF_BEASTS_CLASSICAL_EFFECTS);
+  if (selectedHasBonusLabel(config, SHENNONG_FARM_LINE_UPGRADES_BONUS_LABEL)) effects.push(SHENNONG_FARM_LINE_CLASSICAL_EFFECTS);
+  if (selectedHasBonusLabel(config, SHENNONG_MYTH_REGEN_FAVORED_LAND_BONUS_LABEL)) effects.push(SHENNONG_MYTH_REGEN_FAVORED_LAND_AGE_EFFECTS);
   return effects.filter(Boolean).join("\n");
 }
 function bonusHeroicTechEffects(config) {
@@ -599,6 +658,10 @@ function bonusHeroicTechEffects(config) {
   if (selectedHasBonusLabel(config, TEZCAT_DEVOTE_FAVOR_BONUS_LABEL)) effects.push(TEZCAT_DEVOTE_FAVOR_AGE_EFFECTS);
   if (selectedHasBonusLabel(config, TEZCAT_JAGUAR_RIDER_BONUS_LABEL)) effects.push(TEZCAT_JAGUAR_RIDER_HEROIC_EFFECTS);
   if (selectedHasBonusLabel(config, TEZCAT_OBSIDIAN_SHARD_BONUS_LABEL)) effects.push(TEZCAT_OBSIDIAN_SHARD_HEROIC_EFFECTS);
+  if (selectedHasBonusLabel(config, FUXI_NEZHA_BONUS_LABEL)) effects.push(FUXI_NEZHA_HEROIC_EFFECTS);
+  if (selectedHasBonusLabel(config, SHENNONG_GIFT_OF_BEASTS_BONUS_LABEL)) effects.push(SHENNONG_GIFT_OF_BEASTS_HEROIC_EFFECTS);
+  if (selectedHasBonusLabel(config, SHENNONG_FARM_LINE_UPGRADES_BONUS_LABEL)) effects.push(shennongFarmLineHeroicEffects(config));
+  if (selectedHasBonusLabel(config, SHENNONG_MYTH_REGEN_FAVORED_LAND_BONUS_LABEL)) effects.push(SHENNONG_MYTH_REGEN_FAVORED_LAND_AGE_EFFECTS);
   return effects.filter(Boolean).join("\n");
 }
 function bonusMythicTechEffects(config) {
@@ -607,6 +670,9 @@ function bonusMythicTechEffects(config) {
   if (selectedHasBonusLabel(config, QUETZ_EAGLE_RANGE_LOS_BONUS_LABEL)) effects.push(QUETZ_EAGLE_RANGE_LOS_AGE_EFFECTS);
   if (selectedHasBonusLabel(config, TEZCAT_DEVOTE_FAVOR_BONUS_LABEL)) effects.push(TEZCAT_DEVOTE_FAVOR_AGE_EFFECTS);
   if (selectedHasBonusLabel(config, TEZCAT_OBSIDIAN_SHARD_BONUS_LABEL)) effects.push(TEZCAT_OBSIDIAN_SHARD_MYTHIC_EFFECTS);
+  if (selectedHasBonusLabel(config, FUXI_NEZHA_BONUS_LABEL)) effects.push(FUXI_NEZHA_MYTHIC_EFFECTS);
+  if (selectedHasBonusLabel(config, SHENNONG_FARM_LINE_UPGRADES_BONUS_LABEL)) effects.push(shennongFarmLineMythicEffects(config));
+  if (selectedHasBonusLabel(config, SHENNONG_MYTH_REGEN_FAVORED_LAND_BONUS_LABEL)) effects.push(SHENNONG_MYTH_REGEN_FAVORED_LAND_AGE_EFFECTS);
   return effects.filter(Boolean).join("\n");
 }
 function hasKronosExtraMythUnitBonus(config) {
@@ -681,7 +747,7 @@ function sanitizeBonusTechEffects(xml) {
 
 function bonusMajorXml(config) {
   return selectedBonusEntries(config)
-    .filter((entry) => ![HUITZ_TONALLI_RESOURCES_BONUS_LABEL, HUITZ_SHORN_TONALLI_BONUS_LABEL].includes(entry.label))
+    .filter((entry) => ![HUITZ_TONALLI_RESOURCES_BONUS_LABEL, HUITZ_SHORN_TONALLI_BONUS_LABEL, NUWA_FAVORED_LAND_FARTHER_BONUS_LABEL].includes(entry.label))
     .map((entry) => entry.majorXml || "")
     .filter(Boolean)
     .join("\n");
@@ -892,6 +958,9 @@ function applyMajorGodSpecialBonusPatches(doc, civ, config) {
   if (hasSelectedBonus(config, "Gaia", "Starts with 2 Hero Citizens")) {
     replaceAtlanteanStartingCitizensWithHeroes(civ);
   }
+  if (selectedHasBonusLabel(config, NUWA_FAVORED_LAND_FARTHER_BONUS_LABEL)) {
+    replaceBuildingChainFromSelectedBonus(doc, civ, config, NUWA_FAVORED_LAND_FARTHER_BONUS_LABEL);
+  }
   if (hasSelectedBonus(config, "Huitzilopochtli", HUITZ_TONALLI_RESOURCES_BONUS_LABEL)) {
     insertIntoBountyResourceEarning(doc, civ, HUITZ_TONALLI_RESOURCE_REWARDS);
   }
@@ -906,6 +975,32 @@ const HUITZ_TONALLI_RESOURCE_REWARDS = `<bountyreward unittype="MilitaryUnit" re
 <bountyreward unittype="MilitaryUnit" resourcetype="Gold" multiplybyunitcost="true" condition="Destroy" asspawnedunit="Tonalli">0.05</bountyreward>`;
 
 const HUITZ_SHORN_TONALLI_MULTIPLIER = `<bountytargetmultiplier relativity="basepercent" unittype="MilitaryUnit" attackertype="ShornOne" condition="Destroy" resourcetype="Favor">1.0</bountytargetmultiplier>`;
+
+function replaceBuildingChainFromSelectedBonus(doc, civ, config, label) {
+  const entry = selectedBonusEntries(config).find((bonus) => bonus.label === label);
+  const fragmentXml = entry?.majorXml || "";
+  if (!fragmentXml.trim()) return;
+
+  const parser = new DOMParser();
+  const fragmentDoc = parser.parseFromString(`<root>${fragmentXml}</root>`, "application/xml");
+  if (fragmentDoc.querySelector("parsererror")) {
+    console.warn("Skipping unparsable buildingchain fragment", fragmentXml);
+    return;
+  }
+  const newBuildingChain = fragmentDoc.querySelector("buildingchain");
+  if (!newBuildingChain) {
+    console.warn("Selected bonus did not contain a <buildingchain> block.");
+    return;
+  }
+
+  const existing = civ.querySelector("buildingchain");
+  const imported = doc.importNode(newBuildingChain, true);
+  if (existing) {
+    existing.parentNode.replaceChild(imported, existing);
+  } else {
+    civ.appendChild(imported);
+  }
+}
 
 function insertIntoBountyResourceEarning(doc, civ, fragmentXml) {
   const bounty = civ.querySelector("bountyresourceearning");
