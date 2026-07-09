@@ -298,3 +298,24 @@ Norse custom major gods now receive the special Armory upgrade unlocks by age:
 ## Latest fix
 
 - Thor — Dwarves cost less gold and gather food and wood faster: removed the unintended `<effect type="SetOnTechResearchedTech" amount="1.00" techtype="ArmoryTechnology">ThorDwarfSpawn</effect>` entry. The free-Dwarf-on-Armory-upgrade trigger remains only on the separate Thor bonus.
+
+
+## Latest fix
+
+- Added the mandatory selected-pantheon Archaic age activation to `ArchaicAge<CustomGod>` in `techtree_mods.xml`, for example `<effect type="TechStatus" status="active">ArchaicAgeAtlantean</effect>` when the selected pantheon is Atlantean.
+
+### Latest fix
+- Treats `<bonusunitspawning>` as a single shared major-god block and merges child goals from multiple selected bonuses into that one block.
+
+Update: Thor Dwarven Armory simplification
+- The Thor "Dwarven Armory can be built and researched in any age. Dwarven Armory has extra upgrades" bonus no longer generates proto_mods builder train additions, Classical/Heroic/Mythic research-rate effects, or DisableStandardArmory generated techs.
+- It now adds Archaic techtree CommandRemove Armory + CommandAdd DwarvenArmory effects for the selected pantheon's villager list.
+- It enables DwarvenArmory in Archaic and makes the listed Armory/Dwarven Armory technologies obtainable.
+- It adds a DwarvenArmory alive prereq merge to each selected minor-god age tech.
+
+
+Update in this build:
+- Restored Thor Dwarven Armory research-rate effects for the simplified Thor bonus: Classical uses 0.67, Heroic uses 0.5, and Mythic uses 0.5 on DwarvenArmory.
+
+
+Update: Thor Dwarven Armory prereq patches are now added only to the selected Heroic-age minor god techs, not Classical or Mythic minor god techs.

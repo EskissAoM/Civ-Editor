@@ -828,7 +828,7 @@ function bonusTechEffects(config) {
       if (entry.label === SHENNONG_MYTH_REGEN_FAVORED_LAND_BONUS_LABEL) return SHENNONG_MYTH_REGEN_FAVORED_LAND_AGE_EFFECTS;
       if (entry.label === SUSANOO_BUSHIDO_MYTH_XP_BONUS_LABEL) return SUSANOO_BUSHIDO_MYTH_XP_ARCHAIC_EFFECTS;
       if (entry.label === TSUKUYOMI_FREE_KITSUNE_BONUS_LABEL) return TSUKUYOMI_FREE_KITSUNE_EFFECT;
-      if (entry.label === THOR_DWARVEN_ARMORY_BONUS_LABEL) return THOR_DWARVEN_ARMORY_ARCHAIC_EFFECTS;
+      if (entry.label === THOR_DWARVEN_ARMORY_BONUS_LABEL) return thorDwarvenArmoryArchaicEffects(config);
       if (entry.label === THOR_DWARF_SPAWN_BONUS_LABEL) return thorDwarfSpawnArchaicEffects(config);
       if (entry.label === "Building repair is free. Gatherers and Dwarves can repair") {
         return config.baseCulture === "Norse" ? sanitizeBonusTechEffects(entry.techEffects || "") : "";
@@ -856,7 +856,7 @@ function bonusClassicalTechEffects(config) {
   if (selectedHasBonusLabel(config, HADES_MYTH_HP_BY_AGE_BONUS_LABEL)) effects.push(HADES_MYTH_HP_BY_AGE_EFFECTS);
   if (selectedHasBonusLabel(config, TSUKUYOMI_FREE_KITSUNE_BONUS_LABEL)) effects.push(TSUKUYOMI_FREE_KITSUNE_EFFECT);
   if (selectedHasBonusLabel(config, ODIN_RAVEN_SCOUTS_BONUS_LABEL)) effects.push(ODIN_RAVEN_LOS_AGE_EFFECT);
-  if (selectedHasBonusLabel(config, THOR_DWARVEN_ARMORY_BONUS_LABEL)) effects.push(thorDwarvenArmoryClassicalEffects(config));
+  if (selectedHasBonusLabel(config, THOR_DWARVEN_ARMORY_BONUS_LABEL)) effects.push(THOR_DWARVEN_ARMORY_CLASSICAL_RESEARCH_RATE_EFFECT);
   return effects.filter(Boolean).join("\n");
 }
 function bonusHeroicTechEffects(config) {
@@ -878,7 +878,7 @@ function bonusHeroicTechEffects(config) {
   if (selectedHasBonusLabel(config, HADES_MYTH_HP_BY_AGE_BONUS_LABEL)) effects.push(HADES_MYTH_HP_BY_AGE_EFFECTS);
   if (selectedHasBonusLabel(config, TSUKUYOMI_FREE_KITSUNE_BONUS_LABEL)) effects.push(TSUKUYOMI_FREE_KITSUNE_EFFECT);
   if (selectedHasBonusLabel(config, ODIN_RAVEN_SCOUTS_BONUS_LABEL)) effects.push(ODIN_RAVEN_LOS_AGE_EFFECT);
-  if (selectedHasBonusLabel(config, THOR_DWARVEN_ARMORY_BONUS_LABEL)) effects.push(THOR_DWARVEN_ARMORY_HEROIC_EFFECTS);
+  if (selectedHasBonusLabel(config, THOR_DWARVEN_ARMORY_BONUS_LABEL)) effects.push(THOR_DWARVEN_ARMORY_LATER_RESEARCH_RATE_EFFECT);
   return effects.filter(Boolean).join("\n");
 }
 function bonusMythicTechEffects(config) {
@@ -897,7 +897,7 @@ function bonusMythicTechEffects(config) {
   if (selectedHasBonusLabel(config, HADES_MYTH_HP_BY_AGE_BONUS_LABEL)) effects.push(HADES_MYTH_HP_BY_AGE_EFFECTS);
   if (selectedHasBonusLabel(config, TSUKUYOMI_FREE_KITSUNE_BONUS_LABEL)) effects.push(TSUKUYOMI_FREE_KITSUNE_EFFECT);
   if (selectedHasBonusLabel(config, ODIN_RAVEN_SCOUTS_BONUS_LABEL)) effects.push(ODIN_RAVEN_LOS_AGE_EFFECT);
-  if (selectedHasBonusLabel(config, THOR_DWARVEN_ARMORY_BONUS_LABEL)) effects.push(THOR_DWARVEN_ARMORY_MYTHIC_EFFECTS);
+  if (selectedHasBonusLabel(config, THOR_DWARVEN_ARMORY_BONUS_LABEL)) effects.push(THOR_DWARVEN_ARMORY_LATER_RESEARCH_RATE_EFFECT);
   return effects.filter(Boolean).join("\n");
 }
 function hasKronosExtraMythUnitBonus(config) {
@@ -1267,7 +1267,62 @@ const ODIN_RAVEN_LOS_AGE_EFFECT = `<effect type="Data" amount="2" subtype="LOS" 
 </effect>`;
 
 const THOR_DWARVEN_ARMORY_BONUS_LABEL = "Dwarven Armory can be built and researched in any age.Dwarven Armory has extra upgrades";
-const THOR_DWARVEN_ARMORY_ARCHAIC_EFFECTS = `<effect type="TechStatus" status="obtainable">CopperWeapons</effect>
+
+const THOR_DWARVEN_ARMORY_CLASSICAL_RESEARCH_RATE_EFFECT = `<effect type="Data" amount="0.67" subtype="ResearchRate" relativity="Absolute">
+	<target type="ProtoUnit">DwarvenArmory</target>
+</effect>`;
+const THOR_DWARVEN_ARMORY_LATER_RESEARCH_RATE_EFFECT = `<effect type="Data" amount="0.5" subtype="ResearchRate" relativity="Absolute">
+	<target type="ProtoUnit">DwarvenArmory</target>
+</effect>`;
+
+function thorDwarvenArmoryBuilderUnits(config) {
+  const buildersByPantheon = {
+    Greek: [
+      { name: "VillagerGreek" },
+      { name: "LykaonVillager", orderhint: "3" },
+    ],
+    Egyptian: [
+      { name: "VillagerEgyptian" },
+    ],
+    Norse: [
+      { name: "Gatherer" },
+      { name: "Dwarf" },
+    ],
+    Atlantean: [
+      { name: "VillagerAtlantean" },
+      { name: "VillagerAtlanteanHero" },
+    ],
+    Chinese: [
+      { name: "VillagerChinese" },
+      { name: "VillagerChineseClay" },
+    ],
+    Japanese: [
+      { name: "VillagerJapanese" },
+    ],
+    Aztec: [
+      { name: "VillagerAztec", orderhint: "5" },
+    ],
+  };
+  return buildersByPantheon[config.baseCulture] || [];
+}
+
+function thorDwarvenArmoryVillagerCommandEffects(config) {
+  return thorDwarvenArmoryBuilderUnits(config).map((builder) => `<effect type="Data" amount="1.00" subtype="CommandRemove" proto="Armory" relativity="Assign">
+	<target type="ProtoUnit">${escapeXml(builder.name)}</target>
+</effect>
+<effect type="Data" amount="1.00" subtype="CommandAdd" proto="DwarvenArmory" row="1" column="5" relativity="Assign">
+	<target type="ProtoUnit">${escapeXml(builder.name)}</target>
+</effect>`).join("\n");
+}
+
+function thorDwarvenArmoryArchaicEffects(config) {
+  const effects = [];
+  const commandEffects = thorDwarvenArmoryVillagerCommandEffects(config);
+  if (commandEffects) effects.push(commandEffects);
+  effects.push(`<effect type="Data" amount="1.00" subtype="Enable" relativity="Absolute">
+	<target type="ProtoUnit">DwarvenArmory</target>
+</effect>`);
+  effects.push(`<effect type="TechStatus" status="obtainable">CopperWeapons</effect>
 <effect type="TechStatus" status="obtainable">CopperArmor</effect>
 <effect type="TechStatus" status="obtainable">CopperShields</effect>
 <effect type="TechStatus" status="obtainable">BronzeWeapons</effect>
@@ -1280,25 +1335,19 @@ const THOR_DWARVEN_ARMORY_ARCHAIC_EFFECTS = `<effect type="TechStatus" status="o
 <effect type="TechStatus" status="obtainable">BurningPitch</effect>
 <effect type="TechStatus" status="obtainable">DwarvenWeapons</effect>
 <effect type="TechStatus" status="obtainable">MeteoricIronArmor</effect>
-<effect type="TechStatus" status="obtainable">DragonscaleShields</effect>
-<effect type="Data" amount="1.00" subtype="Enable" relativity="Absolute">
-	<target type="ProtoUnit">DwarvenArmory</target>
-</effect>`;
-
-function thorDwarvenArmoryClassicalEffects(config) {
-  return `<effect type="TechStatus" status="active">DisableStandardArmory${escapeXml(config.internalName)}</effect>
-<effect type="Data" amount="0.67" subtype="ResearchRate" relativity="Absolute">
-	<target type="ProtoUnit">DwarvenArmory</target>
-</effect>`;
+<effect type="TechStatus" status="obtainable">DragonscaleShields</effect>`);
+  return effects.join("\n");
 }
 
-const THOR_DWARVEN_ARMORY_HEROIC_EFFECTS = `<effect type="Data" amount="0.5" subtype="ResearchRate" relativity="Absolute">
-	<target type="ProtoUnit">DwarvenArmory</target>
-</effect>`;
-
-const THOR_DWARVEN_ARMORY_MYTHIC_EFFECTS = `<effect type="Data" amount="0.5" subtype="ResearchRate" relativity="Absolute">
-	<target type="ProtoUnit">DwarvenArmory</target>
-</effect>`;
+function thorDwarvenArmoryMinorGodPrereqTechs(config) {
+  if (!selectedHasBonusLabel(config, THOR_DWARVEN_ARMORY_BONUS_LABEL)) return "";
+  const heroicMinorTechs = (config.minorGods.HeroicAge || []).filter(Boolean);
+  return Array.from(new Set(heroicMinorTechs)).map((techName) => `	<tech name="${escapeXml(techName)}">
+		<prereqs>
+			<typecount unit="DwarvenArmory" count="1.00" state="aliveState" operator="gte" mergemode="add"></typecount>
+		</prereqs>
+	</tech>`).join("\n\n");
+}
 
 const THOR_DWARF_SPAWN_BONUS_LABEL = "Each Dwarven Armory upgrade grants a free Dwarf";
 
@@ -1443,6 +1492,23 @@ function insertIntoBountyResourceEarning(doc, civ, fragmentXml) {
   }
 }
 
+function mergeBonusUnitSpawning(doc, civ, sourceBonusUnitSpawning) {
+  let target = civ.querySelector("bonusunitspawning");
+  if (!target) {
+    target = doc.createElement("bonusunitspawning");
+    civ.appendChild(target);
+  }
+  const existingKeys = new Set(Array.from(target.children).map(nodeSignature));
+  for (const child of Array.from(sourceBonusUnitSpawning.children || [])) {
+    const imported = doc.importNode(child, true);
+    const key = nodeSignature(imported);
+    if (!existingKeys.has(key)) {
+      target.appendChild(imported);
+      existingKeys.add(key);
+    }
+  }
+}
+
 function nodeSignature(node) {
   const attrs = Array.from(node.attributes || []).map((a) => `${a.name}=${a.value}`).sort().join("|");
   return `${node.tagName}|${attrs}|${(node.textContent || "").trim()}`;
@@ -1483,6 +1549,8 @@ function applyMajorGodBonusFragments(doc, civ, fragmentXml) {
     if (tag === "startingresources" || tag === "startingunits") {
       civ.querySelector(tag)?.remove();
       civ.appendChild(imported);
+    } else if (tag === "bonusunitspawning") {
+      mergeBonusUnitSpawning(doc, civ, node);
     } else if (tag === "unit") {
       let startingUnits = civ.querySelector("startingunits");
       if (!startingUnits) {
@@ -1581,27 +1649,12 @@ function indentTabBlock(block, level = 0) {
   return String(block).split("\n").map((line) => line.trim() ? pad + line : line).join("\n");
 }
 
-function thorDwarvenArmoryExtraTech(config) {
-  if (!selectedHasBonusLabel(config, THOR_DWARVEN_ARMORY_BONUS_LABEL)) return "";
-  const techName = `DisableStandardArmory${config.internalName}`;
-  return `	<tech name="${escapeXml(techName)}">
-		<status>UNOBTAINABLE</status>
-		<flag>HideAllNotifications</flag>
-		<delay>0.2000</delay>
-		<effects>
-			<effect type="Data" amount="0.00" subtype="Enable" relativity="Absolute">
-				<target type="ProtoUnit">Armory</target>
-			</effect>
-		</effects>
-	</tech>`;
-}
-
 function extraGeneratedTechs(config) {
   const extras = [];
   const kronosTechs = kronosExtraMythUnitTechs(config);
   if (kronosTechs) extras.push(`	${kronosTechs}`);
-  const thorArmoryTech = thorDwarvenArmoryExtraTech(config);
-  if (thorArmoryTech) extras.push(thorArmoryTech);
+  const thorArmoryPrereqs = thorDwarvenArmoryMinorGodPrereqTechs(config);
+  if (thorArmoryPrereqs) extras.push(thorArmoryPrereqs);
   const thorDwarfTech = thorDwarfSpawnExtraTech(config);
   if (thorDwarfTech) extras.push(thorDwarfTech);
   return extras.join("\n\n");
@@ -1619,6 +1672,7 @@ function generateTechTreeMods(config) {
 		<flag>HideAllNotifications</flag>
 		<flag>AgeTech</flag>
 		<effects>
+			<effect type="TechStatus" status="active">${escapeXml(cultureAgeTech("ArchaicAge", culture))}</effect>
 ${techStatusEffects([...classical, c.classical])}
 ${kronosExtraMythUnitStatusEffects(config, "ArchaicAge")}
 ${techStatusEffects(uniqueTechNames(config), "obtainable")}
@@ -1687,54 +1741,11 @@ ${extraGeneratedTechs(config)}` : ""}
 }
 
 function generateProtoMods(config) {
-  if (!selectedHasBonusLabel(config, THOR_DWARVEN_ARMORY_BONUS_LABEL)) {
-    return `<protomods>
+  return `<protomods>
 	<!-- Empty in this draft. -->
 </protomods>
 `;
-  }
-  const buildersByPantheon = {
-    Greek: [
-      { name: "VillagerGreek" },
-      { name: "LykaonVillager", orderhint: "3" },
-    ],
-    Egyptian: [
-      { name: "VillagerEgyptian" },
-    ],
-    Atlantean: [
-      { name: "VillagerAtlantean" },
-      { name: "VillagerAtlanteanHero" },
-    ],
-    Chinese: [
-      { name: "VillagerChinese" },
-      { name: "VillagerChineseClay" },
-    ],
-    Japanese: [
-      { name: "VillagerJapanese" },
-    ],
-    Aztec: [
-      { name: "VillagerAztec", orderhint: "5" },
-    ],
-  };
-  const builders = buildersByPantheon[config.baseCulture] || [];
-  if (!builders.length) {
-    return `<protomods>
-	<!-- Thor Dwarven Armory builder proto edits are not needed for ${escapeXml(config.baseCulture)}. -->
-</protomods>
-`;
-  }
-  const unitBlocks = builders.map((builder) => {
-    const orderhint = builder.orderhint ? ` orderhint="${escapeXml(builder.orderhint)}"` : "";
-    return `	<unit name="${escapeXml(builder.name)}"${orderhint}>
-		<train row="1" column="5" mergemode="add">DwarvenArmory</train>
-	</unit>`;
-  }).join("\n\n");
-  return `<protomods>
-${unitBlocks}
-</protomods>
-`;
 }
-
 function generateMinorGodsMods() {
   return `<minorgodsmods>\n\t<!-- Existing vanilla minor gods are referenced directly, so no new minor god definitions are required for this draft. -->\n</minorgodsmods>\n`;
 }
