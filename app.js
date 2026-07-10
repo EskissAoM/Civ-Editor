@@ -569,6 +569,7 @@ const ORANOS_SKY_PASSAGE_BONUS_LABEL = "Can build a new Sky Passage each age.Uni
 const POSEIDON_SPEED_BY_AGE_BONUS_LABEL = "Cavalry, Caravans, and myth units gain speed by age";
 const POSEIDON_STABLE_MARKET_DISCOUNT_BONUS_LABEL = "Stables and Markets are 30% cheaper";
 const HUITZ_TONALLI_RESOURCES_BONUS_LABEL = "Collecting Tonalli grants resources in addition to favor";
+const HUITZ_CONSTRUCTION_REFUND_BONUS_LABEL = "Temples, Fortress-type building, Village Centers, and Town Centers refund part of their wood/gold cost on completion";
 const ZEUS_STARTING_FAVOR_BONUS_LABEL = "Starts with 10 favor";
 const ZEUS_COUNTER_CAV_INFANTRY_SPEED_BONUS_LABEL = "Hoplite and other counter-cavalry infantry move 15% faster";
 const HUITZ_SHORN_TONALLI_BONUS_LABEL = "Shorn Ones have more hit points. Shorn Ones generate extra Tonalli in combat";
@@ -590,6 +591,7 @@ const HADES_MYTH_HP_BY_AGE_BONUS_LABEL = "Myth units gain bonus hit points by ag
 const HADES_RANGED_TECH_DISCOUNT_BONUS_LABEL = "Ranged-soldier technologies are cheaper";
 const FREYR_FORTRESS_DAMAGE_BONUS_LABEL = "Fortress-type building units deal +10% damage";
 const RA_FORTRESS_HP_BONUS_LABEL = "Fortress-type building units get +15% hit points";
+const SET_MILITARY_BUILDING_DISCOUNT_BONUS_LABEL = "Military production buildings including Fortress-type cost 25% less resources excluding favor";
 
 const SET_ANIMALS_ARCHAIC_EFFECTS = `<effect type="Data" amount="1.00" subtype="Enable" relativity="Absolute">
 	<target type="ProtoUnit">BaboonOfSet</target>
@@ -869,14 +871,15 @@ function shennongFarmLineMythicEffects(config) {
     : `<effect type="TechStatus" status="active">FloodControl</effect>`;
 }
 
-const GAIA_ECON_GUILD_ARCHAIC_EFFECTS = `<effect type="TechStatus" status="obtainable">Plow</effect>
-<effect type="TechStatus" status="obtainable">HuntingEquipment</effect>
-<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+const GAIA_ECON_GUILD_COST_EFFECTS = `<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
 	<target type="ProtoUnit">EconomicGuild</target>
 </effect>
 <effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
 	<target type="ProtoUnit">EconomicGuild</target>
-</effect>
+</effect>`;
+
+const GAIA_ECON_GUILD_ARCHAIC_EFFECTS = `<effect type="TechStatus" status="obtainable">Plow</effect>
+<effect type="TechStatus" status="obtainable">HuntingEquipment</effect>
 <effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
 	<target type="Tech">Husbandry</target>
 </effect>
@@ -944,13 +947,97 @@ const GAIA_ECON_GUILD_ARCHAIC_EFFECTS = `<effect type="TechStatus" status="obtai
 	<target type="Tech">Quarry</target>
 </effect>`;
 
+const GAIA_ECON_GUILD_ARCHAIC_AZTEC_EFFECTS = `<effect type="TechStatus" status="obtainable">Plow</effect>
+<effect type="TechStatus" status="obtainable">HuntingEquipment</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="Tech">Husbandry</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="Tech">Husbandry</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="Tech">Plow</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="Tech">Plow</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="Tech">HuntingEquipment</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="Tech">HuntingEquipment</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="Tech">Chinampas</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="Tech">Chinampas</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Food" relativity="Percent">
+	<target type="Tech">HandAxe</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="Tech">HandAxe</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Food" relativity="Percent">
+	<target type="Tech">BowSaw</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="Tech">BowSaw</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Food" relativity="Percent">
+	<target type="Tech">Carpenters</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Gold" relativity="Percent">
+	<target type="Tech">Carpenters</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Food" relativity="Percent">
+	<target type="Tech">Pickaxe</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="Tech">Pickaxe</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Food" relativity="Percent">
+	<target type="Tech">ShaftMine</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="Tech">ShaftMine</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Food" relativity="Percent">
+	<target type="Tech">Quarry</target>
+</effect>
+<effect type="Data" amount="0.65" subtype="Cost" resource="Wood" relativity="Percent">
+	<target type="Tech">Quarry</target>
+</effect>`;
+
+function gaiaEconGuildArchaicEffects(config) {
+  const baseEffects = config.baseCulture === "Aztec" ? GAIA_ECON_GUILD_ARCHAIC_AZTEC_EFFECTS : GAIA_ECON_GUILD_ARCHAIC_EFFECTS;
+  return config.baseCulture === "Atlantean" ? `${GAIA_ECON_GUILD_COST_EFFECTS}
+${baseEffects}` : baseEffects;
+}
+
 const GAIA_ECON_GUILD_CLASSICAL_EFFECTS = `<effect type="TechStatus" status="obtainable">BowSaw</effect>
 <effect type="TechStatus" status="obtainable">ShaftMine</effect>
 <effect type="TechStatus" status="obtainable">Irrigation</effect>`;
 
+const GAIA_ECON_GUILD_CLASSICAL_AZTEC_EFFECTS = `<effect type="TechStatus" status="obtainable">BowSaw</effect>
+<effect type="TechStatus" status="obtainable">ShaftMine</effect>
+<effect type="TechStatus" status="obtainable">Chinampas</effect>`;
+
+function gaiaEconGuildClassicalEffects(config) {
+  return config.baseCulture === "Aztec" ? GAIA_ECON_GUILD_CLASSICAL_AZTEC_EFFECTS : GAIA_ECON_GUILD_CLASSICAL_EFFECTS;
+}
+
 const GAIA_ECON_GUILD_HEROIC_EFFECTS = `<effect type="TechStatus" status="obtainable">Carpenters</effect>
 <effect type="TechStatus" status="obtainable">Quarry</effect>
 <effect type="TechStatus" status="obtainable">FloodControl</effect>`;
+
+const GAIA_ECON_GUILD_HEROIC_AZTEC_EFFECTS = `<effect type="TechStatus" status="obtainable">Carpenters</effect>
+<effect type="TechStatus" status="obtainable">Quarry</effect>`;
+
+function gaiaEconGuildHeroicEffects(config) {
+  return config.baseCulture === "Aztec" ? GAIA_ECON_GUILD_HEROIC_AZTEC_EFFECTS : GAIA_ECON_GUILD_HEROIC_EFFECTS;
+}
 
 const DEMETER_HERDABLES_TEMPLE_FAVOR_ARCHAIC_EFFECTS = `<effect type="Data" protoaction="TempleFavorBonus" amount="1.00" subtype="ProtoActionAdd" unittype="DemeterBonusContainer" relativity="Assign">
 	<target type="ProtoUnit">Herdable</target>
@@ -1039,6 +1126,84 @@ function hadesRangedTechDiscountEffects(config) {
     .join("\n");
 }
 
+const HUITZ_FORTRESS_REFUND_TARGETS = {
+  Greek: "Fortress",
+  Egyptian: "MigdolStronghold",
+  Norse: "HillFort",
+  Atlantean: "Palace",
+  Chinese: "Baolei",
+  Japanese: "Castle",
+  Aztec: "GreatTemple",
+};
+
+function resourceRefundEffectsForProto(proto) {
+  return `<effect type="Data" amount="0.25" subtype="ResourceReturnRate" resource="Wood" relativity="Absolute">
+	<target type="ProtoUnit">${proto}</target>
+</effect>
+<effect type="Data" amount="0.25" subtype="ResourceReturnRate" resource="Gold" relativity="Absolute">
+	<target type="ProtoUnit">${proto}</target>
+</effect>
+<effect type="Data" amount="1.0" subtype="Flag" flag="ReturnResourcesOnConstruction" relativity="Absolute">
+	<target type="ProtoUnit">${proto}</target>
+</effect>`;
+}
+
+function huitzConstructionRefundEffects(config) {
+  const fortressTarget = HUITZ_FORTRESS_REFUND_TARGETS[config.baseCulture] || "GreatTemple";
+  return ["AbstractTownCenter", fortressTarget, "Temple"]
+    .map(resourceRefundEffectsForProto)
+    .join("\n");
+}
+
+
+const SET_MILITARY_BUILDING_DISCOUNT_TARGETS = {
+  Egyptian: {
+    goldOnly: ["MigdolStronghold", "Barracks", "SiegeWorks"],
+    woodOnly: [],
+    woodGold: [],
+  },
+  Greek: {
+    woodOnly: ["MilitaryAcademy", "Stable", "ArcheryRange"],
+    woodGold: ["Fortress"],
+  },
+  Norse: {
+    woodOnly: ["GreatHall", "Longhouse"],
+    woodGold: ["HillFort"],
+  },
+  Atlantean: {
+    woodOnly: ["MilitaryBarracks", "CounterBarracks"],
+    woodGold: ["Palace"],
+  },
+  Chinese: {
+    woodOnly: ["MachineWorkshop", "MilitaryCamp", "ImperialAcademy"],
+    woodGold: ["Baolei"],
+  },
+  Japanese: {
+    woodOnly: ["Guardhouse", "Dojo", "StableJapanese"],
+    woodGold: ["Castle"],
+  },
+  Aztec: {
+    woodOnly: ["WarHut", "NoblesHut"],
+    woodGold: ["GreatTemple"],
+  },
+};
+
+function setBuildingCostEffect(proto, resource) {
+  return `<effect type="Data" amount="0.75" subtype="Cost" resource="${resource}" relativity="Percent">\n\t<target type="ProtoUnit">${proto}</target>\n</effect>`;
+}
+
+function setMilitaryBuildingDiscountEffects(config) {
+  const targets = SET_MILITARY_BUILDING_DISCOUNT_TARGETS[config.baseCulture] || SET_MILITARY_BUILDING_DISCOUNT_TARGETS.Egyptian;
+  const effects = [];
+  for (const proto of targets.goldOnly || []) effects.push(setBuildingCostEffect(proto, "gold"));
+  for (const proto of targets.woodOnly || []) effects.push(setBuildingCostEffect(proto, "Wood"));
+  for (const proto of targets.woodGold || []) {
+    effects.push(setBuildingCostEffect(proto, "Wood"));
+    effects.push(setBuildingCostEffect(proto, "Gold"));
+  }
+  return effects.join("\n");
+}
+
 function selectedHasBonusLabel(config, label) {
   return selectedBonusEntries(config).some((entry) => entry.label === label);
 }
@@ -1046,7 +1211,7 @@ function selectedHasBonusLabel(config, label) {
 function bonusTechEffects(config) {
   return selectedBonusEntries(config)
     .map((entry) => {
-      if (entry.label === GAIA_ECON_GUILD_BONUS_LABEL) return GAIA_ECON_GUILD_ARCHAIC_EFFECTS;
+      if (entry.label === GAIA_ECON_GUILD_BONUS_LABEL) return gaiaEconGuildArchaicEffects(config);
       if (entry.label === ZEUS_COUNTER_CAV_INFANTRY_SPEED_BONUS_LABEL) return zeusCounterCavalryInfantrySpeedEffects(config);
       if (entry.label === DEMETER_HERDABLES_TEMPLE_FAVOR_BONUS_LABEL) return DEMETER_HERDABLES_TEMPLE_FAVOR_ARCHAIC_EFFECTS;
       if (entry.label === DEMETER_HERDABLES_FATTEN_BONUS_LABEL) return DEMETER_HERDABLES_FATTEN_ARCHAIC_EFFECTS;
@@ -1054,6 +1219,8 @@ function bonusTechEffects(config) {
       if (entry.label === DEMETER_TRAIN_FASTER_BY_AGE_BONUS_LABEL) return DEMETER_TRAIN_FASTER_BY_AGE_EFFECTS;
       if (entry.label === HADES_MYTH_HP_BY_AGE_BONUS_LABEL) return HADES_MYTH_HP_BY_AGE_EFFECTS;
       if (entry.label === HADES_RANGED_TECH_DISCOUNT_BONUS_LABEL) return hadesRangedTechDiscountEffects(config);
+      if (entry.label === HUITZ_CONSTRUCTION_REFUND_BONUS_LABEL || entry.id === "bonus_87") return huitzConstructionRefundEffects(config);
+      if (entry.label === SET_MILITARY_BUILDING_DISCOUNT_BONUS_LABEL || entry.id === "bonus_33") return setMilitaryBuildingDiscountEffects(config);
       if (entry.label === FREYR_FORTRESS_DAMAGE_BONUS_LABEL) return freyrFortressDamageEffects(config);
       if (entry.label === RA_FORTRESS_HP_BONUS_LABEL) return raFortressHitpointsEffects(config);
       if (entry.label === POSEIDON_SPEED_BY_AGE_BONUS_LABEL) return POSEIDON_SPEED_BY_AGE_EFFECTS;
@@ -1084,7 +1251,7 @@ function bonusTechEffects(config) {
 
 function bonusClassicalTechEffects(config) {
   const effects = [];
-  if (selectedHasBonusLabel(config, GAIA_ECON_GUILD_BONUS_LABEL)) effects.push(GAIA_ECON_GUILD_CLASSICAL_EFFECTS);
+  if (selectedHasBonusLabel(config, GAIA_ECON_GUILD_BONUS_LABEL)) effects.push(gaiaEconGuildClassicalEffects(config));
   if (selectedHasBonusLabel(config, ORANOS_SKY_PASSAGE_BONUS_LABEL)) effects.push(ORANOS_SKY_PASSAGE_AGE_EFFECTS);
   if (selectedHasBonusLabel(config, POSEIDON_SPEED_BY_AGE_BONUS_LABEL)) effects.push(POSEIDON_SPEED_BY_AGE_EFFECTS);
   if (selectedHasBonusLabel(config, TEZCAT_DEVOTE_FAVOR_BONUS_LABEL)) effects.push(TEZCAT_DEVOTE_FAVOR_AGE_EFFECTS);
@@ -1104,7 +1271,7 @@ function bonusClassicalTechEffects(config) {
 }
 function bonusHeroicTechEffects(config) {
   const effects = [];
-  if (selectedHasBonusLabel(config, GAIA_ECON_GUILD_BONUS_LABEL)) effects.push(GAIA_ECON_GUILD_HEROIC_EFFECTS);
+  if (selectedHasBonusLabel(config, GAIA_ECON_GUILD_BONUS_LABEL)) effects.push(gaiaEconGuildHeroicEffects(config));
   if (selectedHasBonusLabel(config, ORANOS_SKY_PASSAGE_BONUS_LABEL)) effects.push(ORANOS_SKY_PASSAGE_AGE_EFFECTS);
   if (selectedHasBonusLabel(config, POSEIDON_SPEED_BY_AGE_BONUS_LABEL)) effects.push(POSEIDON_SPEED_BY_AGE_EFFECTS);
   if (selectedHasBonusLabel(config, QUETZ_EAGLE_RANGE_LOS_BONUS_LABEL)) effects.push(QUETZ_EAGLE_RANGE_LOS_AGE_EFFECTS);
