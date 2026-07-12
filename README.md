@@ -9,7 +9,7 @@ Static, backend-free prototype for generating a custom Age of Mythology: Retold 
 - Choose a custom major god title for `STR_CIV_<NAME>_T`.
 - Internal name is generated automatically from the display name.
 - Choose any existing Archaic Age god power, grouped by pantheon.
-- Choose up to two major-god unique technologies.
+- Choose one major-god unique technology.
   - Options are filtered by pantheon.
   - `Clairvoyance` only appears when the selected god power is `Vision`.
   - `NepheleanHarpy` is intentionally excluded.
@@ -411,3 +411,7 @@ The Thor Dwarven Armory bonus now also patches the selected pantheon's relevant 
 - Selecting Channels automatically inserts the Gaia Lush bonus into an available bonus slot.
 - The Gaia Lush bonus slot is locked while Channels remains selected, then unlocks if Channels is removed or changed.
 - Export still guarantees the Gaia Lush effects if Channels is selected.
+
+### Bonus data cleanup
+
+Cleaned stale raw XML snippets from `bonusData.js` for bonuses that are now implemented by explicit `app.js` special handlers. Metadata, labels, allowed pantheons, search text, and UI behavior remain intact. Ambiguous raw snippets that still feed export generation were left unchanged.

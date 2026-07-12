@@ -485,7 +485,7 @@ function rawSelectedHasBonusLabel(label) {
 function availableUniqueTechGroups() {
   const pantheon = selectedPantheon();
   const godPower = els.godPower.value;
-  const currentUniqueIds = [els.uniqueTech1?.value || "", els.uniqueTech2?.value || ""];
+  const currentUniqueIds = [els.uniqueTech1?.value || ""];
   return UNIQUE_TECH_GROUPS.filter((group) => {
     if (group.pantheon !== "All" && group.pantheon !== pantheon) return false;
     if (group.requiresGodPower && group.requiresGodPower !== godPower) return false;
@@ -494,7 +494,7 @@ function availableUniqueTechGroups() {
 }
 
 function selectedUniqueTechGroups() {
-  return [els.uniqueTech1?.value || "", els.uniqueTech2?.value || ""].filter(Boolean);
+  return [els.uniqueTech1?.value || ""].filter(Boolean);
 }
 
 function getUniqueTechGroup(id) {
@@ -584,6 +584,112 @@ function uniqueTechNames(configOrIds) {
     }
   }
   return names;
+}
+
+const UNIQUE_TECH_UI_BUILDINGS_BY_TECH = {
+  CelestialWeapons: { Greek: ["Armory"], Egyptian: ["Armory"], Norse: ["Armory"], Atlantean: ["Armory"], Chinese: ["Armory"], Japanese: ["Armory"], Aztec: ["Armory"] },
+  Channels: { Greek: ["TownCenter", "VillageCenter", "Temple", "CitadelCenter"], Egyptian: ["TownCenter", "VillageCenter", "Temple", "CitadelCenter"], Norse: ["TownCenter", "VillageCenter", "Temple", "CitadelCenter"], Atlantean: ["TownCenter", "VillageCenter", "Temple", "CitadelCenter"], Chinese: ["TownCenter", "VillageCenter", "Temple", "CitadelCenter"], Japanese: ["TownCenter", "VillageCenter", "Temple", "CitadelCenter"], Aztec: ["TownCenter", "VillageCenter", "Temple", "CitadelCenter"] },
+  Clairvoyance: { Greek: ["Temple"], Egyptian: ["Temple"], Norse: ["Temple"], Atlantean: ["Temple"], Chinese: ["Temple"], Japanese: ["Temple"], Aztec: ["Temple"] },
+  CrushingWaves: { Greek: ["Temple"], Egyptian: ["Temple"], Norse: ["Temple"], Atlantean: ["Temple"], Chinese: ["Temple"], Japanese: ["Temple"], Aztec: ["Temple"] },
+  DivineLabor: { Greek: ["Granary"], Egyptian: ["Granary"], Norse: ["OxCart"], Atlantean: ["EconomicGuild"], Chinese: ["Silo"], Japanese: ["WaterMill"], Aztec: ["Calpulli", "CalpulliLivestockPen", "CalpulliLumberOutpost", "CalpulliCraftWorkshop"] },
+  EmpyreanSpeed: { Greek: ["Temple"], Egyptian: ["Temple"], Norse: ["Temple"], Atlantean: ["Temple"], Chinese: ["Temple"], Japanese: ["Temple"], Aztec: ["Temple"] },
+  EyesInTheForest: { Greek: ["Temple"], Egyptian: ["Temple"], Norse: ["Temple"], Atlantean: ["Temple"], Chinese: ["Temple"], Japanese: ["Temple"], Aztec: ["Temple"] },
+  FeastOfTlaxochimaco: { Greek: ["Temple"], Egyptian: ["Temple"], Norse: ["Temple"], Atlantean: ["Temple"], Chinese: ["Temple"], Japanese: ["Temple"], Aztec: ["Temple"] },
+  FloodOfTheNile: { Greek: ["Granary"], Egyptian: ["Granary"], Norse: ["OxCart"], Atlantean: ["EconomicGuild"], Chinese: ["Silo"], Japanese: ["WaterMill"], Aztec: ["Calpulli", "CalpulliLivestockPen", "CalpulliLumberOutpost", "CalpulliCraftWorkshop"] },
+  FreyrsGift: { Greek: ["TownCenter", "VillageCenter", "CitadelCenter"], Egyptian: ["TownCenter", "VillageCenter", "CitadelCenter"], Norse: ["TownCenter", "VillageCenter", "CitadelCenter"], Atlantean: ["TownCenter", "VillageCenter", "CitadelCenter"], Chinese: ["TownCenter", "VillageCenter", "CitadelCenter"], Japanese: ["TownCenter", "VillageCenter", "CitadelCenter"], Aztec: ["TownCenter", "VillageCenter", "CitadelCenter"] },
+  HammerOfThunder: { Norse: ["Armory"] },
+  KuafuChieftain: { Chinese: ["TownCenter", "VillageCenter", "CitadelCenter"] },
+  LordOfHorses: { Greek: ["Stable"], Egyptian: ["Temple"], Norse: ["Temple"], Atlantean: ["Temple"], Chinese: ["Temple"], Japanese: ["StableJapanese"], Aztec: ["Temple"] },
+  OlympianParentage: { Greek: ["Temple"], Egyptian: ["Temple"], Norse: ["Temple"], Atlantean: ["Temple"], Chinese: ["Temple"], Japanese: ["Temple"], Aztec: ["Temple"] },
+  PeachOfImmortality: { Greek: ["Temple"], Egyptian: ["Temple"], Norse: ["Temple"], Atlantean: ["Temple"], Chinese: [], Japanese: ["Temple"], Aztec: ["Temple"] },
+  SkinOfTheRhino: { Greek: ["TownCenter", "VillageCenter", "CitadelCenter"], Egyptian: ["TownCenter", "VillageCenter", "CitadelCenter"], Norse: ["TownCenter", "VillageCenter", "CitadelCenter"], Atlantean: ["TownCenter", "VillageCenter", "CitadelCenter"], Chinese: ["TownCenter", "VillageCenter", "CitadelCenter"], Japanese: ["TownCenter", "VillageCenter", "CitadelCenter"], Aztec: ["TownCenter", "VillageCenter", "CitadelCenter"] },
+  TaiChi: { Greek: ["Temple"], Egyptian: ["Temple"], Norse: ["Temple"], Atlantean: ["Temple"], Chinese: [], Japanese: ["Temple"], Aztec: ["Temple"] },
+  TemporalChaos: { Greek: ["Temple"], Egyptian: ["Temple"], Norse: ["Temple"], Atlantean: ["Temple"], Chinese: ["Temple"], Japanese: ["Temple"], Aztec: ["Temple"] },
+  Tenshu: { Greek: ["SentryTower"], Egyptian: ["SentryTower"], Norse: ["SentryTower"], Atlantean: ["SentryTower"], Chinese: ["SentryTower"], Japanese: ["SentryTower"], Aztec: ["SentryTower"] },
+  VaultsOfErebus: { Greek: ["Storehouse"], Egyptian: ["MiningCamp"], Norse: ["OxCart"], Atlantean: ["EconomicGuild"], Chinese: ["Silo"], Japanese: ["MiningCampJapanese"], Aztec: ["Calpulli", "CalpulliLivestockPen", "CalpulliLumberOutpost", "CalpulliCraftWorkshop"] },
+};
+
+function uniqueTechActualTechName(group, config) {
+  if (!group) return "";
+  if (group.id === "SkinOfTheRhino") return skinOfTheRhinoCustomTechName(config);
+  if (group.id === "TemporalChaos") return temporalChaosCustomTechName(config);
+  return uniqueTechNames([group.id])[0] || group.techs?.[0] || group.id;
+}
+
+function uniqueTechUiBuildingPosition(building, pantheon) {
+  if (building === "Temple") {
+    if (pantheon === "Atlantean") return { row: 1, column: 0 };
+    if (pantheon === "Norse") return { row: 2, column: 0 };
+    return { row: 1, column: 5 };
+  }
+  if (["TownCenter", "VillageCenter", "CitadelCenter"].includes(building)) {
+    return pantheon === "Egyptian" ? { row: 1, column: 0 } : { row: 1, column: 3 };
+  }
+  if (building === "SentryTower") return { row: 1, column: 5 };
+  if (["Armory", "DwarvenArmory"].includes(building)) return { row: 1, column: 5 };
+  if (["Granary", "Storehouse", "MiningCamp", "OxCart", "EconomicGuild", "Silo", "MiningCampJapanese", "WaterMill", "Calpulli", "CalpulliLivestockPen", "CalpulliLumberOutpost", "CalpulliCraftWorkshop"].includes(building)) {
+    return { row: 0, column: 5 };
+  }
+  if (["Stable", "StableJapanese"].includes(building)) return { row: 1, column: 5 };
+  return null;
+}
+
+function uniqueTechCommandTargetBuilding(building) {
+  return ["Armory", "DwarvenArmory"].includes(building) ? "AbstractArmory" : building;
+}
+
+function uniqueTechCommandEffectsForBuilding(techName, building, pantheon) {
+  const position = uniqueTechUiBuildingPosition(building, pantheon);
+  if (!position) return "";
+  const targetBuilding = uniqueTechCommandTargetBuilding(building);
+  return `<effect type="Data" amount="1.00" subtype="CommandRemove" tech="${escapeXml(techName)}" relativity="Assign">
+	<target type="ProtoUnit">${escapeXml(targetBuilding)}</target>
+</effect>
+<effect type="Data" amount="1.00" subtype="CommandAdd" tech="${escapeXml(techName)}" row="${position.row}" column="${position.column}" relativity="Assign">
+	<target type="ProtoUnit">${escapeXml(targetBuilding)}</target>
+</effect>`;
+}
+
+function uniqueTechUiPlacementEffects(config) {
+  const pantheon = config.baseCulture;
+  const effects = [];
+  for (const group of uniqueTechEntries(config)) {
+    const techName = uniqueTechActualTechName(group, config);
+    const buildings = UNIQUE_TECH_UI_BUILDINGS_BY_TECH[group.id]?.[pantheon] || [];
+    for (const building of buildings) {
+      const xml = uniqueTechCommandEffectsForBuilding(techName, building, pantheon);
+      if (xml) effects.push(xml);
+    }
+  }
+  return effects.join("\n");
+}
+
+function uniqueTechAegirTempleRepositionEffects(config) {
+  if (config.baseCulture !== "Norse") return "";
+  if (!(config.minorGods?.HeroicAge || []).includes("HeroicAgeAegir")) return "";
+  const effects = [];
+  for (const group of uniqueTechEntries(config)) {
+    const techName = uniqueTechActualTechName(group, config);
+    const buildings = UNIQUE_TECH_UI_BUILDINGS_BY_TECH[group.id]?.Norse || [];
+    if (!buildings.includes("Temple")) continue;
+    effects.push(`<effect type="Data" amount="1.00" subtype="CommandRemove" tech="${escapeXml(techName)}" relativity="Assign">
+	<target type="ProtoUnit">Temple</target>
+</effect>
+<effect type="Data" amount="1.00" subtype="CommandAdd" tech="${escapeXml(techName)}" row="1" column="4" relativity="Assign">
+	<target type="ProtoUnit">Temple</target>
+</effect>`);
+  }
+  return effects.join("\n");
+}
+
+function uniqueTechAegirTempleRepositionTechs(config) {
+  const effects = uniqueTechAegirTempleRepositionEffects(config);
+  if (!effects) return "";
+  return `<tech name="HeroicAgeAegir">
+	<effects>
+${indentTabBlock(effects, 2)}
+	</effects>
+</tech>`;
 }
 
 
@@ -887,7 +993,7 @@ function uniqueTechComboLabel(group) {
 function initUniqueTechSelects(keep = true) {
   const previous = keep ? selectedUniqueTechGroups() : [];
   const allOptions = availableUniqueTechGroups();
-  for (const [index, select] of [els.uniqueTech1, els.uniqueTech2].entries()) {
+  for (const [index, select] of [els.uniqueTech1].entries()) {
     if (!select) continue;
     const filterInput = ensureSelectFilterInput(select, "unique", "Type to search unique technologies...");
     const rawQuery = selectFilterQuery(select);
@@ -951,17 +1057,8 @@ function initUniqueTechSelects(keep = true) {
   enforceUniqueTechDifference();
 }
 function enforceUniqueTechDifference(changedSelect) {
-  if (!els.uniqueTech1 || !els.uniqueTech2) return;
-  if (els.uniqueTech1.value && els.uniqueTech1.value === els.uniqueTech2.value) {
-    if (changedSelect === els.uniqueTech1) els.uniqueTech2.value = "";
-    else els.uniqueTech1.value = "";
-  }
-  const one = els.uniqueTech1.value;
-  const two = els.uniqueTech2.value;
-  for (const opt of els.uniqueTech1.options) opt.disabled = Boolean(two && opt.value === two);
-  for (const opt of els.uniqueTech2.options) opt.disabled = Boolean(one && opt.value === one);
+  if (!els.uniqueTech1) return;
   setComboDisplay(els.uniqueTech1, els.uniqueTech1.value ? uniqueTechComboLabel(getUniqueTechGroup(els.uniqueTech1.value)) : "");
-  setComboDisplay(els.uniqueTech2, els.uniqueTech2.value ? uniqueTechComboLabel(getUniqueTechGroup(els.uniqueTech2.value)) : "");
 }
 
 function bonusSelects() {
@@ -2749,6 +2846,7 @@ function bonusTechEffects(config) {
       if (entry.label === SHENNONG_MYTH_REGEN_FAVORED_LAND_BONUS_LABEL) return SHENNONG_MYTH_REGEN_FAVORED_LAND_AGE_EFFECTS;
       if (entry.label === SUSANOO_BUSHIDO_MYTH_XP_BONUS_LABEL) return SUSANOO_BUSHIDO_MYTH_XP_ARCHAIC_EFFECTS;
       if (entry.label === TSUKUYOMI_FREE_KITSUNE_BONUS_LABEL) return TSUKUYOMI_FREE_KITSUNE_EFFECT;
+      if (entry.label === THOR_ARMORY_TECH_DISCOUNT_BONUS_LABEL || entry.id === "bonus_38") return thorArmoryTechDiscountEffects(config);
       if (entry.label === THOR_DWARVEN_ARMORY_BONUS_LABEL) return thorDwarvenArmoryArchaicEffects(config);
       if (entry.label === THOR_DWARF_SPAWN_BONUS_LABEL) return thorDwarfSpawnArchaicEffects(config);
       if (entry.label === "Building repair is free. Gatherers and Dwarves can repair") {
@@ -3094,8 +3192,7 @@ function validateConfig(config) {
   }
   const availableUniqueIds = new Set(availableUniqueTechGroups().map((group) => group.id));
   const uniquePicks = config.uniqueTechs || [];
-  if (uniquePicks.length > 2) errors.push("Choose no more than two unique technologies.");
-  if (new Set(uniquePicks).size !== uniquePicks.length) errors.push("Unique technology choices must be different.");
+  if (uniquePicks.length > 1) errors.push("Choose no more than one unique technology.");
   for (const id of uniquePicks) {
     if (!availableUniqueIds.has(id)) errors.push(`Unique technology ${id} is not available for this pantheon/god-power choice.`);
   }
@@ -3362,44 +3459,27 @@ const THOR_DWARVEN_ARMORY_LATER_RESEARCH_RATE_EFFECT = `<effect type="Data" amou
 	<target type="ProtoUnit">DwarvenArmory</target>
 </effect>`;
 
-function thorDwarvenArmoryBuilderUnits(config) {
-  const buildersByPantheon = {
-    Greek: [
-      { name: "VillagerGreek" },
-      { name: "LykaonVillager", orderhint: "3" },
-    ],
-    Egyptian: [
-      { name: "VillagerEgyptian" },
-    ],
-    Norse: [
-      { name: "Gatherer" },
-      { name: "Dwarf" },
-    ],
-    Atlantean: [
-      { name: "VillagerAtlantean" },
-      { name: "VillagerAtlanteanHero" },
-    ],
-    Chinese: [
-      { name: "VillagerChinese" },
-      { name: "VillagerChineseClay" },
-    ],
-    Japanese: [
-      { name: "VillagerJapanese" },
-    ],
-    Aztec: [
-      { name: "VillagerAztec", orderhint: "5" },
-    ],
-  };
-  return buildersByPantheon[config.baseCulture] || [];
+const THOR_ARMORY_TECH_DISCOUNT_BONUS_LABEL = "Technologies researched at Armory are cheaper";
+
+function thorArmoryTechDiscountEffects(config) {
+  const target = selectedHasBonusLabel(config, THOR_DWARVEN_ARMORY_BONUS_LABEL) ? "DwarvenArmory" : "Armory";
+  return ["Food", "Wood", "Gold", "Favor"].map((resource) => `<effect type="Data" amount="0.90" subtype="CostBuildingTechs" resource="${resource}" relativity="BasePercent">
+	<target type="ProtoUnit">${target}</target>
+</effect>`).join("\n");
+}
+
+function thorDwarvenArmoryBuilderTarget(config) {
+  return config.baseCulture === "Norse" ? "AbstractInfantry" : "AbstractVillager";
 }
 
 function thorDwarvenArmoryVillagerCommandEffects(config) {
-  return thorDwarvenArmoryBuilderUnits(config).map((builder) => `<effect type="Data" amount="1.00" subtype="CommandRemove" proto="Armory" relativity="Assign">
-	<target type="ProtoUnit">${escapeXml(builder.name)}</target>
+  const target = thorDwarvenArmoryBuilderTarget(config);
+  return `<effect type="Data" amount="1.00" subtype="CommandRemove" proto="Armory" relativity="Assign">
+	<target type="ProtoUnit">${escapeXml(target)}</target>
 </effect>
 <effect type="Data" amount="1.00" subtype="CommandAdd" proto="DwarvenArmory" row="1" column="5" relativity="Assign">
-	<target type="ProtoUnit">${escapeXml(builder.name)}</target>
-</effect>`).join("\n");
+	<target type="ProtoUnit">${escapeXml(target)}</target>
+</effect>`;
 }
 
 function thorDwarvenArmoryArchaicEffects(config) {
@@ -3431,11 +3511,18 @@ function thorDwarvenArmoryArchaicEffects(config) {
 function thorDwarvenArmoryMinorGodPrereqTechs(config) {
   if (!selectedHasBonusLabel(config, THOR_DWARVEN_ARMORY_BONUS_LABEL)) return "";
   const heroicMinorTechs = (config.minorGods.HeroicAge || []).filter(Boolean);
-  return Array.from(new Set(heroicMinorTechs)).map((techName) => `	<tech name="${escapeXml(techName)}">
+  return Array.from(new Set(heroicMinorTechs)).map((techName) => {
+    const aegirEffects = techName === "HeroicAgeAegir" ? uniqueTechAegirTempleRepositionEffects(config) : "";
+    const effectsBlock = aegirEffects ? `
+		<effects>
+${indentTabBlock(aegirEffects, 3)}
+		</effects>` : "";
+    return `	<tech name="${escapeXml(techName)}">
 		<prereqs>
 			<typecount unit="DwarvenArmory" count="1.00" state="aliveState" operator="gte"></typecount>
-		</prereqs>
-	</tech>`).join("\n\n");
+		</prereqs>${effectsBlock}
+	</tech>`;
+  }).join("\n\n");
 }
 
 
@@ -3940,6 +4027,10 @@ function extraGeneratedTechs(config) {
   if (skinRhinoTech) extras.push(skinRhinoTech);
   const temporalChaosTech = temporalChaosCustomTech(config);
   if (temporalChaosTech) extras.push(temporalChaosTech);
+  if (!selectedHasBonusLabel(config, THOR_DWARVEN_ARMORY_BONUS_LABEL)) {
+    const aegirUniqueTechPatch = uniqueTechAegirTempleRepositionTechs(config);
+    if (aegirUniqueTechPatch) extras.push(aegirUniqueTechPatch);
+  }
   return indentTabBlock(extras.join("\n\n"), 1);
 }
 
@@ -3961,6 +4052,7 @@ ${indentTabBlock(greekArchaicExtraEffects(config), 3)}
 ${kronosExtraMythUnitStatusEffects(config, "ArchaicAge")}
 ${techStatusEffects(uniqueTechNames(config), "obtainable")}
 ${indentTabBlock(uniqueTechSetNameEffects(config), 3)}
+${indentTabBlock(uniqueTechUiPlacementEffects(config), 3)}
 ${indentTabBlock(bonusTechEffects(config), 3)}
 			<effect type="TechStatus" status="active">ArchaicAgeWeakenUnits</effect>
 ${uniqueTechEntries(config).some((group) => group.extraArchaicEffect === "FreyrTechCostBonus") ? `			<effect type="SetOnTechResearchedTech" amount="1.00">FreyrTechCostBonus</effect>
@@ -4230,8 +4322,8 @@ major_gods pantheon template: ${config.templateSource}
 Starting god power: ${config.godPower}${config.godPowerPantheon ? ` (${config.godPowerPantheon})` : ""}
 Unique technologies: ${uniqueTechNames(config).map(displayTechName).join(", ") || "None"}
 God bonuses: ${selectedBonusEntries(config).map((entry) => `${entry.sourceMajor}: ${dynamicBonusLabel(entry, config)}`).join("; ") || "None"}
-GodPicker Archaic block generated from the selected god power and unique technologies.
-TechTree Archaic block generated from the selected god power and unique technologies.
+GodPicker Archaic block generated from the selected god power and unique technology.
+TechTree Archaic block generated from the selected god power and unique technology.
 TechTree age technology layout fallback: ${config.uiTemplateMajor} pregame layout
 
 Generated files follow this mod shape:
@@ -4245,7 +4337,7 @@ ${config.internalName}/game/ui_myth/content/pregame/techtree/TechTree_${config.b
 Install by extracting the folder into your AoM Retold local mods folder.
 
 Known draft limitation:
-major_gods_mods.xml is generated from the clean pantheon template file, not from a vanilla major god clone. GodPicker and TechTree XAML use compact generated ArchaicAge blocks for the selected god power and unique technologies, plus full vanilla bonus tracks for the selected minor gods. stringmods.txt intentionally contains only the mandatory General strings referenced by major_gods_mods.xml. The remaining likely test points are age-tech effects and whether any selected minor god requires additional gameplay files.
+major_gods_mods.xml is generated from the clean pantheon template file, not from a vanilla major god clone. GodPicker and TechTree XAML use compact generated ArchaicAge blocks for the selected god power and unique technology, plus full vanilla bonus tracks for the selected minor gods. stringmods.txt intentionally contains only the mandatory General strings referenced by major_gods_mods.xml. The remaining likely test points are age-tech effects and whether any selected minor god requires additional gameplay files.
 `;
 }
 
@@ -4434,7 +4526,7 @@ function applyPreset(preset) {
   if (preset.godPower && Array.from(els.godPower.options).some((o) => o.value === preset.godPower)) els.godPower.value = preset.godPower;
   initUniqueTechSelects(false);
   if (preset.uniqueTechs) {
-    const selects = [els.uniqueTech1, els.uniqueTech2];
+    const selects = [els.uniqueTech1];
     for (const [index, value] of preset.uniqueTechs.entries()) {
       const select = selects[index];
       if (select && value && Array.from(select.options).some((o) => o.value === value)) select.value = value;
@@ -4520,7 +4612,6 @@ function wireEvents() {
     if (select) select.addEventListener("change", updatePreview);
   }
   els.uniqueTech1.addEventListener("change", (event) => { enforceUniqueTechDifference(event.target); enforceChannelsGaiaLushBonusLock(); updatePreview(); });
-  els.uniqueTech2.addEventListener("change", (event) => { enforceUniqueTechDifference(event.target); enforceChannelsGaiaLushBonusLock(); updatePreview(); });
   if (els.bonusPickers) els.bonusPickers.addEventListener("change", (event) => { enforceBonusDifference(event.target); enforceChannelsGaiaLushBonusLock(); updatePreview(); });
   els.minorPickers.addEventListener("change", (event) => { enforceMinorDifference(event.target); updatePreview(); });
   els.downloadZip.addEventListener("click", handleDownload);
