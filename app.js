@@ -28,9 +28,9 @@ const UNIQUE_TECH_GROUPS = [
   { id: "Hamask", techs: ["Hamask"], pantheon: "Norse", label: "Hamask" },
   { id: "EyesInTheForest", techs: ["EyesInTheForest"], pantheon: "All", label: "Eyes In The Forest" },
   { id: "FreyrsGift", techs: ["FreyrsGift"], pantheon: "All", label: "Freyr's Gift", extraArchaicEffect: "FreyrTechCostBonus" },
-  { id: "TemporalChaos", techs: ["TemporalChaos"], pantheon: "All", label: "Temporal Chaos", autoBonusLabel: "Can Time-Shift buildings. Most Time-Shifts are free. Towers and Fortress-type buildings cost part of their price to Time-Shift" },
+  { id: "TemporalChaos", techs: ["TemporalChaos"], pantheon: "All", label: "Temporal Chaos", autoBonusLabel: "Can Time-Shift buildings. Most are free, except Towers and Fortress-type buildings costing half their price." },
   { id: "EmpyreanSpeed", techs: ["EmpyreanSpeed"], pantheon: "All", label: "Empyrean Speed" },
-  { id: "Channels", techs: ["Channels"], pantheon: "All", label: "Channels", autoBonusLabel: "Economic buildings grow Lush. Lush heals friendly units and buildings" },
+  { id: "Channels", techs: ["Channels"], pantheon: "All", label: "Channels", autoBonusLabel: "Economic buildings grow Lush that heals friendly units and buildings." },
   { id: "CelestialWeapons", techs: ["CelestialWeapons"], pantheon: "All", label: "Celestial Weapons" },
   { id: "TaiChi", techs: ["TaiChi"], pantheon: "All", label: "TaiChi" },
   { id: "MountainousMight", techs: ["MountainousMight"], pantheon: "Chinese", label: "Mountainous Might" },
@@ -153,11 +153,32 @@ const GREEK_UNIQUE_UNITS = {
   Demeter: "AmazonArcher",
 };
 
+const GREEK_UNIQUE_UNIT_DISPLAY_NAMES = {
+  Myrmidon: "Myrmidon",
+  Gastraphetoros: "Gastraphetoros",
+  Hetairos: "Hetairos",
+  AmazonArcher: "Amazon Archer",
+};
+
+function greekUniqueUnitDisplayName(unit) {
+  return GREEK_UNIQUE_UNIT_DISPLAY_NAMES[unit] || unit;
+}
+
 const CHINESE_MYTHIC_HEROES = {
   Fuxi: "YangJian",
   Nüwa: "LiJing",
   Shennong: "WenZhong",
 };
+
+const CHINESE_MYTHIC_HERO_DISPLAY_NAMES = {
+  YangJian: "Yang Jian",
+  LiJing: "Li Jing",
+  WenZhong: "Wen Zhong",
+};
+
+function chineseMythicHeroDisplayName(hero) {
+  return CHINESE_MYTHIC_HERO_DISPLAY_NAMES[hero] || hero;
+}
 
 const AZTEC_CLASSICAL_FORMS = {
   Quetzalcoatl: { tech: "WarriorPriestToTeixiptlaQuetz", unit: "TeixiptlaQuetz" },
@@ -394,10 +415,10 @@ function initGreekSpecificSelects(keep = true) {
 
   const previousUnique = keep ? els.greekUniqueUnit.value : "";
   els.greekUniqueUnit.innerHTML = "";
-  for (const [major, unit] of Object.entries(GREEK_UNIQUE_UNITS)) {
+  for (const unit of Object.values(GREEK_UNIQUE_UNITS)) {
     const opt = document.createElement("option");
     opt.value = unit;
-    opt.textContent = `${major}: ${unit}`;
+    opt.textContent = greekUniqueUnitDisplayName(unit);
     els.greekUniqueUnit.appendChild(opt);
   }
   els.greekUniqueUnit.value = previousUnique && Object.values(GREEK_UNIQUE_UNITS).includes(previousUnique) ? previousUnique : GREEK_UNIQUE_UNITS.Zeus;
@@ -413,7 +434,7 @@ function initChineseSpecificSelects(keep = true) {
   for (const [major, hero] of Object.entries(CHINESE_MYTHIC_HEROES)) {
     const opt = document.createElement("option");
     opt.value = hero;
-    opt.textContent = `${major}: ${hero}`;
+    opt.textContent = chineseMythicHeroDisplayName(hero);
     els.chineseMythicHero.appendChild(opt);
   }
   els.chineseMythicHero.value = previous && Object.values(CHINESE_MYTHIC_HEROES).includes(previous) ? previous : CHINESE_MYTHIC_HEROES.Fuxi;
@@ -1237,44 +1258,44 @@ function enforceBonusDifference(changedSelect) {
   }
 }
 
-const GAIA_ECON_GUILD_BONUS_LABEL = "Economic Guild and upgrades are cheaper and available earlier";
-const KRONOS_EXTRA_MYTH_UNITS_BONUS_LABEL = "Receives 2 free Temple myth units instead of 1 on age-up";
-const KRONOS_TIMESHIFT_BONUS_LABEL = "Can Time-Shift buildings. Most Time-Shifts are free. Towers and Fortress-type buildings cost part of their price to Time-Shift";
-const KRONOS_TEMPORAL_SCAFFOLDING_BONUS_LABEL = "Buildings construct faster near Manors and Houses (at half-rate)";
+const GAIA_ECON_GUILD_BONUS_LABEL = "Economic Guild and upgrades are cheaper and available earlier.";
+const KRONOS_EXTRA_MYTH_UNITS_BONUS_LABEL = "Receives 2 free Temple myth units instead of 1 on age-up.";
+const KRONOS_TIMESHIFT_BONUS_LABEL = "Can Time-Shift buildings. Most are free, except Towers and Fortress-type buildings costing half their price.";
+const KRONOS_TEMPORAL_SCAFFOLDING_BONUS_LABEL = "Buildings construct faster near Manors.";
 
 const ORANOS_SKY_PASSAGE_BONUS_LABEL = "Villagers/Infantry(Norse)/Priest(Egyptian) can build a new Sky Passage each age, enabling instant travel between them.";
-const LOKI_SPAWN_MYTH_UNITS_BONUS_LABEL = "Damaging enemies can spawn myth units";
+const LOKI_SPAWN_MYTH_UNITS_BONUS_LABEL = "Damaging enemies can spawn myth units.";
 const LOKI_MILITARY_BUILD_BONUS_LABEL = "Military-built buildings are constructed faster";
-const LOKI_COUNTER_DAMAGE_BONUS_LABEL = "Human soldiers and heroes get bonus counter damage";
-const POSEIDON_SPEED_BY_AGE_BONUS_LABEL = "Cavalry, Caravans, and myth units gain speed by age";
-const POSEIDON_STABLE_MARKET_DISCOUNT_BONUS_LABEL = "Stables and Markets are 30% cheaper";
-const POSEIDON_MILITIA_BONUS_LABEL = "Militia spawn from razed buildings";
-const HUITZ_TONALLI_RESOURCES_BONUS_LABEL = "Collecting Tonalli grants resources in addition to favor";
-const HUITZ_CONSTRUCTION_REFUND_BONUS_LABEL = "Temples, Fortress-type building, Village Centers, and Town Centers refund part of their wood/gold cost on completion";
-const ZEUS_STARTING_FAVOR_BONUS_LABEL = "Starts with 10 favor";
-const ZEUS_COUNTER_CAV_INFANTRY_SPEED_BONUS_LABEL = "Hoplite and other counter-cavalry infantry move 15% faster";
-const HUITZ_SHORN_TONALLI_BONUS_LABEL = "Shorn Ones have more hit points. Shorn Ones generate extra Tonalli in combat";
-const QUETZ_DROPSITE_DISCOUNT_BONUS_LABEL = "Dropsite and their additions cost 33% less";
-const QUETZ_EAGLE_RANGE_LOS_BONUS_LABEL = "Eagle Warriors gain +1 range in the Heroic and Mythic Ages.Eagle Warriors gain +1 line of sight in the Heroic and Mythic Ages";
-const TEZCAT_DEVOTE_FAVOR_BONUS_LABEL = "Devoting Settlers gives higher immediate favor by age";
-const TEZCAT_JAGUAR_RIDER_BONUS_LABEL = "Jaguar Riders are available from the Heroic Age";
-const TEZCAT_OBSIDIAN_SHARD_BONUS_LABEL = "Every 2 lost trainable myth units can create an Obsidian Shard. Obsidian Shards may summon a free myth unit";
-const FUXI_NEZHA_BONUS_LABEL = "Gains access to Nezha in the Classical Age";
-const NUWA_CREATORS_AUSPICE_BONUS_LABEL = "Creator’s Auspice improves as favor is earned. It reduces standard Villager cost and increases building hit points";
-const NUWA_FAVORED_LAND_FARTHER_BONUS_LABEL = "Buildings spread Favored Land farther";
-const SHENNONG_MYTH_REGEN_FAVORED_LAND_BONUS_LABEL = "Myth units regenerate hit points on Favored Land. Myth-unit regeneration on Favored Land scales by age";
-const SHENNONG_GIFT_OF_BEASTS_BONUS_LABEL = "Gift of Beasts summons myth units from the next age as favor is earned";
-const SHENNONG_FARM_LINE_UPGRADES_BONUS_LABEL = "Farm Line Upgrades are researched free and instantly in their respective ages";
-const SET_ANIMALS_BONUS_LABEL = "Pharaohs can summon Animals of Set. Priests can convert wild animals.Starts with a Baboon of Set.Gets Animals of Set on age-up";
-const DEMETER_HERDABLES_TEMPLE_FAVOR_BONUS_LABEL = "Herdables near Temples improve favor-gathering";
-const DEMETER_HERDABLES_FATTEN_BONUS_LABEL = "Herdables fatten faster and hold more food";
-const DEMETER_HERDABLES_SPAWN_ON_AGE_UP_BONUS_LABEL = "Town Centers and Village Centers spawn herdables on age-up";
-const DEMETER_TRAIN_FASTER_BY_AGE_BONUS_LABEL = "Human soldiers and myth units train faster by age";
-const HADES_MYTH_HP_BY_AGE_BONUS_LABEL = "Myth units gain bonus hit points by age";
-const HADES_RANGED_TECH_DISCOUNT_BONUS_LABEL = "Ranged-soldier technologies are cheaper";
-const FREYR_FORTRESS_DAMAGE_BONUS_LABEL = "Fortress-type building units deal +10% damage";
-const RA_FORTRESS_HP_BONUS_LABEL = "Fortress-type building units get +15% hit points";
-const SET_MILITARY_BUILDING_DISCOUNT_BONUS_LABEL = "Military production buildings including Fortress-type cost 25% less resources excluding favor";
+const LOKI_COUNTER_DAMAGE_BONUS_LABEL = "Human soldiers and heroes get bonus counter damage.";
+const POSEIDON_SPEED_BY_AGE_BONUS_LABEL = "Cavalry, Caravans, and myth units gain speed by age.";
+const POSEIDON_STABLE_MARKET_DISCOUNT_BONUS_LABEL = "Stables and Markets are 30% cheaper.";
+const POSEIDON_MILITIA_BONUS_LABEL = "Militia spawn from razed buildings.";
+const HUITZ_TONALLI_RESOURCES_BONUS_LABEL = "Collecting Tonalli grants resources in addition to favor.";
+const HUITZ_CONSTRUCTION_REFUND_BONUS_LABEL = "Temples, Fortress-type building, Village Centers, and Town Centers refund part of their wood/gold cost on completion.";
+const ZEUS_STARTING_FAVOR_BONUS_LABEL = "Starts with 10 favor.";
+const ZEUS_COUNTER_CAV_INFANTRY_SPEED_BONUS_LABEL = "Hoplite and other counter-cavalry infantry move 15% faster.";
+const HUITZ_SHORN_TONALLI_BONUS_LABEL = "Shorn Ones have more hit points and generate extra Tonalli in combat.";
+const QUETZ_DROPSITE_DISCOUNT_BONUS_LABEL = "Dropsite and their additions cost 33% less.";
+const QUETZ_EAGLE_RANGE_LOS_BONUS_LABEL = "Eagle Warriors gain +1 range and +1 line of sight in the Heroic and Mythic Ages.";
+const TEZCAT_DEVOTE_FAVOR_BONUS_LABEL = "Devoting Settlers gives higher immediate favor by age.";
+const TEZCAT_JAGUAR_RIDER_BONUS_LABEL = "Jaguar Riders are available from the Heroic Age.";
+const TEZCAT_OBSIDIAN_SHARD_BONUS_LABEL = "Every 2 lost trainable myth units can create an Obsidian Shard that may summons a free myth unit.";
+const FUXI_NEZHA_BONUS_LABEL = "Gains access to Nezha in the Classical Age.";
+const NUWA_CREATORS_AUSPICE_BONUS_LABEL = "Creator’s Auspice improves as favor is earned, reducing standard Villager cost and increasing building hit points.";
+const NUWA_FAVORED_LAND_FARTHER_BONUS_LABEL = "Buildings spread Favored Land farther.";
+const SHENNONG_MYTH_REGEN_FAVORED_LAND_BONUS_LABEL = "Myth units regenerate hit points on Favored Land. Regeneration scales by age.";
+const SHENNONG_GIFT_OF_BEASTS_BONUS_LABEL = "Gift of Beasts summons myth units from the next age as favor is earned.";
+const SHENNONG_FARM_LINE_UPGRADES_BONUS_LABEL = "Farm Line Upgrades are researched for free and instantly in their respective ages.";
+const SET_ANIMALS_BONUS_LABEL = "Starts with a Baboon of Set and gets Animals of Set on age-up.Pharaohs can summon Animals of Set and Priests can convert wild animals.";
+const DEMETER_HERDABLES_TEMPLE_FAVOR_BONUS_LABEL = "Herdables near Temples improve favor-gathering.";
+const DEMETER_HERDABLES_FATTEN_BONUS_LABEL = "Herdables fatten faster and hold more food.";
+const DEMETER_HERDABLES_SPAWN_ON_AGE_UP_BONUS_LABEL = "Town Centers and Village Centers spawn herdables on age-up.";
+const DEMETER_TRAIN_FASTER_BY_AGE_BONUS_LABEL = "Human soldiers and myth units train faster by age.";
+const HADES_MYTH_HP_BY_AGE_BONUS_LABEL = "Myth units gain bonus hit points by age.";
+const HADES_RANGED_TECH_DISCOUNT_BONUS_LABEL = "Ranged-soldier technologies are cheaper.";
+const FREYR_FORTRESS_DAMAGE_BONUS_LABEL = "Fortress-type building units deal +10% damage.";
+const RA_FORTRESS_HP_BONUS_LABEL = "Fortress-type building units get +15% hit points.";
+const SET_MILITARY_BUILDING_DISCOUNT_BONUS_LABEL = "Military production buildings including Fortress-type cost 25% less resources excluding favor.";
 
 function dynamicBonusLabel(entry, pantheonOrConfig) {
   if (!entry) return "";
@@ -1283,18 +1304,41 @@ function dynamicBonusLabel(entry, pantheonOrConfig) {
     : (pantheonOrConfig?.baseCulture || selectedPantheon());
   if (entry.id === "bonus_45" || entry.label === LOKI_MILITARY_BUILD_BONUS_LABEL) {
     return pantheon === "Norse"
-      ? "Infantry units construct buildings faster"
-      : "Villagers construct buildings faster";
+      ? "Infantry units construct buildings faster."
+      : "Villagers construct buildings faster.";
   }
   if (entry.id === "bonus_56" || entry.label === ORANOS_SKY_PASSAGE_BONUS_LABEL) {
     if (pantheon === "Norse") return "Infantry units can build a new Sky Passage each age, enabling instant travel between them.";
     if (pantheon === "Egyptian") return "Priests can build a new Sky Passage each age, enabling instant travel between them.";
     return "Villagers can build a new Sky Passage each age, enabling instant travel between them.";
   }
+  if (entry.id === "bonus_50") {
+    return pantheon === "Norse"
+      ? "Building repair is free. Gatherers and Dwarves can repair."
+      : "Building repair is free.";
+  }
+  if (entry.id === "bonus_53") {
+    return pantheon === "Atlantean"
+      ? "Buildings construct faster near Manors."
+      : "Buildings construct slighlty faster near Houses.";
+  }
+  if (entry.id === "bonus_62") {
+    return pantheon === "Atlantean"
+      ? "Economic Guild and upgrades are cheaper and available earlier."
+      : "Standard economic upgrades are cheaper and available earlier.";
+  }
   if (entry.id === "bonus_66" || entry.label === FUXI_NEZHA_BONUS_LABEL) {
+    return "Gains access to Nezha in the Classical Age.";
+  }
+  if (entry.id === "bonus_73") {
     return pantheon === "Chinese"
-      ? "Gains access to Nezha in the Classical Age"
-      : "Gains access to Nezha in the Classical Age in the Temple";
+      ? "Farms are available in the Archaic Age and auto-build on Favored Land."
+      : "Farms are available in the Archaic Age.";
+  }
+  if (entry.id === "bonus_91") {
+    return pantheon === "Aztec"
+      ? "Sentry Towers, Spike Traps, and Smoke Traps build faster and deal more damage."
+      : "Sentry Towers build faster and deal more damage.";
   }
   return entry.label;
 }
@@ -2858,7 +2902,7 @@ function bonusTechEffects(config) {
       if (entry.label === THOR_ARMORY_TECH_DISCOUNT_BONUS_LABEL || entry.id === "bonus_38") return thorArmoryTechDiscountEffects(config);
       if (entry.label === THOR_DWARVEN_ARMORY_BONUS_LABEL) return thorDwarvenArmoryArchaicEffects(config);
       if (entry.label === THOR_DWARF_SPAWN_BONUS_LABEL) return thorDwarfSpawnArchaicEffects(config);
-      if (entry.label === "Building repair is free. Gatherers and Dwarves can repair") {
+      if (entry.id === "bonus_50" || entry.label === "Building repair is free. Gatherers and Dwarves can repair.") {
         return config.baseCulture === "Norse" ? sanitizeBonusTechEffects(entry.techEffects || "") : "";
       }
       return sanitizeBonusTechEffects(entry.techEffects || "");
@@ -3305,7 +3349,7 @@ function applyMajorGodSpecialBonusPatches(doc, civ, config) {
   if (hasSelectedBonus(config, "Zeus", ZEUS_STARTING_FAVOR_BONUS_LABEL)) {
     addZeusStartingFavor(doc, civ);
   }
-  if (hasSelectedBonus(config, "Gaia", "Starts with 2 Hero Citizens")) {
+  if (hasSelectedBonus(config, "Gaia", "Starts with 2 Hero Citizens.")) {
     replaceAtlanteanStartingCitizensWithHeroes(civ);
   }
   if (selectedHasBonusLabel(config, NUWA_FAVORED_LAND_FARTHER_BONUS_LABEL)) {
@@ -3436,12 +3480,12 @@ function setOnCastPowerCostFactor(doc, civ, value) {
   node.textContent = value;
 }
 
-const SUSANOO_POWER_COST_FACTOR_BONUS_LABEL = "Invoking a god power makes other god powers cheaper to reinvoke";
-const SUSANOO_BUSHIDO_MYTH_XP_BONUS_LABEL = "Myth units generate Bushidō XP passively. Myth units generate Bushidō XP in combat";
+const SUSANOO_POWER_COST_FACTOR_BONUS_LABEL = "Invoking a god power makes other god powers cheaper to reinvoke.";
+const SUSANOO_BUSHIDO_MYTH_XP_BONUS_LABEL = "Myth units generate Bushidō XP passively and in combat.";
 const SUSANOO_BUSHIDO_MYTH_XP_BOUNTY = `<bountyreward unittype="MythUnit" condition="Damage" combatxp="">2.0</bountyreward>`;
 
-const TSUKUYOMI_FREE_KITSUNE_BONUS_LABEL = "A free Kitsune appears at the Temple on each age-up except Wonder Age";
-const TSUKUYOMI_RESEARCH_BUSHIDO_XP_BONUS_LABEL = "Researching technologies grants Bushidō XP";
+const TSUKUYOMI_FREE_KITSUNE_BONUS_LABEL = "A free Kitsune appears at the Temple on each age-up except Wonder Age.";
+const TSUKUYOMI_RESEARCH_BUSHIDO_XP_BONUS_LABEL = "Researching technologies grants Bushidō XP.";
 const TSUKUYOMI_RESEARCH_BUSHIDO_XP_BOUNTY = `<researchreward techtype="all" combatxp="">1.0</researchreward>
 <researchcostmultiplier techtype="all" resourcetype="Food">1.0</researchcostmultiplier>
 <researchcostmultiplier techtype="all" resourcetype="Wood">1.0</researchcostmultiplier>
@@ -3449,17 +3493,17 @@ const TSUKUYOMI_RESEARCH_BUSHIDO_XP_BOUNTY = `<researchreward techtype="all" com
 <researchcostmultiplier techtype="all" resourcetype="Favor">10.0</researchcostmultiplier>
 <excludedtechflag>AgeUpgrade</excludedtechflag>
 <excludedtechflag>DynamicCost</excludedtechflag>`;
-const ODIN_GREAT_HALL_FAVOR_BONUS_LABEL = "Great Hall units generate +25% favor in battle";
+const ODIN_GREAT_HALL_FAVOR_BONUS_LABEL = "Great Hall units generate +25% favor in battle.";
 const ODIN_GREAT_HALL_FAVOR_BOUNTY = `<bountyreward protounit="Hersir" condition="Damage" resourcetype="Favor">1.25</bountyreward>
 <bountyreward protounit="Jarl" condition="Damage" resourcetype="Favor">1.25</bountyreward>
 <bountyreward protounit="Godi" condition="Damage" resourcetype="Favor">1.25</bountyreward>
 <bountyreward protounit="RaidingCavalry" condition="Damage" resourcetype="Favor">1.25</bountyreward>`;
-const ODIN_RAVEN_SCOUTS_BONUS_LABEL = "Two Raven scouts spawn after the first Temple and respawn when killed";
+const ODIN_RAVEN_SCOUTS_BONUS_LABEL = "Two Raven scouts spawn after the first Temple and respawn when killed.";
 const ODIN_RAVEN_LOS_AGE_EFFECT = `<effect type="Data" amount="2" subtype="LOS" relativity="Absolute">
 	<target type="ProtoUnit">Raven</target>
 </effect>`;
 
-const THOR_DWARVEN_ARMORY_BONUS_LABEL = "Dwarven Armory can be built and researched in any age.Dwarven Armory has extra upgrades";
+const THOR_DWARVEN_ARMORY_BONUS_LABEL = "Dwarven Armory can be built and researched in any age, adding extra upgrades.";
 
 const THOR_DWARVEN_ARMORY_CLASSICAL_RESEARCH_RATE_EFFECT = `<effect type="Data" amount="0.67" subtype="ResearchRate" relativity="Absolute">
 	<target type="ProtoUnit">DwarvenArmory</target>
@@ -3468,7 +3512,7 @@ const THOR_DWARVEN_ARMORY_LATER_RESEARCH_RATE_EFFECT = `<effect type="Data" amou
 	<target type="ProtoUnit">DwarvenArmory</target>
 </effect>`;
 
-const THOR_ARMORY_TECH_DISCOUNT_BONUS_LABEL = "Technologies researched at Armory are cheaper";
+const THOR_ARMORY_TECH_DISCOUNT_BONUS_LABEL = "Technologies researched at Armory are cheaper.";
 
 function thorArmoryTechDiscountEffects(config) {
   const target = selectedHasBonusLabel(config, THOR_DWARVEN_ARMORY_BONUS_LABEL) ? "DwarvenArmory" : "Armory";
@@ -3730,7 +3774,7 @@ function thorDwarvenArmoryCommandAddArchaicEffects(config) {
 </effect>`).join("\n");
 }
 
-const THOR_DWARF_SPAWN_BONUS_LABEL = "Each Dwarven Armory upgrade grants a free Dwarf";
+const THOR_DWARF_SPAWN_BONUS_LABEL = "Each Dwarven Armory upgrade grants a free Dwarf.";
 
 function thorDwarfSpawnTechName(config) {
   return `${config.internalName}DwarfSpawn`;
