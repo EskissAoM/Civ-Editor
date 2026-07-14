@@ -4567,7 +4567,7 @@ function generateGodPickerXaml(config) {
 
     <local:GodPickerPageBase.Ages>
 ${indentBlock(archaicBlock, 2)}
-${AGES.map((age) => generateGodPickerAge(age, config.minorGods[age])).join("\n")}
+${AGES.map((age) => generateGodPickerAge(age, config.minorGods[age], config)).join("\n")}
     </local:GodPickerPageBase.Ages>
 </local:GodPickerPageBase>
 `;
@@ -4625,11 +4625,25 @@ function lookupTemplateBlock(map, key) {
   return foundKey ? map[foundKey] : "";
 }
 
-function godPickerBonusTrack(tech) {
+function applyCustomTechNamesToUiBlock(block, config) {
+  let out = String(block || "");
+  if (config && selectedHasUniqueTechId(config, "SkinOfTheRhino")) {
+    out = out.replace(/SkinOfTheRhino(?:[A-Za-z0-9_]+)?/g, skinOfTheRhinoCustomTechName(config));
+  }
+  if (config && selectedHasUniqueTechId(config, "TemporalChaos")) {
+    out = out.replace(/TemporalChaos(?:[A-Za-z0-9_]+)?/g, temporalChaosCustomTechName(config));
+  }
+  if (config && hasGreekHeraMinorGod(config)) {
+    out = out.replace(/ArgivePatronage(?:Zeus|Poseidon|Hades|Demeter|[A-Za-z0-9_]+)/g, argivePatronageCustomTechName(config));
+  }
+  return out;
+}
+
+function godPickerBonusTrack(tech, config) {
   const templates = window.AOM_GODPICKER || {};
   const canonical = canonicalMinorTech(tech);
   const block = lookupTemplateBlock(templates.bonusTrackByGod, canonical);
-  if (block) return block;
+  if (block) return applyCustomTechNamesToUiBlock(block, config);
   return `<techTree:TechTreeBonusTrack God="${escapeXml(canonical)}">
     <techTree:TechTreeBonusTrack.Technologies>
     </techTree:TechTreeBonusTrack.Technologies>
@@ -4644,15 +4658,30 @@ function indentBlock(block, level = 0) {
     .join("\n");
 }
 
-function generateGodPickerAge(age, techs) {
+function generateGodPickerAge(age, techs, config) {
   return `        <techTree:TechTreeAge AgeName="${age}">
             <techTree:TechTreeAge.Bonuses>
-${techs.map((tech) => indentBlock(godPickerBonusTrack(tech), 4)).join("\n\n")}
+${techs.map((tech) => indentBlock(godPickerBonusTrack(tech, config), 4)).join("\n\n")}
             </techTree:TechTreeAge.Bonuses>
         </techTree:TechTreeAge>`;
 }
 
 function generateTechTreeXaml(config) {
+  if (config?.baseCulture === "Greek") {
+    config._greekTechTreeGroupStarts = buildGreekTechTreeGroupStarts(config);
+  } else if (config?.baseCulture === "Egyptian") {
+    config._egyptianTechTreeGroupStarts = buildEgyptianTechTreeGroupStarts(config);
+  } else if (config?.baseCulture === "Norse") {
+    config._norseTechTreeGroupStarts = buildNorseTechTreeGroupStarts(config);
+  } else if (config?.baseCulture === "Atlantean") {
+    config._atlanteanTechTreeGroupStarts = buildAtlanteanTechTreeGroupStarts(config);
+  } else if (config?.baseCulture === "Chinese") {
+    config._chineseTechTreeGroupStarts = buildChineseTechTreeGroupStarts(config);
+  } else if (config?.baseCulture === "Japanese") {
+    config._japaneseTechTreeGroupStarts = buildJapaneseTechTreeGroupStarts(config);
+  } else if (config?.baseCulture === "Aztec") {
+    config._aztecTechTreeGroupStarts = buildAztecTechTreeGroupStarts(config);
+  }
   const className = `TechTree_${config.baseCulture}_${config.internalName}`;
   const defaultColor = techTreeDefaultColor(config.uiTemplateMajor);
   const defaultColorAttr = defaultColor ? `\n      DefaultPlayerColor="${escapeXml(defaultColor)}"` : "";
@@ -4666,7 +4695,7 @@ function generateTechTreeXaml(config) {
       Style="{StaticResource TechTreePageStyle}"${defaultColorAttr}>
 
     <local:TechTreePageBase.Ages>
-${indentBlock(techTreeArchaicPowerBlock(config.godPower, uniqueTechNames(config)), 2)}
+${indentBlock(techTreeArchaicAgeBlock(config), 2)}
 ${AGES.map((age) => generateTechTreeAge(age, config)).join("\n")}
         <local:TechTreeAge AgeName="TitanAge">
         </local:TechTreeAge>
@@ -4688,16 +4717,8199 @@ function techTreeArchaicPowerBlock(power, uniqueTechs = []) {
 </local:TechTreeAge>`;
 }
 
-function techTreeAgeTechnologiesBlock(sourceMajor, age) {
-  const templates = window.AOM_TECHTREE || {};
-  return templates.ageTechnologiesByMajorAge?.[`${sourceMajor}|${age}`] || "";
+function techTreeArchaicBonusTrack(config) {
+  const greekUniqueUnits = config.baseCulture === "Greek" && config.greekUniqueUnit ? [config.greekUniqueUnit] : [];
+  const otherUnits = godPickerArchaicBonusUnits(config);
+  const powerNodes = godPickerArchaicBonusPowers(config)
+    .map((power) => `                        <local:TechTreeNode Power="${escapeXml(power)}" />`);
+  const unitNodes = uniqueList([...greekUniqueUnits, ...otherUnits])
+    .map((unit) => `                        <local:TechTreeNode Unit="${escapeXml(unit)}" />`);
+  const techNodes = uniqueTechNames(config)
+    .map((tech) => `                        <local:TechTreeNode Tech="${escapeXml(tech)}" />`);
+  const nodes = [
+    `                        <local:TechTreeNode Power="${escapeXml(config.godPower)}" />`,
+    ...powerNodes,
+    ...unitNodes,
+    ...techNodes
+  ].join("\n");
+  return `<local:TechTreeAge.Bonuses>
+                <local:TechTreeBonusTrack>
+                    <local:TechTreeBonusTrack.Technologies>
+${nodes}
+                    </local:TechTreeBonusTrack.Technologies>
+                </local:TechTreeBonusTrack>
+            </local:TechTreeAge.Bonuses>`;
 }
 
-function techTreeBonusTrack(tech) {
+function replaceXmlPropertyBlock(block, propertyName, replacement) {
+  const source = String(block || "");
+  const pattern = new RegExp(`<local:TechTreeAge\\.${propertyName}>[\\s\\S]*?<\\/local:TechTreeAge\\.${propertyName}>`);
+  if (pattern.test(source)) return source.replace(pattern, replacement);
+  const closing = /\n\s*<\/local:TechTreeAge>\s*$/;
+  if (closing.test(source)) {
+    return source.replace(closing, `\n${replacement}\n        </local:TechTreeAge>`);
+  }
+  return source;
+}
+
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractXmlPropertyBlock(block, propertyName) {
+  const source = String(block || "");
+  const pattern = new RegExp(`<local:TechTreeAge\\.${propertyName}>[\\s\\S]*?<\\/local:TechTreeAge\\.${propertyName}>`);
+  const match = source.match(pattern);
+  return match ? match[0] : "";
+}
+
+function techTreeArchaicAgeBlock(config) {
+  const templates = window.AOM_TECHTREE || {};
+  let block = lookupTemplateBlock(templates.archaicByMajor, config.uiTemplateMajor)
+    || `<local:TechTreeAge AgeName="ArchaicAge">
+${techTreeArchaicBonusTrack(config)}
+${techTreeAgeTechnologiesBlock(config.uiTemplateMajor, "ArchaicAge")}
+        </local:TechTreeAge>`;
+  block = replaceXmlPropertyBlock(block, "Bonuses", techTreeArchaicBonusTrack(config));
+  const dynamicGreekTechnologies = generateGreekDynamicTechTreeTechnologies("ArchaicAge", config);
+  const dynamicEgyptianTechnologies = generateEgyptianDynamicTechTreeTechnologies("ArchaicAge", config);
+  const dynamicNorseTechnologies = generateNorseDynamicTechTreeTechnologies("ArchaicAge", config);
+  const dynamicAtlanteanTechnologies = generateAtlanteanDynamicTechTreeTechnologies("ArchaicAge", config);
+  const dynamicChineseTechnologies = generateChineseDynamicTechTreeTechnologies("ArchaicAge", config);
+  const dynamicJapaneseTechnologies = generateJapaneseDynamicTechTreeTechnologies("ArchaicAge", config);
+  const dynamicAztecTechnologies = generateAztecDynamicTechTreeTechnologies("ArchaicAge", config);
+  if (dynamicGreekTechnologies) {
+    block = replaceXmlPropertyBlock(block, "Technologies", dynamicGreekTechnologies);
+  } else if (dynamicEgyptianTechnologies) {
+    block = replaceXmlPropertyBlock(block, "Technologies", dynamicEgyptianTechnologies);
+  } else if (dynamicNorseTechnologies) {
+    block = replaceXmlPropertyBlock(block, "Technologies", dynamicNorseTechnologies);
+  } else if (dynamicAtlanteanTechnologies) {
+    block = replaceXmlPropertyBlock(block, "Technologies", dynamicAtlanteanTechnologies);
+  } else if (dynamicChineseTechnologies) {
+    block = replaceXmlPropertyBlock(block, "Technologies", dynamicChineseTechnologies);
+  } else if (dynamicJapaneseTechnologies) {
+    block = replaceXmlPropertyBlock(block, "Technologies", dynamicJapaneseTechnologies);
+  } else if (dynamicAztecTechnologies) {
+    block = replaceXmlPropertyBlock(block, "Technologies", dynamicAztecTechnologies);
+  } else {
+    const technologies = extractXmlPropertyBlock(block, "Technologies");
+    if (technologies) {
+      block = replaceXmlPropertyBlock(block, "Technologies", applyTechTreeRightSideSelectionFixes(technologies, "ArchaicAge", config));
+    }
+  }
+  return applyCustomTechNamesToUiBlock(block, config);
+}
+
+function techTreeAgeTechnologiesBlock(sourceMajor, age, config = null) {
+  if (config?.baseCulture === "Greek") {
+    const dynamicGreek = generateGreekDynamicTechTreeTechnologies(age, config);
+    if (dynamicGreek) return dynamicGreek;
+  }
+  if (config?.baseCulture === "Egyptian") {
+    const dynamicEgyptian = generateEgyptianDynamicTechTreeTechnologies(age, config);
+    if (dynamicEgyptian) return dynamicEgyptian;
+  }
+  if (config?.baseCulture === "Norse") {
+    const dynamicNorse = generateNorseDynamicTechTreeTechnologies(age, config);
+    if (dynamicNorse) return dynamicNorse;
+  }
+  if (config?.baseCulture === "Atlantean") {
+    const dynamicAtlantean = generateAtlanteanDynamicTechTreeTechnologies(age, config);
+    if (dynamicAtlantean) return dynamicAtlantean;
+  }
+  if (config?.baseCulture === "Chinese") {
+    const dynamicChinese = generateChineseDynamicTechTreeTechnologies(age, config);
+    if (dynamicChinese) return dynamicChinese;
+  }
+  if (config?.baseCulture === "Japanese") {
+    const dynamicJapanese = generateJapaneseDynamicTechTreeTechnologies(age, config);
+    if (dynamicJapanese) return dynamicJapanese;
+  }
+  if (config?.baseCulture === "Aztec") {
+    const dynamicAztec = generateAztecDynamicTechTreeTechnologies(age, config);
+    if (dynamicAztec) return dynamicAztec;
+  }
+  const templates = window.AOM_TECHTREE || {};
+  let block = templates.ageTechnologiesByMajorAge?.[`${sourceMajor}|${age}`] || "";
+  if (config) block = adjustTechTreeAgeTechnologiesForSelections(block, age, config);
+  return applyCustomTechNamesToUiBlock(block, config || {});
+}
+
+function majorCultureName(majorName) {
+  const major = (window.AOM_DATA?.majors || []).find((entry) => entry.name === majorName);
+  return major?.culture || "";
+}
+
+function techTreeMajorCandidatesForCulture(culture) {
+  return (window.AOM_DATA?.majors || [])
+    .filter((entry) => entry.culture === culture)
+    .map((entry) => entry.name)
+    .filter((name) => window.AOM_TECHTREE?.ageTechnologiesByMajorAge?.[`${name}|ClassicalAge`] || window.AOM_TECHTREE?.archaicByMajor?.[name]);
+}
+
+function techTreeAgeContainsMinor(major, age, minorTech) {
+  const block = window.AOM_TECHTREE?.bonusTrackByGod?.[canonicalMinorTech(minorTech)] || "";
+  const bonusUnits = Array.from(block.matchAll(/<local:TechTreeNode\s+Unit="([^"]+)"\s*\/?/g)).map((m) => m[1]);
+  const bonusTechs = Array.from(block.matchAll(/<local:TechTreeNode\s+Tech="([^"]+)"\s*\/?/g)).map((m) => m[1]);
+  const haystack = window.AOM_TECHTREE?.ageTechnologiesByMajorAge?.[`${major}|${age}`] || "";
+  return [...bonusUnits, ...bonusTechs].some((token) => haystack.includes(`="${token}"`));
+}
+
+function bestTechTreeMajorForSelectedAge(age, config) {
+  const selected = config.minorGods?.[age] || [];
+  if (!selected.length) return config.uiTemplateMajor;
+  const candidates = techTreeMajorCandidatesForCulture(config.baseCulture);
+  const exact = candidates.find((major) => selected.every((minor) => techTreeAgeContainsMinor(major, age, minor)));
+  if (exact) return exact;
+  const partial = candidates
+    .map((major) => ({ major, score: selected.filter((minor) => techTreeAgeContainsMinor(major, age, minor)).length }))
+    .sort((a, b) => b.score - a.score)[0];
+  return partial?.score ? partial.major : config.uiTemplateMajor;
+}
+
+function replaceTechTreeUnitNodeUnits(block, replacements) {
+  let out = String(block || "");
+  for (const [from, to] of Object.entries(replacements || {})) {
+    if (!from || !to || from === to) continue;
+    const re = new RegExp(`(<local:TechTreeNode\\s+Unit=")${escapeRegExp(from)}("[\\s/>])`, "g");
+    out = out.replace(re, `$1${to}$2`);
+  }
+  return out;
+}
+
+function greekHeroReplacementMap(config) {
+  if (config.baseCulture !== "Greek") return {};
+  const selected = config.greekHeroes || {};
+  const replacements = {};
+  for (const [ageKey, pool] of Object.entries(GREEK_HERO_POOLS)) {
+    const chosen = pool.includes(selected[ageKey]) ? selected[ageKey] : pool[0];
+    for (const hero of pool) replacements[hero] = chosen;
+  }
+  return replacements;
+}
+
+const TECHTREE_STANDARD_VILLAGER_BY_CULTURE = {
+  Greek: "VillagerGreek",
+  Egyptian: "VillagerEgyptian",
+  Norse: "VillagerNorse",
+  Atlantean: "VillagerAtlantean",
+  Chinese: "VillagerChinese",
+  Japanese: "VillagerJapanese",
+  Aztec: "VillagerAztec",
+};
+
+const TECHTREE_DROPOFF_PARENT_BY_CULTURE = {
+  Greek: "Granary",
+  Egyptian: "Granary",
+  Norse: "OxCartBuilding",
+  Atlantean: "EconomicGuild",
+  Chinese: "Silo",
+  Japanese: "Watermill",
+  Aztec: "Calpulli",
+};
+
+const TECHTREE_VAULTS_PARENT_BY_CULTURE = {
+  Greek: "Storehouse",
+  Egyptian: "MiningCamp",
+  Norse: "OxCartBuilding",
+  Atlantean: "EconomicGuild",
+  Chinese: "Silo",
+  Japanese: "MiningCampJapanese",
+  Aztec: "Calpulli",
+};
+
+function techTreeHasTechNode(block, techName) {
+  if (!techName) return false;
+  return new RegExp(`<local:TechTreeNode\\s+Tech="${escapeRegExp(techName)}"`).test(String(block || ""));
+}
+
+function techTreeInsertBeforeClosingTechnologies(block, nodeXml) {
+  const marker = "</local:TechTreeAge.Technologies>";
+  const source = String(block || "");
+  if (!source.includes(marker)) return source;
+  return source.replace(marker, `${nodeXml}\n            ${marker}`);
+}
+
+function techTreeOccupiedPositions(block) {
+  const occupied = new Set();
+  const re = /<local:TechTreeNode\b[^>]*\bPosition="(\d+),(\d+)"/g;
+  let match;
+  while ((match = re.exec(String(block || "")))) {
+    occupied.add(`${match[1]},${match[2]}`);
+  }
+  return occupied;
+}
+
+function techTreeFindFreePosition(block, preferred, fallbackX = 18) {
+  const occupied = techTreeOccupiedPositions(block);
+  const candidates = (preferred || []).filter(Boolean);
+  for (const pos of candidates) {
+    if (!occupied.has(pos)) return pos;
+  }
+  for (let x = fallbackX; x < fallbackX + 12; x += 1) {
+    for (const y of [0, 1]) {
+      const pos = `${x},${y}`;
+      if (!occupied.has(pos)) return pos;
+    }
+  }
+  return `${fallbackX},1`;
+}
+
+function techTreeNodeExistsForTechParent(block, techName, parent) {
+  if (!techName || !parent) return false;
+  const source = String(block || "");
+  const re = new RegExp(`<local:TechTreeNode\\s+Tech="${escapeRegExp(techName)}"[^>]*\\bParent="${escapeRegExp(parent)}"`);
+  return re.test(source);
+}
+
+function techTreeUnitNodePosition(block, unitName) {
+  if (!unitName) return null;
+  const re = new RegExp(`<local:TechTreeNode\\s+Unit="${escapeRegExp(unitName)}"[^>]*\\bPosition="(\\d+),(\\d+)"`);
+  const match = String(block || "").match(re);
+  return match ? { x: Number(match[1]), y: Number(match[2]) } : null;
+}
+
+function techTreeParentPreferredPositions(block, parent, fallback) {
+  const parentPos = techTreeUnitNodePosition(block, parent);
+  if (!parentPos) return fallback || [];
+  const x = parentPos.x;
+  return [
+    ...(fallback || []),
+    `${x + 1},0`, `${x + 1},1`,
+    `${x + 2},0`, `${x + 2},1`
+  ];
+}
+
+function selectedUniqueTechGroup(config) {
+  const selectedGroups = uniqueTechEntries(config);
+  if (selectedGroups.length) return selectedGroups[0];
+
+  // Fallback for legacy presets/outputs that may already contain generated custom names
+  // such as SkinOfTheRhino<CustomGod> or TemporalChaos<CustomGod>.
+  const ids = new Set([...(config?.uniqueTechs || []), ...uniqueTechNames(config)]);
+  return UNIQUE_TECH_GROUPS.find((group) => {
+    if (ids.has(group.id) || (group.techs || []).some((tech) => ids.has(tech))) return true;
+    if (group.id === "SkinOfTheRhino") return [...ids].some((id) => String(id).startsWith("SkinOfTheRhino"));
+    if (group.id === "TemporalChaos") return [...ids].some((id) => String(id).startsWith("TemporalChaos"));
+    return false;
+  }) || null;
+}
+
+function selectedUniqueTechRightSideName(config, group) {
+  if (!group) return "";
+  if (group.id === "SkinOfTheRhino") return skinOfTheRhinoCustomTechName(config);
+  if (group.id === "TemporalChaos") return temporalChaosCustomTechName(config);
+  return group.techs?.[0] || group.id;
+}
+
+function uniqueTechRightSideNodeSpecs(config, block, group) {
+  if (!group) return [];
+  const culture = config.baseCulture;
+  const tech = selectedUniqueTechRightSideName(config, group);
+  const dropoff = TECHTREE_DROPOFF_PARENT_BY_CULTURE[culture] || "TownCenter";
+  const vaultsParent = TECHTREE_VAULTS_PARENT_BY_CULTURE[culture] || dropoff;
+  const standardVillager = TECHTREE_STANDARD_VILLAGER_BY_CULTURE[culture] || "AbstractVillager";
+  const specs = [];
+  const add = (parent, preferred, fallbackX = 18) => {
+    if (!parent) return;
+    specs.push({ tech, parent, preferred, fallbackX });
+  };
+
+  switch (group.id) {
+    case "OlympianParentage":
+      if (culture === "Greek") {
+        add("Temple", ["17,1"], 17);
+        add("Fortress", ["45,1"], 45);
+      } else {
+        add("Temple", ["17,1", "18,1", "19,1"], 17);
+      }
+      break;
+    case "VaultsOfErebus":
+      add(vaultsParent, culture === "Japanese" ? ["7,1", "8,1", "6,1"] : ["6,1", "7,1", "8,1"], 6);
+      break;
+    case "LordOfHorses":
+      if (culture === "Greek") add("Stable", ["40,0"], 40);
+      else if (culture === "Japanese") add("StableJapanese", ["48,0", "48,1", "49,0"], 48);
+      else add("Temple", ["18,1", "19,1", "20,1"], 18);
+      break;
+    case "DivineLabor":
+      add(dropoff, ["9,1", "8,1", "7,1"], 8);
+      break;
+    case "SkinOfTheRhino":
+      add(standardVillager, ["2,1", "3,1", "4,1"], 2);
+      break;
+    case "FloodOfTheNile":
+      add(dropoff, ["10,1", "9,1", "8,1"], 9);
+      break;
+    case "Clairvoyance":
+      add("Temple", ["22,0", "21,1", "22,1"], 21);
+      break;
+    case "EyesInTheForest":
+      add("Temple", ["19,1", "20,1", "21,1"], 19);
+      break;
+    case "FreyrsGift":
+      add("TownCenter", ["2,0", "2,1", "3,1"], 2);
+      break;
+    case "TemporalChaos":
+    case "EmpyreanSpeed":
+    case "Channels":
+      add("Temple", ["18,1", "19,1", "20,1"], 18);
+      break;
+    case "CelestialWeapons":
+      add("Armory", ["28,0", "28,1", "29,0"], 28);
+      if (culture === "Chinese") add("ImperialAcademy", ["44,0", "44,1", "45,0"], 44);
+      break;
+    case "TaiChi":
+      add(culture === "Chinese" ? "ImperialAcademy" : "Temple", culture === "Chinese" ? ["45,0", "45,1", "46,0"] : ["19,1", "20,1", "21,1"], culture === "Chinese" ? 45 : 19);
+      break;
+    case "KuafuChieftain":
+      add("TownCenter", ["1,0", "2,0", "2,1"], 1);
+      break;
+    case "PeachOfImmortality":
+      add(culture === "Chinese" ? "ImperialAcademy" : "Temple", culture === "Chinese" ? ["47,0", "47,1", "48,0"] : ["20,1", "21,1", "22,1"], culture === "Chinese" ? 47 : 20);
+      break;
+    case "HerbalMedicine":
+      if (culture === "Chinese") add("ImperialAcademy", ["46,0", "46,1", "47,0"], 46);
+      break;
+    case "Tenshu":
+      add("SentryTower", ["26,0", "26,1", "25,1"], 25);
+      if (culture === "Japanese") add("Castle", ["52,0", "52,1", "51,0"], 52);
+      break;
+    case "CrushingWaves":
+      add("Temple", ["20,1", "21,1", "22,1"], 20);
+      break;
+    case "FeastOfTlaxochimaco":
+      add("Temple", ["18,1", "19,1", "20,1"], 18);
+      break;
+    default:
+      break;
+  }
+
+  return specs.map((spec) => {
+    // Greek right-side techtree is lane-packed after insertion, so keep the
+    // source/preferred coordinate and let the lane packer resolve collisions.
+    // This prevents villager techs such as Skin of the Rhino from jumping onto
+    // row 0 just because another old template node temporarily occupies row 1.
+    if (culture === "Greek" || culture === "Egyptian" || culture === "Norse" || culture === "Atlantean" || culture === "Chinese" || culture === "Japanese") {
+      return { ...spec, position: spec.preferred?.[0] || `${spec.fallbackX || 18},1` };
+    }
+    const preferred = techTreeParentPreferredPositions(block, spec.parent, spec.preferred);
+    const position = techTreeFindFreePosition(block, preferred, spec.fallbackX);
+    return { ...spec, position };
+  });
+}
+
+function removeTechTreeNodesForTechNames(block, techNames) {
+  let out = String(block || "");
+  for (const name of uniqueList(techNames || [])) {
+    if (!name) continue;
+    const re = new RegExp(`\n?\s*<local:TechTreeNode\s+Tech="${escapeRegExp(name)}"[^>]*\/?>`, "g");
+    out = out.replace(re, "");
+  }
+  return out;
+}
+
+function addSelectedUniqueTechRightSideNodes(block, config) {
+  const group = selectedUniqueTechGroup(config);
+  if (!group) return block;
+  let out = String(block || "");
+  const tech = selectedUniqueTechRightSideName(config, group);
+  if (!tech) return out;
+  const namesToReplace = uniqueList([tech, group.id, ...(group.techs || [])]);
+  out = removeTechTreeNodesForTechNames(out, namesToReplace);
+  for (const spec of uniqueTechRightSideNodeSpecs(config, out, group)) {
+    if (techTreeNodeExistsForTechParent(out, tech, spec.parent)) continue;
+    const node = `                <local:TechTreeNode Tech="${escapeXml(tech)}" Position="${escapeXml(spec.position)}" Parent="${escapeXml(spec.parent)}"/>`;
+    out = techTreeInsertBeforeClosingTechnologies(out, node);
+  }
+  return out;
+}
+
+
+const GREEK_TECHTREE_MAJOR_SOURCES = ["Zeus", "Poseidon", "Hades", "Demeter"];
+const GREEK_TECHTREE_MINOR_BY_AGE = {
+  ClassicalAge: ["ClassicalAgeAres", "ClassicalAgeAthena", "ClassicalAgeHermes", "ClassicalAgePan"],
+  HeroicAge: ["HeroicAgeAphrodite", "HeroicAgeApollo", "HeroicAgeDionysus", "HeroicAgeHestia"],
+  MythicAge: ["MythicAgeArtemis", "MythicAgeHephaestus", "MythicAgeHera", "MythicAgePersephone"],
+};
+
+function parseTechTreeNodeAttributes(attrText) {
+  const attrs = {};
+  String(attrText || "").replace(/([\w:.-]+)="([^"]*)"/g, (_, key, value) => {
+    attrs[key] = value;
+    return "";
+  });
+  return attrs;
+}
+
+function parseTechTreeNodesFromBlock(block) {
+  const rawNodes = [];
+  const source = String(block || "");
+  const re = /<local:TechTreeNode\s+([^>]*?)\s*\/>/g;
+  let match;
+  while ((match = re.exec(source))) {
+    const attrs = parseTechTreeNodeAttributes(match[1]);
+    const type = attrs.Unit ? "Unit" : attrs.Tech ? "Tech" : attrs.Power ? "Power" : "";
+    const name = attrs[type] || "";
+    if (!type || !name) continue;
+    rawNodes.push({ attrs, type, name });
+  }
+
+  // Some vanilla TechTree nodes use UniqueIdentifier / UniqueParent instead of
+  // Parent, especially when the same upgrade line exists from more than one
+  // building. Keep those IDs for output, but resolve UniqueParent internally so
+  // the dynamic placer can still line parent/child nodes up in the same column.
+  const uniqueIdToName = new Map();
+  for (const node of rawNodes) {
+    if (node.attrs.UniqueIdentifier) uniqueIdToName.set(node.attrs.UniqueIdentifier, node.name);
+  }
+
+  return rawNodes.map(({ attrs, type, name }) => {
+    const position = attrs.Position || "";
+    const [xRaw, yRaw] = position.split(",");
+    const uniqueParent = attrs.UniqueParent || "";
+    const resolvedParent = attrs.Parent || (uniqueParent ? uniqueIdToName.get(uniqueParent) || "" : "");
+    return {
+      type,
+      name,
+      parent: resolvedParent,
+      uniqueParent,
+      uniqueIdentifier: attrs.UniqueIdentifier || "",
+      position,
+      x: Number.isFinite(Number(xRaw)) ? Number(xRaw) : 99,
+      y: Number.isFinite(Number(yRaw)) ? Number(yRaw) : 1,
+      attrs,
+    };
+  });
+}
+
+function techTreeNodeKey(node) {
+  return `${node.type}|${node.name}|${node.uniqueParent || node.parent || ""}|${node.uniqueIdentifier || ""}`;
+}
+
+function techTreeNodeParentLookupKey(node) {
+  return node?.uniqueParent || node?.parent || "";
+}
+
+function techTreeNodePlacementKeys(node) {
+  const keys = [];
+  if (node?.name) keys.push(node.name);
+  if (node?.uniqueIdentifier) keys.push(node.uniqueIdentifier);
+  return keys;
+}
+
+function techTreeParentFirstOrder(sortedNodes, isGroupRootNode = null) {
+  const remaining = (sortedNodes || []).slice();
+  const ordered = [];
+  const placedNames = new Set();
+  const allNames = new Set();
+  for (const node of remaining) {
+    for (const key of techTreeNodePlacementKeys(node)) allNames.add(key);
+  }
+  let guard = 0;
+  while (remaining.length && guard < 1024) {
+    guard += 1;
+    let moved = false;
+    for (let i = 0; i < remaining.length; i += 1) {
+      const node = remaining[i];
+      const parent = techTreeNodeParentLookupKey(node);
+      const isRoot = typeof isGroupRootNode === "function" && isGroupRootNode(node);
+      if (!parent || isRoot || !allNames.has(parent) || placedNames.has(parent)) {
+        ordered.push(node);
+        for (const key of techTreeNodePlacementKeys(node)) placedNames.add(key);
+        remaining.splice(i, 1);
+        i -= 1;
+        moved = true;
+      }
+    }
+    if (!moved) {
+      const node = remaining.shift();
+      ordered.push(node);
+      for (const key of techTreeNodePlacementKeys(node)) placedNames.add(key);
+    }
+  }
+  return ordered.concat(remaining);
+}
+
+
+function techTreeParentDepthFirstOrder(sortedNodes, isGroupRootNode = null) {
+  const nodes = (sortedNodes || []).slice();
+  const childrenByParent = new Map();
+  const roots = [];
+  const allPlacementKeys = new Set();
+  for (const node of nodes) {
+    for (const key of techTreeNodePlacementKeys(node)) allPlacementKeys.add(key);
+  }
+  for (const node of nodes) {
+    const parent = techTreeNodeParentLookupKey(node);
+    const isRoot = typeof isGroupRootNode === "function" && isGroupRootNode(node);
+    if (!parent || isRoot) {
+      roots.push(node);
+      continue;
+    }
+    if (!childrenByParent.has(parent)) childrenByParent.set(parent, []);
+    childrenByParent.get(parent).push(node);
+  }
+  const emitted = new Set();
+  const ordered = [];
+  const emit = (node) => {
+    const key = techTreeNodeKey(node);
+    if (emitted.has(key)) return;
+    emitted.add(key);
+    ordered.push(node);
+    for (const placementKey of techTreeNodePlacementKeys(node)) {
+      const children = childrenByParent.get(placementKey) || [];
+      for (const child of children) emit(child);
+    }
+  };
+  for (const node of nodes) {
+    const parent = techTreeNodeParentLookupKey(node);
+    const isRoot = typeof isGroupRootNode === "function" && isGroupRootNode(node);
+    if (isRoot || !parent || !allPlacementKeys.has(parent)) emit(node);
+  }
+  for (const node of nodes) emit(node);
+  return ordered;
+}
+
+function greekPreferredNodeKey(node) {
+  return techTreeNodeKey(node || {});
+}
+
+function buildTechTreeNodeXml(node, indent = "                ") {
+  const typeAttr = node.type === "Unit" ? "Unit" : node.type === "Tech" ? "Tech" : "Power";
+  const attrs = [`${typeAttr}="${escapeXml(node.name)}"`];
+  if (node.position) attrs.push(`Position="${escapeXml(node.position)}"`);
+  if (node.uniqueParent) attrs.push(`UniqueParent="${escapeXml(node.uniqueParent)}"`);
+  else if (node.parent) attrs.push(`Parent="${escapeXml(node.parent)}"`);
+  if (node.uniqueIdentifier) attrs.push(`UniqueIdentifier="${escapeXml(node.uniqueIdentifier)}"`);
+  return `${indent}<local:TechTreeNode ${attrs.join(" ")}/>`;
+}
+
+function greekTechTreeSourceNodes(age) {
+  const templates = window.AOM_TECHTREE || {};
+  const byMajor = {};
+  for (const major of GREEK_TECHTREE_MAJOR_SOURCES) {
+    const block = age === "ArchaicAge"
+      ? extractXmlPropertyBlock(lookupTemplateBlock(templates.archaicByMajor, major) || "", "Technologies")
+      : templates.ageTechnologiesByMajorAge?.[`${major}|${age}`] || "";
+    byMajor[major] = parseTechTreeNodesFromBlock(block);
+  }
+  return byMajor;
+}
+
+function greekMinorBonusTokens(minorTech) {
+  const block = window.AOM_TECHTREE?.bonusTrackByGod?.[canonicalMinorTech(minorTech)] || "";
+  return parseTechTreeNodesFromBlock(block).filter((node) => node.type === "Unit" || node.type === "Tech");
+}
+
+function greekAllConditionalNodeNames() {
+  const names = new Set();
+  Object.values(GREEK_HERO_POOLS || {}).flat().forEach((name) => names.add(name));
+  ["Myrmidon", "Gastraphetoros", "Hetairos", "AmazonArcher"].forEach((name) => names.add(name));
+  (UNIQUE_TECH_GROUPS || []).forEach((group) => {
+    names.add(group.id);
+    (group.techs || []).forEach((tech) => names.add(tech));
+  });
+  Object.values(GREEK_TECHTREE_MINOR_BY_AGE).flat().forEach((minor) => {
+    greekMinorBonusTokens(minor).forEach((node) => names.add(node.name));
+  });
+  return names;
+}
+
+function chooseGreekRepresentativeNode(nodes) {
+  return [...nodes].sort((a, b) => (a.x - b.x) || (a.y - b.y) || String(a.parent).localeCompare(String(b.parent)))[0];
+}
+
+function greekCommonNodesForAge(age) {
+  const byMajor = greekTechTreeSourceNodes(age);
+  const excluded = greekAllConditionalNodeNames();
+  const keySets = Object.fromEntries(Object.entries(byMajor).map(([major, nodes]) => [major, new Set(nodes.map(techTreeNodeKey))]));
+  const allKeys = [...(keySets.Zeus || new Set())];
+  const commonKeys = allKeys.filter((key) => GREEK_TECHTREE_MAJOR_SOURCES.every((major) => keySets[major]?.has(key)));
+  const sourceNodes = Object.values(byMajor).flat();
+  const result = [];
+  for (const key of commonKeys) {
+    const matches = sourceNodes.filter((node) => techTreeNodeKey(node) === key);
+    const rep = chooseGreekRepresentativeNode(matches);
+    if (!rep || excluded.has(rep.name)) continue;
+    result.push({ ...rep });
+  }
+  return result;
+}
+
+function greekFindRightSideNodesForToken(age, tokenNode) {
+  const byMajor = greekTechTreeSourceNodes(age);
+  const matches = Object.values(byMajor).flat().filter((node) => node.type === tokenNode.type && node.name === tokenNode.name);
+  if (!matches.length) return [];
+  const byKey = new Map();
+  for (const node of matches) {
+    const key = techTreeNodeKey(node);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(node);
+  }
+  // Some Greek minor-god techs/units intentionally appear from multiple
+  // buildings (for example Pan's Pioneers can be shown from both food drop-off
+  // buildings, and fortress content can have multiple valid parents). Keep one
+  // representative per distinct type/name/parent key instead of collapsing the
+  // tech to a single parent.
+  const reps = [...byKey.values()].map((nodes) => ({
+    count: nodes.length,
+    node: chooseGreekRepresentativeNode(nodes),
+  }));
+  reps.sort((a, b) => greekNodeGroupOrder(a.node) - greekNodeGroupOrder(b.node) || (a.node.x - b.node.x) || (a.node.y - b.node.y) || String(a.node.parent).localeCompare(String(b.node.parent)) || (b.count - a.count));
+  return reps.map((entry) => ({ ...entry.node }));
+}
+
+function greekSelectedMinorNodesForAge(age, config) {
+  const selected = (config.minorGods?.[age] || []).map(canonicalMinorTech);
+  const nodes = [];
+  for (const minor of selected) {
+    for (const token of greekMinorBonusTokens(minor)) {
+      nodes.push(...greekFindRightSideNodesForToken(age, token));
+    }
+  }
+  return nodes;
+}
+
+function greekSelectedHeroNodeForAge(age, config) {
+  const heroes = config.greekHeroes || {};
+  const defaults = {
+    ArchaicAge: "Jason",
+    ClassicalAge: "Heracles",
+    HeroicAge: "Odysseus",
+    MythicAge: "Bellerophon",
+  };
+  const chosen = age === "ArchaicAge" ? heroes.archaic : age === "ClassicalAge" ? heroes.classical : age === "HeroicAge" ? heroes.heroic : heroes.mythic;
+  const name = chosen || defaults[age];
+  if (!name) return null;
+  const positions = {
+    ArchaicAge: "1,1",
+    ClassicalAge: "1,0",
+    HeroicAge: "1,1",
+    MythicAge: "1,0",
+  };
+  return { type: "Unit", name, parent: "TownCenter", position: positions[age] || "1,0", x: Number((positions[age] || "1,0").split(",")[0]), y: Number((positions[age] || "1,0").split(",")[1]) };
+}
+
+function greekHeroChoiceForAge(age, config) {
+  const heroes = config.greekHeroes || {};
+  const defaults = {
+    ArchaicAge: "Jason",
+    ClassicalAge: "Heracles",
+    HeroicAge: "Odysseus",
+    MythicAge: "Bellerophon",
+  };
+  return age === "ArchaicAge" ? (heroes.archaic || defaults.ArchaicAge)
+    : age === "ClassicalAge" ? (heroes.classical || defaults.ClassicalAge)
+    : age === "HeroicAge" ? (heroes.heroic || defaults.HeroicAge)
+    : (heroes.mythic || defaults.MythicAge);
+}
+
+function greekSelectedFortressHeroNodesForAge(age, config) {
+  if (config?.baseCulture !== "Greek") return [];
+  const nodes = [];
+  if (age === "HeroicAge") {
+    const archaic = greekHeroChoiceForAge("ArchaicAge", config);
+    const classical = greekHeroChoiceForAge("ClassicalAge", config);
+    const heroic = greekHeroChoiceForAge("HeroicAge", config);
+    if (archaic) nodes.push({ type: "Unit", name: archaic, parent: "Fortress", position: "43,0", x: 43, y: 0 });
+    if (classical) nodes.push({ type: "Unit", name: classical, parent: "Fortress", position: "44,0", x: 44, y: 0 });
+    if (heroic) nodes.push({ type: "Unit", name: heroic, parent: "Fortress", position: "45,0", x: 45, y: 0 });
+  } else if (age === "MythicAge") {
+    const mythic = greekHeroChoiceForAge("MythicAge", config);
+    if (mythic) nodes.push({ type: "Unit", name: mythic, parent: "Fortress", position: "43,0", x: 43, y: 0 });
+  }
+  return nodes;
+}
+
+function greekSelectedUniqueUnitRightSideNode(age, config) {
+  if (age !== "MythicAge" || config.baseCulture !== "Greek" || !config.greekUniqueUnit) return null;
+  return { type: "Unit", name: config.greekUniqueUnit, parent: "Fortress", position: "44,0", x: 44, y: 0 };
+}
+
+const GREEK_TECHTREE_GROUP_ORDER = [
+  "TownCenter", "Storehouse", "Granary", "Farm", "House", "WallConnector", "Dock", "Temple", "SkyPassage",
+  "SentryTower", "Armory", "Market", "MilitaryAcademy", "ArcheryRange", "Stable", "Fortress",
+];
+
+const GREEK_TECHTREE_GROUP_BASE_X = {
+  TownCenter: 0,
+  Storehouse: 4,
+  Granary: 6,
+  Farm: 8,
+  House: 9,
+  WallConnector: 10,
+  Dock: 11,
+  Temple: 17,
+  SentryTower: 21,
+  Armory: 23,
+  Market: 25,
+  MilitaryAcademy: 29,
+  ArcheryRange: 34,
+  Stable: 39,
+  Fortress: 44,
+};
+
+const GREEK_TECHTREE_PARENT_LANE = {
+  VillagerGreek: "TownCenter",
+  Masons: "TownCenter",
+  Architects: "TownCenter",
+  FortifiedTownCenter: "TownCenter",
+  HandAxe: "Storehouse",
+  BowSaw: "Storehouse",
+  Pickaxe: "Storehouse",
+  ShaftMine: "Storehouse",
+  Plow: "Granary",
+  Irrigation: "Granary",
+  FloodControl: "Granary",
+  HuntingEquipment: "Granary",
+  Husbandry: "Granary",
+  Farm: "Farm",
+  House: "House",
+  StoneWall: "WallConnector",
+  FortifiedWall: "WallConnector",
+  BronzeWall: "WallConnector",
+  IronWall: "WallConnector",
+  ThornedWalls: "WallConnector",
+  WallConnector: "WallConnector",
+  Dock: "Dock",
+  FishingShipGreek: "Dock",
+  FishingShip: "Dock",
+  Pentekonter: "Dock",
+  Trireme: "Dock",
+  Juggernaut: "Dock",
+  TransportShipGreek: "Dock",
+  TransportShip: "Dock",
+  Scylla: "Dock",
+  Carcinos: "Dock",
+  TheArgo: "Dock",
+  HeavyWarShips: "Dock",
+  PurseSeine: "Dock",
+  FishBasket: "Dock",
+  SaltAmphora: "Dock",
+  HeroicFleet: "Dock",
+  ConscriptSailors: "Dock",
+  Temple: "Temple",
+  SkyPassage: "SkyPassage",
+  NezhaChild: "Temple",
+  NezhaYouth: "Temple",
+  Nezha: "Temple",
+  Pegasus: "Temple",
+  Manticore: "Temple",
+  Minotaur: "Temple",
+  Cyclops: "Temple",
+  Centaur: "Temple",
+  NemeanLion: "Temple",
+  Hydra: "Temple",
+  Hamadryad: "Temple",
+  Colossus: "Temple",
+  Medusa: "Temple",
+  Chimera: "Temple",
+  SentryTower: "SentryTower",
+  WatchTower: "SentryTower",
+  GuardTower: "SentryTower",
+  SignalFires: "SentryTower",
+  CarrierPigeons: "SentryTower",
+  BoilingOil: "SentryTower",
+  Armory: "Armory",
+  DwarvenArmory: "Armory",
+  CopperWeapons: "Armory",
+  CopperArmor: "Armory",
+  CopperShields: "Armory",
+  BronzeWeapons: "Armory",
+  BronzeArmor: "Armory",
+  BronzeShields: "Armory",
+  IronWeapons: "Armory",
+  IronArmor: "Armory",
+  IronShields: "Armory",
+  DwarvenWeapons: "Armory",
+  MeteoricIronArmor: "Armory",
+  DragonscaleShields: "Armory",
+  Market: "Market",
+  TaxCollectors: "Market",
+  CaravanGreek: "Market",
+  MilitaryAcademy: "MilitaryAcademy",
+  MediumInfantry: "MilitaryAcademy",
+  HeavyInfantry: "MilitaryAcademy",
+  ChampionInfantry: "MilitaryAcademy",
+  LevyInfantry: "MilitaryAcademy",
+  ArcheryRange: "ArcheryRange",
+  MediumArchers: "ArcheryRange",
+  HeavyArchers: "ArcheryRange",
+  ChampionArchers: "ArcheryRange",
+  LevyRangedSoldiers: "ArcheryRange",
+  Stable: "Stable",
+  MediumCavalry: "Stable",
+  HeavyCavalry: "Stable",
+  ChampionCavalry: "Stable",
+  LevyCavalry: "Stable",
+  Fortress: "Fortress",
+  Petrobolos: "Fortress",
+  Helepolis: "Fortress",
+  DraftHorses: "Fortress",
+  Engineers: "Fortress",
+  AdvancedFortifications: "Fortress",
+  Myrmidon: "Fortress",
+  Gastraphetoros: "Fortress",
+  Hetairos: "Fortress",
+  AmazonArcher: "Fortress",
+  Jason: "TownCenter",
+  Ajax: "TownCenter",
+  Theseus: "TownCenter",
+  Orpheus: "TownCenter",
+  Heracles: "TownCenter",
+  Achilles: "TownCenter",
+  Atalanta: "TownCenter",
+  Iolaus: "TownCenter",
+  Odysseus: "TownCenter",
+  Chiron: "TownCenter",
+  Hippolyta: "TownCenter",
+  Icarus: "TownCenter",
+  Bellerophon: "TownCenter",
+  Perseus: "TownCenter",
+  Polyphemus: "TownCenter",
+  Midas: "TownCenter",
+};
+
+function greekNodeGroupRoot(node) {
+  const parent = node?.parent || "";
+  const name = node?.name || "";
+  if (GREEK_TECHTREE_GROUP_ORDER.includes(parent)) return parent;
+  if (GREEK_TECHTREE_PARENT_LANE[parent]) return GREEK_TECHTREE_PARENT_LANE[parent];
+  if (!parent && GREEK_TECHTREE_GROUP_ORDER.includes(name)) return name;
+  if (GREEK_TECHTREE_PARENT_LANE[name]) return GREEK_TECHTREE_PARENT_LANE[name];
+  return parent || name;
+}
+
+function greekNodeGroupOrder(node) {
+  const root = greekNodeGroupRoot(node);
+  const idx = GREEK_TECHTREE_GROUP_ORDER.indexOf(root);
+  return idx >= 0 ? idx : 99;
+}
+
+const GREEK_TECHTREE_FIXED_LOCAL_X = {
+  // Town Center / villager chain
+  Masons: 1,
+  Architects: 1,
+  Jason: 1,
+  Ajax: 1,
+  Theseus: 1,
+  Orpheus: 1,
+  Heracles: 1,
+  Achilles: 1,
+  Atalanta: 1,
+  Iolaus: 1,
+  Odysseus: 1,
+  Chiron: 1,
+  Hippolyta: 1,
+  Icarus: 1,
+  Bellerophon: 1,
+  Perseus: 1,
+  Polyphemus: 1,
+  Midas: 1,
+  VillagerGreek: 2,
+  FortifiedTownCenter: 2,
+  SecretsOfTheTitans: 2,
+  TitanGate: 2,
+
+  // Economic upgrade chains
+  HandAxe: 1,
+  BowSaw: 1,
+  Carpenters: 1,
+  Pickaxe: 2,
+  ShaftMine: 2,
+  Quarry: 2,
+  Plow: 1,
+  Irrigation: 1,
+  FloodControl: 1,
+  Husbandry: 2,
+
+  // Walls
+  // Exception: WallConnector's wall-upgrade line shares the building column.
+  StoneWall: 0,
+  FortifiedWall: 0,
+  BronzeWall: 0,
+  IronWall: 0,
+  ThornedWalls: 1,
+
+  // Dock chains
+  FishingShipGreek: 1,
+  FishingShip: 1,
+  PurseSeine: 1,
+  SaltAmphora: 1,
+  Pentekonter: 2,
+  Anastrophe: 2,
+  Trireme: 3,
+  HeavyWarShips: 3,
+  ChampionWarShips: 3,
+  TransportShipGreek: 4,
+  TransportShip: 4,
+  EnclosedDeck: 4,
+  Juggernaut: 5,
+
+  // Temple
+  // Exception: Omniscience shares the Temple building column.
+  Omniscience: 0,
+  NezhaChild: 1,
+  NezhaYouth: 1,
+  Nezha: 1,
+
+  // Towers
+  WatchTower: 1,
+  GuardTower: 1,
+  BoilingOil: 1,
+  Crenellations: 1,
+  SignalFires: 2,
+  CarrierPigeons: 2,
+
+  // Armory chains
+  CopperWeapons: 1,
+  BronzeWeapons: 1,
+  IronWeapons: 1,
+  CopperArmor: 2,
+  BronzeArmor: 2,
+  IronArmor: 2,
+  CopperShields: 3,
+  BronzeShields: 3,
+  IronShields: 3,
+  Ballistics: 4,
+  BurningPitch: 4,
+  DwarvenWeapons: 1,
+  MeteoricIronArmor: 2,
+  DragonscaleShields: 3,
+
+  // Market chains
+  CaravanGreek: 1,
+  Coinage: 1,
+  TaxCollectors: 2,
+  Ambassadors: 2,
+
+  // Military upgrade chains
+  MediumInfantry: 2,
+  HeavyInfantry: 2,
+  ChampionInfantry: 2,
+  LevyInfantry: 3,
+  ConscriptInfantry: 3,
+  MediumArchers: 2,
+  HeavyArchers: 2,
+  ChampionArchers: 2,
+  LevyRangedSoldiers: 3,
+  ConscriptRangedSoldiers: 3,
+  MediumCavalry: 2,
+  HeavyCavalry: 2,
+  ChampionCavalry: 2,
+  LevyCavalry: 3,
+  ConscriptCavalry: 3,
+};
+
+function greekFixedLocalX(node, group) {
+  const name = node?.name || "";
+  if (group === "TownCenter" && /^SkinOfTheRhino/.test(name)) return 3;
+  if (Object.prototype.hasOwnProperty.call(GREEK_TECHTREE_FIXED_LOCAL_X, name)) return GREEK_TECHTREE_FIXED_LOCAL_X[name];
+  return undefined;
+}
+
+const GREEK_TECHTREE_PROTECTED_LINE_LOCAL_X = {
+  TownCenter: [1, 2, 3],
+  Storehouse: [1, 2],
+  Granary: [1],
+  WallConnector: [0],
+  Dock: [1, 2, 3, 4],
+  Temple: [0, 1, 2, 3, 4],
+  SentryTower: [1, 2],
+  Armory: [1, 2, 3, 4],
+  Market: [1, 2],
+  MilitaryAcademy: [2, 3],
+  ArcheryRange: [2, 3],
+  Stable: [2, 3],
+  Fortress: [1, 2, 3],
+};
+
+function greekProtectedLineColumns(group, groupNodes = null) {
+  const candidateColumns = new Set(GREEK_TECHTREE_PROTECTED_LINE_LOCAL_X[group] || []);
+  if (!Array.isArray(groupNodes)) return candidateColumns;
+
+  // Protect only parent-line columns that are actually used by this generated
+  // age/group. Previously we protected every possible line column up front
+  // (for example TownCenter local column 3 for Skin of the Rhino), which made
+  // normal TownCenter techs skip visibly free slots.
+  const activeColumns = new Set();
+  for (const node of groupNodes) {
+    const fixed = greekFixedLocalX(node, group);
+    if (!Number.isFinite(Number(fixed))) continue;
+    const localX = Number(fixed);
+    if (candidateColumns.has(localX)) activeColumns.add(localX);
+  }
+  return activeColumns;
+}
+
+function greekNextNonProtectedLocalX(group, minX, protectedColumns = null) {
+  const columns = protectedColumns instanceof Set ? protectedColumns : greekProtectedLineColumns(group);
+  for (let x = Math.max(0, Number(minX) || 0); x < 64; x += 1) {
+    if (!columns.has(x)) return x;
+  }
+  return Math.max(0, Number(minX) || 0);
+}
+
+
+function greekResolveNodeGroupFromNodes(node, allNodes) {
+  const byName = new Map();
+  for (const candidate of allNodes || []) {
+    if (!candidate?.name) continue;
+    if (!byName.has(candidate.name)) byName.set(candidate.name, []);
+    byName.get(candidate.name).push(candidate);
+  }
+  const seen = new Set();
+  let current = node?.parent || node?.name || "";
+  for (let i = 0; i < 16 && current && !seen.has(current); i += 1) {
+    seen.add(current);
+    if (GREEK_TECHTREE_GROUP_ORDER.includes(current)) return current;
+    if (GREEK_TECHTREE_PARENT_LANE[current]) return GREEK_TECHTREE_PARENT_LANE[current];
+    const parentNode = (byName.get(current) || [])
+      .slice()
+      .sort((a, b) => (Number(a.x) || 0) - (Number(b.x) || 0) || (Number(a.y) || 0) - (Number(b.y) || 0))[0];
+    if (parentNode?.parent) {
+      current = parentNode.parent;
+      continue;
+    }
+    if (parentNode?.name && parentNode.name !== current) {
+      current = parentNode.name;
+      continue;
+    }
+    break;
+  }
+  if (GREEK_TECHTREE_PARENT_LANE[node?.name]) return GREEK_TECHTREE_PARENT_LANE[node.name];
+  return greekNodeGroupRoot(node);
+}
+
+function greekCompactGroupNodes(group, groupNodes, groupStartX = 0, protectedColumnsOverride = null, age = "") {
+  const nodes = (groupNodes || []).map((inputNode) => {
+    const node = { ...inputNode };
+    const [xRaw, yRaw] = String(node.position || `${node.x || 0},${node.y ?? 1}`).split(",");
+    node.x = Number.isFinite(Number(xRaw)) ? Number(xRaw) : Number(node.x || 0) || 0;
+    node.y = Number.isFinite(Number(yRaw)) ? Number(yRaw) : Number(node.y ?? 1) || 1;
+    if (node.y > 1) node.y = 1;
+    if (node.y < 0) node.y = 0;
+    return node;
+  });
+
+  const isGroupRootNode = (node) => !node?.parent && (node?.name === group || (group === "Armory" && node?.name === "DwarvenArmory"));
+  const hasRoot = nodes.some((node) => isGroupRootNode(node));
+  const sourceOrder = (node) => (Number(node.x) || 0) * 10 + (Number(node.y) || 0);
+  const sorted = nodes.slice().sort((a, b) => {
+    const aIsRoot = isGroupRootNode(a);
+    const bIsRoot = isGroupRootNode(b);
+    if (aIsRoot !== bIsRoot) return aIsRoot ? -1 : 1;
+    if (a.name === b.parent && b.name !== a.parent) return -1;
+    if (b.name === a.parent && a.name !== b.parent) return 1;
+    const af = greekFixedLocalX(a, group);
+    const bf = greekFixedLocalX(b, group);
+    if (Number.isFinite(Number(af)) !== Number.isFinite(Number(bf))) return Number.isFinite(Number(af)) ? -1 : 1;
+    if (Number.isFinite(Number(af)) && af !== bf) return af - bf;
+    return sourceOrder(a) - sourceOrder(b) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name) || String(a.parent).localeCompare(String(b.parent));
+  });
+
+  const localOccupied = new Set();
+  const placedLocalByName = new Map();
+  const placedRowByName = new Map();
+  const placed = [];
+  const protectedLineColumns = protectedColumnsOverride instanceof Set ? protectedColumnsOverride : greekProtectedLineColumns(group, nodes);
+  const directChildCountByName = new Map();
+  for (const child of nodes) {
+    const parentKey = techTreeNodeParentLookupKey(child);
+    if (!parentKey) continue;
+    directChildCountByName.set(parentKey, (directChildCountByName.get(parentKey) || 0) + 1);
+  }
+
+  const isLaneRootParent = (parent) => parent === group || (group === "Armory" && parent === "DwarvenArmory") || (group === "TownCenter" && parent === "TownCenter");
+  const canUse = (x, y, allowProtectedLineColumn = true) => {
+    if (localOccupied.has(`${x},${y}`)) return false;
+    if (!allowProtectedLineColumn && protectedLineColumns.has(x)) return false;
+    return true;
+  };
+  const reserve = (node, localX, y) => {
+    localOccupied.add(`${localX},${y}`);
+    for (const placementKey of techTreeNodePlacementKeys(node)) {
+      if (!placedLocalByName.has(placementKey) || localX < placedLocalByName.get(placementKey)) {
+        placedLocalByName.set(placementKey, localX);
+        placedRowByName.set(placementKey, y);
+      }
+    }
+    const cleanNode = { ...node };
+    delete cleanNode._group;
+    placed.push({ ...cleanNode, x: groupStartX + localX, y, position: `${groupStartX + localX},${y}` });
+  };
+  const firstFree = (minX, preferredY = 0, allowProtectedLineColumn = true) => {
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      const rows = preferredY === 1 ? [1, 0] : [0, 1];
+      for (const y of rows) if (canUse(x, y, allowProtectedLineColumn)) return { x, y };
+    }
+    return { x: Math.max(0, minX || 0), y: preferredY === 1 ? 1 : 0 };
+  };
+  const firstFreeParentColumn = (minX, allowProtectedLineColumn = true) => {
+    // Units that have direct child techs/units read best as a vertical pair:
+    // unit on row 0, child on row 1. Do not place the unit on row 1 of an
+    // already-used column when a clean two-row column is available.
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      if (canUse(x, 0, allowProtectedLineColumn) && canUse(x, 1, allowProtectedLineColumn)) return { x, y: 0 };
+    }
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      if (canUse(x, 0, allowProtectedLineColumn)) return { x, y: 0 };
+    }
+    return firstFree(minX, 0, allowProtectedLineColumn);
+  };
+
+  for (const node of techTreeParentFirstOrder(sorted, isGroupRootNode)) {
+    const isRoot = isGroupRootNode(node);
+    if (isRoot) {
+      const y = 0;
+      const x = 0;
+      if (!canUse(x, y, true)) {
+        const alt = firstFree(0, y, true);
+        reserve(node, alt.x, alt.y);
+      } else {
+        reserve(node, x, y);
+      }
+      continue;
+    }
+
+    const fixed = greekFixedLocalX(node, group);
+    const parentLookupKey = techTreeNodeParentLookupKey(node);
+    const parentLocal = placedLocalByName.get(parentLookupKey);
+    const parentRow = placedRowByName.get(parentLookupKey);
+    let desiredX;
+    let preferredY = Number(node.y) === 0 ? 0 : 1;
+
+    if (Number.isFinite(Number(parentLocal)) && !isLaneRootParent(node.parent)) {
+      desiredX = Number(parentLocal);
+      // Prefer the opposite row for visible parent chains when possible.
+      if (Number.isFinite(Number(parentRow))) preferredY = Number(parentRow) === 0 ? 1 : 0;
+    } else if (Number.isFinite(Number(fixed))) {
+      desiredX = Number(fixed);
+    } else {
+      desiredX = 1;
+    }
+
+    // Units are easier to read on the first row; try row 0 first unless occupied.
+    if (node.type === "Unit") preferredY = 0;
+
+    // ArchaicAge special readability rule: for non-root nodes, prefer row 1
+    // if the desired column has row 1 free. If row 1 is occupied, use the
+    // normal type-based rule (units row 0, techs row 1).
+    if (age === "ArchaicAge" && !isRoot && !localOccupied.has(`${desiredX},1`)) {
+      preferredY = 1;
+    }
+
+    if (!hasRoot && !isLaneRootParent(node.parent)) desiredX = Math.max(desiredX, 0);
+    if (hasRoot || group === "TownCenter") desiredX = Math.max(desiredX, 1);
+
+    const hasFixedLocalX = Number.isFinite(Number(fixed));
+    const isChildOfPlacedChain = Number.isFinite(Number(parentLocal)) && !isLaneRootParent(node.parent) && Number(parentLocal) === Number(desiredX);
+    const allowProtectedLineColumn = hasFixedLocalX || isChildOfPlacedChain;
+    if (!allowProtectedLineColumn && protectedLineColumns.has(desiredX)) {
+      desiredX = greekNextNonProtectedLocalX(group, desiredX + 1, protectedLineColumns);
+    }
+
+    let placedHere = false;
+    const hasDirectChildren = (directChildCountByName.get(node.uniqueIdentifier || node.name) || 0) > 0;
+    if (hasDirectChildren) {
+      const cleanColumn = firstFreeParentColumn(desiredX, allowProtectedLineColumn);
+      reserve(node, cleanColumn.x, cleanColumn.y);
+      placedHere = true;
+    }
+    if (!placedHere) {
+      const rows = preferredY === 1 ? [1, 0] : [0, 1];
+      for (const y of rows) {
+        if (canUse(desiredX, y, allowProtectedLineColumn)) {
+          reserve(node, desiredX, y);
+          placedHere = true;
+          break;
+        }
+      }
+    }
+    if (!placedHere) {
+      const alt = firstFree(desiredX + 1, preferredY, allowProtectedLineColumn);
+      reserve(node, alt.x, alt.y);
+    }
+  }
+
+  return placed.sort((a, b) => (a.x - b.x) || (a.y - b.y) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+function greekNormalizeTechTreeNodes(age, nodes, forcedGroupStarts = null, protectedColumnsByGroup = null) {
+  const unique = new Map();
+  for (const inputNode of nodes) {
+    if (!inputNode || !inputNode.type || !inputNode.name) continue;
+    const node = { ...inputNode };
+    const [xRaw, yRaw] = String(node.position || `${node.x || 0},${node.y ?? 1}`).split(",");
+    node.x = Number.isFinite(Number(xRaw)) ? Number(xRaw) : Number(node.x || 0) || 0;
+    node.y = Number.isFinite(Number(yRaw)) ? Number(yRaw) : Number(node.y ?? 1) || 1;
+    if (node.y > 1) node.y = 1;
+    if (node.y < 0) node.y = 0;
+    node.position = `${node.x},${node.y}`;
+    const key = techTreeNodeKey(node);
+    if (!unique.has(key)) unique.set(key, node);
+  }
+
+  const allNodes = [...unique.values()];
+  const grouped = new Map();
+  for (const node of allNodes) {
+    const group = greekResolveNodeGroupFromNodes(node, allNodes);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push({ ...node, _group: group });
+  }
+
+  const orderedGroups = [...grouped.entries()].sort(([groupA], [groupB]) => {
+    const ai = GREEK_TECHTREE_GROUP_ORDER.indexOf(groupA);
+    const bi = GREEK_TECHTREE_GROUP_ORDER.indexOf(groupB);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi) || String(groupA).localeCompare(String(groupB));
+  });
+
+  const placed = [];
+  let nextGroupX = 0;
+  for (const [group, groupNodes] of orderedGroups) {
+    const forcedX = forcedGroupStarts && Number.isFinite(Number(forcedGroupStarts[group])) ? Number(forcedGroupStarts[group]) : undefined;
+    const groupStartX = Number.isFinite(Number(forcedX)) ? Number(forcedX) : nextGroupX;
+    const protectedColumns = protectedColumnsByGroup && protectedColumnsByGroup[group] instanceof Set ? protectedColumnsByGroup[group] : null;
+    const groupPlaced = greekCompactGroupNodes(group, groupNodes, groupStartX, protectedColumns, age);
+    placed.push(...groupPlaced);
+    const width = groupPlaced.length ? Math.max(...groupPlaced.map((node) => Number(node.x) - groupStartX)) + 1 : 0;
+    nextGroupX = groupStartX + Math.max(width, 0);
+  }
+
+  return placed.sort((a, b) => (a.x - b.x) || (a.y - b.y) || greekNodeGroupOrder(a) - greekNodeGroupOrder(b) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+
+
+function rightSideNode(type, name, parent = "", position = "1,1") {
+  const [xRaw, yRaw] = String(position || "1,1").split(",");
+  const x = Number.isFinite(Number(xRaw)) ? Number(xRaw) : 1;
+  const y = Number.isFinite(Number(yRaw)) ? Number(yRaw) : 1;
+  return { type, name, parent: parent || "", position: `${x},${y}`, x, y };
+}
+
+function selectedHasGaiaEconomicEarlierBonus(config) {
+  return selectedHasBonusId(config, "bonus_62") || selectedHasBonusLabel(config, "Economic Guild and upgrades are cheaper and available earlier.");
+}
+
+function selectedHasOranosSkyPassageBonus(config) {
+  return selectedHasBonusId(config, "bonus_56") || selectedHasBonusLabel(config, ORANOS_SKY_PASSAGE_BONUS_LABEL);
+}
+
+function selectedHasFuxiNezhaBonus(config) {
+  return selectedHasBonusId(config, "bonus_66") || selectedHasBonusLabel(config, FUXI_NEZHA_BONUS_LABEL);
+}
+
+function selectedHasShennongFarmArchaicBonus(config) {
+  return selectedHasBonusId(config, "bonus_73") || selectedHasBonusLabel(config, "Farms are available in the Archaic Age and auto-build on Favored Land.");
+}
+
+const TECHTREE_ECON_UPGRADE_NAMES = new Set([
+  "HandAxe", "BowSaw", "Carpenters",
+  "Pickaxe", "ShaftMine", "Quarry",
+  "Plow", "Irrigation", "FloodControl", "Chinampas",
+]);
+
+const TECHTREE_ECON_UPGRADES_BY_AGE = {
+  ArchaicAge: ["HandAxe", "Pickaxe", "Plow"],
+  ClassicalAge: ["BowSaw", "ShaftMine", "Irrigation"],
+  HeroicAge: ["Carpenters", "Quarry", "FloodControl"],
+  MythicAge: [],
+};
+
+const TECHTREE_ECON_FIRST_PARENT_BY_CULTURE = {
+  Greek: { wood: "Storehouse", gold: "Storehouse", food: "Granary" },
+  Egyptian: { wood: "LumberCamp", gold: "MiningCamp", food: "Granary" },
+  Norse: { wood: "OxCartBuilding", gold: "OxCartBuilding", food: "OxCartBuilding" },
+  Atlantean: { wood: "EconomicGuild", gold: "EconomicGuild", food: "EconomicGuild" },
+  Chinese: { wood: "Silo", gold: "Silo", food: "Silo" },
+  Japanese: { wood: "Watermill", gold: "MiningCampJapanese", food: "Watermill" },
+  Aztec: { wood: "Calpulli", gold: "Calpulli", food: "Calpulli" },
+};
+
+function economicUpgradeParentForCulture(culture, techName) {
+  const parents = TECHTREE_ECON_FIRST_PARENT_BY_CULTURE[culture] || TECHTREE_ECON_FIRST_PARENT_BY_CULTURE.Greek;
+  const map = {
+    HandAxe: parents.wood,
+    BowSaw: "HandAxe",
+    Carpenters: "BowSaw",
+    Pickaxe: parents.gold,
+    ShaftMine: "Pickaxe",
+    Quarry: "ShaftMine",
+    Plow: parents.food,
+    Irrigation: "Plow",
+    FloodControl: "Irrigation",
+  };
+  return map[techName] || "";
+}
+
+function economicUpgradeRightSideNodesForAge(culture, age) {
+  if (culture === "Aztec") {
+    const byAge = {
+      ArchaicAge: ["HandAxe", "Pickaxe", "Plow"],
+      ClassicalAge: ["BowSaw", "ShaftMine", "Chinampas"],
+      HeroicAge: ["Carpenters", "Quarry"],
+      MythicAge: [],
+    };
+    const parentMap = {
+      HandAxe: "Calpulli", BowSaw: "HandAxe", Carpenters: "BowSaw",
+      Pickaxe: "Calpulli", ShaftMine: "Pickaxe", Quarry: "ShaftMine",
+      Plow: "Calpulli", Chinampas: "Plow",
+    };
+    return (byAge[age] || []).map((techName) => rightSideNode("Tech", techName, parentMap[techName] || "Calpulli", "1,1"));
+  }
+  return (TECHTREE_ECON_UPGRADES_BY_AGE[age] || []).map((techName) => rightSideNode("Tech", techName, economicUpgradeParentForCulture(culture, techName), "1,1"));
+}
+
+function applyGaiaEconomicEarlierRightSideNodes(culture, age, config, nodes) {
+  if (!selectedHasGaiaEconomicEarlierBonus(config)) return nodes || [];
+  const out = (nodes || []).filter((node) => !(node.type === "Tech" && TECHTREE_ECON_UPGRADE_NAMES.has(node.name)));
+  out.push(...economicUpgradeRightSideNodesForAge(culture, age));
+  return out;
+}
+
+function applyFarmBaselineRightSideNodes(culture, age, config, nodes) {
+  // Farm visibility is a baseline building rule, not only a Shennong rule.
+  // All pantheons show Farm in ClassicalAge, except Egyptian where Farm is
+  // available in ArchaicAge. Shennong's farm bonus moves non-Egyptian Farm
+  // from ClassicalAge to ArchaicAge. Always rebuild this node so vanilla
+  // source templates cannot accidentally omit it or inherit Shennong-only
+  // placement.
+  const out = (nodes || []).filter((node) => !(node.type === "Unit" && node.name === "Farm"));
+  const farmAge = culture === "Egyptian" || selectedHasShennongFarmArchaicBonus(config) ? "ArchaicAge" : "ClassicalAge";
+  if (age === farmAge) out.push(rightSideNode("Unit", "Farm", "", "1,0"));
+  return out;
+}
+
+function applyShennongFarmArchaicRightSideNodes(culture, age, config, nodes) {
+  return applyFarmBaselineRightSideNodes(culture, age, config, nodes);
+}
+
+function bonusSkyPassageRightSideNodes(age, config) {
+  if (!selectedHasOranosSkyPassageBonus(config) || age !== "ArchaicAge") return [];
+  return [rightSideNode("Unit", "SkyPassage", "", "1,0")];
+}
+
+function bonusNezhaRightSideNodes(age, config, culture = "") {
+  if (!selectedHasFuxiNezhaBonus(config)) return [];
+  const firstParent = culture === "Chinese" ? "ImperialAcademy" : "Temple";
+  if (age === "ClassicalAge") return [rightSideNode("Unit", "NezhaChild", firstParent, "1,0")];
+  if (age === "HeroicAge") return [rightSideNode("Unit", "NezhaYouth", "NezhaChild", "1,0")];
+  if (age === "MythicAge") return [rightSideNode("Unit", "Nezha", "NezhaYouth", "1,0")];
+  return [];
+}
+
+const TECHTREE_THOR_ARMORY_COMPACT_NAMES = new Set([
+  "Armory", "DwarvenArmory", "Ballistics", "BurningPitch",
+  "CopperWeapons", "BronzeWeapons", "IronWeapons", "DwarvenWeapons",
+  "CopperArmor", "BronzeArmor", "IronArmor", "MeteoricIronArmor",
+  "CopperShields", "BronzeShields", "IronShields", "DragonscaleShields",
+]);
+
+function thorDwarvenArmoryCompactRightSideNodes(age, config) {
+  if (!selectedHasThorDwarvenArmoryBonus(config)) return [];
+  const armory = "DwarvenArmory";
+  if (age === "ArchaicAge") {
+    return [
+      rightSideNode("Unit", armory, "", "1,0"),
+      rightSideNode("Tech", "Ballistics", armory, "2,1"),
+      rightSideNode("Tech", "CopperWeapons", armory, "3,0"),
+      rightSideNode("Tech", "BronzeWeapons", "CopperWeapons", "3,1"),
+      rightSideNode("Tech", "CopperArmor", armory, "4,0"),
+      rightSideNode("Tech", "BronzeArmor", "CopperArmor", "4,1"),
+      rightSideNode("Tech", "CopperShields", armory, "5,0"),
+      rightSideNode("Tech", "BronzeShields", "CopperShields", "5,1"),
+    ];
+  }
+  if (age === "ClassicalAge") {
+    return [
+      rightSideNode("Tech", "BurningPitch", armory, "2,1"),
+      rightSideNode("Tech", "IronWeapons", "BronzeWeapons", "3,0"),
+      rightSideNode("Tech", "DwarvenWeapons", "IronWeapons", "3,1"),
+      rightSideNode("Tech", "IronArmor", "BronzeArmor", "4,0"),
+      rightSideNode("Tech", "MeteoricIronArmor", "IronArmor", "4,1"),
+      rightSideNode("Tech", "IronShields", "BronzeShields", "5,0"),
+      rightSideNode("Tech", "DragonscaleShields", "IronShields", "5,1"),
+    ];
+  }
+  return [];
+}
+
+function applyThorDwarvenArmoryCompactRightSideNodes(age, config, nodes) {
+  if (!selectedHasThorDwarvenArmoryBonus(config)) return nodes || [];
+  const out = (nodes || []).filter((node) => !(TECHTREE_THOR_ARMORY_COMPACT_NAMES.has(node.name) && (node.parent === "" || node.parent === "Armory" || node.parent === "DwarvenArmory" || TECHTREE_THOR_ARMORY_COMPACT_NAMES.has(node.parent))));
+  out.push(...thorDwarvenArmoryCompactRightSideNodes(age, config));
+  return out;
+}
+
+function applyGenericBonusRightSideNodes(culture, age, config, nodes, options = {}) {
+  let out = (nodes || []).slice();
+  out = applyGaiaEconomicEarlierRightSideNodes(culture, age, config, out);
+  out = applyShennongFarmArchaicRightSideNodes(culture, age, config, out);
+  if (options.applyThorCompact !== false) out = applyThorDwarvenArmoryCompactRightSideNodes(age, config, out);
+  out.push(...bonusSkyPassageRightSideNodes(age, config));
+  out.push(...bonusNezhaRightSideNodes(age, config, culture));
+  return out;
+}
+
+function selectedHasThorDwarvenArmoryBonus(config) {
+  return selectedHasBonusId(config, "bonus_36") || selectedHasBonusLabel(config, THOR_DWARVEN_ARMORY_BONUS_LABEL);
+}
+
+function greekApplyThorDwarvenArmoryRightSide(nodes, config) {
+  if (!selectedHasThorDwarvenArmoryBonus(config)) return nodes || [];
+  return (nodes || []).map((inputNode) => {
+    const node = { ...inputNode };
+    if (node.type === "Unit" && node.name === "Armory") node.name = "DwarvenArmory";
+    if (node.parent === "Armory") node.parent = "DwarvenArmory";
+    return node;
+  });
+}
+
+function greekThorDwarvenArmoryExtraRightSideNodes(age, config) {
+  if (!selectedHasThorDwarvenArmoryBonus(config)) return [];
+  // Greek displays the Iron armory upgrade line in MythicAge, so place Thor's
+  // Dwarven Armory extras beside their Iron-upgrade parents there.
+  if (age !== "MythicAge") return [];
+  return [
+    { type: "Tech", name: "DwarvenWeapons", parent: "IronWeapons", position: "26,1", x: 26, y: 1 },
+    { type: "Tech", name: "MeteoricIronArmor", parent: "IronArmor", position: "27,1", x: 27, y: 1 },
+    { type: "Tech", name: "DragonscaleShields", parent: "IronShields", position: "28,1", x: 28, y: 1 },
+  ];
+}
+
+function greekRawTechTreeNodesForAge(age, config) {
+  let nodes = [
+    ...greekCommonNodesForAge(age),
+    greekSelectedHeroNodeForAge(age, config),
+    ...greekSelectedMinorNodesForAge(age, config),
+    ...greekSelectedFortressHeroNodesForAge(age, config),
+    greekSelectedUniqueUnitRightSideNode(age, config),
+    ...greekThorDwarvenArmoryExtraRightSideNodes(age, config),
+  ].filter(Boolean);
+  if (age === "ArchaicAge") {
+    const group = selectedUniqueTechGroup(config);
+    const tech = selectedUniqueTechRightSideName(config, group);
+    if (group && tech) {
+      for (const spec of uniqueTechRightSideNodeSpecs(config, "", group)) {
+        const [xRaw, yRaw] = String(spec.position || spec.preferred?.[0] || "18,1").split(",");
+        nodes.push({
+          type: "Tech",
+          name: tech,
+          parent: spec.parent,
+          position: `${Number(xRaw) || 0},${Number(yRaw) || 1}`,
+          x: Number(xRaw) || 0,
+          y: Number(yRaw) || 1,
+        });
+      }
+    }
+  }
+  nodes = applyGenericBonusRightSideNodes("Greek", age, config, nodes);
+  return greekApplyThorDwarvenArmoryRightSide(nodes, config);
+}
+
+
+function greekMeasureGroupWidths(nodes, protectedColumnsByGroup = null, age = "") {
+  const widths = {};
+  const grouped = new Map();
+  for (const node of nodes || []) {
+    const group = greekResolveNodeGroupFromNodes(node, nodes || []);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(node);
+  }
+  for (const [group, groupNodes] of grouped.entries()) {
+    const protectedColumns = protectedColumnsByGroup && protectedColumnsByGroup[group] instanceof Set ? protectedColumnsByGroup[group] : null;
+    const placed = greekCompactGroupNodes(group, groupNodes, 0, protectedColumns, age);
+    widths[group] = placed.length ? Math.max(...placed.map((node) => Number(node.x) || 0)) + 1 : 0;
+  }
+  return widths;
+}
+
+function compactGreekPreferredLocal(rawByAge, preferredLocal) {
+  // The current Greek right-side layout is compacted per age. We intentionally
+  // avoid a single global local-X per node name because that was causing every
+  // possible Town Center / Dock / Temple node from every age to reserve its own
+  // column, which created huge empty gaps. Chain alignment is handled by
+  // greekFixedLocalX() and same-parent placement inside greekCompactGroupNodes().
+  return {};
+}
+
+function greekBuildGlobalProtectedLineColumns(rawByAge) {
+  const allNodes = Object.values(rawByAge || {}).flat();
+  const grouped = new Map();
+  for (const node of allNodes) {
+    if (!node || !node.name) continue;
+    const group = greekResolveNodeGroupFromNodes(node, allNodes);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(node);
+  }
+
+  const out = {};
+  for (const [group, groupNodes] of grouped.entries()) {
+    const candidateColumns = new Set(GREEK_TECHTREE_PROTECTED_LINE_LOCAL_X[group] || []);
+    const activeColumns = new Set();
+    for (const node of groupNodes) {
+      const fixed = greekFixedLocalX(node, group);
+      if (!Number.isFinite(Number(fixed))) continue;
+      const localX = Number(fixed);
+      if (candidateColumns.has(localX)) activeColumns.add(localX);
+    }
+    if (activeColumns.size) out[group] = activeColumns;
+  }
+  return out;
+}
+
+function buildGreekTechTreeGroupStarts(config) {
+  if (config?.baseCulture !== "Greek") return null;
+  const rawByAge = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    rawByAge[age] = greekRawTechTreeNodesForAge(age, config);
+  }
+  const protectedColumnsByGroup = greekBuildGlobalProtectedLineColumns(rawByAge);
+  config._greekTechTreeProtectedColumns = protectedColumnsByGroup;
+
+  const maxWidths = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    const widths = greekMeasureGroupWidths(rawByAge[age], protectedColumnsByGroup, age);
+    for (const [group, width] of Object.entries(widths)) {
+      maxWidths[group] = Math.max(maxWidths[group] || 0, width);
+    }
+  }
+
+  const starts = {};
+  let nextX = 0;
+  for (const group of GREEK_TECHTREE_GROUP_ORDER) {
+    starts[group] = nextX;
+    nextX += Math.max(maxWidths[group] || 0, 0);
+  }
+  return starts;
+}
+
+function generateGreekDynamicTechTreeTechnologies(age, config) {
+  if (config?.baseCulture !== "Greek") return "";
+  const nodes = greekRawTechTreeNodesForAge(age, config);
+  const normalized = greekNormalizeTechTreeNodes(age, nodes, config?._greekTechTreeGroupStarts || null, config?._greekTechTreeProtectedColumns || null);
+  const body = normalized.map((node) => buildTechTreeNodeXml(node)).join("\n");
+  const block = `<local:TechTreeAge.Technologies>
+${body}
+            </local:TechTreeAge.Technologies>`;
+  return applyCustomTechNamesToUiBlock(block, config || {});
+}
+
+
+const EGYPTIAN_TECHTREE_MAJOR_SOURCES = ["Ra", "Isis", "Set"];
+const EGYPTIAN_TECHTREE_MINOR_BY_AGE = {
+  ClassicalAge: ["ClassicalAgeAnubis", "ClassicalAgeBast", "ClassicalAgePtah"],
+  HeroicAge: ["HeroicAgeNephthys", "HeroicAgeSekhmet", "HeroicAgeSobek"],
+  MythicAge: ["MythicAgeHorus", "MythicAgeOsiris", "MythicAgeThoth"],
+};
+
+const EGYPTIAN_TECHTREE_GROUP_ORDER = [
+  "TownCenter", "LumberCamp", "MiningCamp", "Granary", "Farm", "House", "Obelisk", "WallConnector", "Dock", "Temple", "SkyPassage",
+  "Monument", "SentryTower", "Armory", "Market", "Barracks", "MigdolStronghold", "SiegeWorks", "Lighthouse", "Wonder",
+];
+
+const EGYPTIAN_TECHTREE_PARENT_LANE = {
+  VillagerEgyptian: "TownCenter",
+  Mercenary: "TownCenter",
+  MercenaryCavalry: "TownCenter",
+  Masons: "TownCenter",
+  Architects: "TownCenter",
+  FortifiedTownCenter: "TownCenter",
+  SecretsOfTheTitans: "TownCenter",
+  TitanGate: "TownCenter",
+  Pharaoh: "TownCenter",
+  BaboonOfSet: "TownCenter",
+  GazelleOfSet: "TownCenter",
+  HyenaOfSet: "TownCenter",
+  GiraffeOfSet: "TownCenter",
+  CrocodileOfSet: "TownCenter",
+  HippopotamusOfSet: "TownCenter",
+  RhinocerosOfSet: "TownCenter",
+  ElephantOfSet: "TownCenter",
+
+  LumberCamp: "LumberCamp",
+  HandAxe: "LumberCamp",
+  BowSaw: "LumberCamp",
+  Carpenters: "LumberCamp",
+  AdzeOfWepwawet: "LumberCamp",
+
+  MiningCamp: "MiningCamp",
+  Pickaxe: "MiningCamp",
+  ShaftMine: "MiningCamp",
+  Quarry: "MiningCamp",
+
+  Granary: "Granary",
+  Husbandry: "Granary",
+  HuntingEquipment: "Granary",
+  Shaduf: "Granary",
+  Plow: "Granary",
+  Irrigation: "Granary",
+  FloodControl: "Granary",
+  SacredCats: "Granary",
+
+  Farm: "Farm",
+  House: "House",
+  Obelisk: "Obelisk",
+
+  WallConnector: "WallConnector",
+  StoneWall: "WallConnector",
+  FortifiedWall: "WallConnector",
+  CitadelWall: "WallConnector",
+  BronzeWall: "WallConnector",
+  IronWall: "WallConnector",
+
+  Dock: "Dock",
+  FishingShipEgyptian: "Dock",
+  FishingShip: "Dock",
+  PurseSeine: "Dock",
+  FishBasket: "Dock",
+  SaltAmphora: "Dock",
+  Kebenit: "Dock",
+  SolarBarque: "Dock",
+  RammingGalley: "Dock",
+  WarBarge: "Dock",
+  FuneralBarge: "Dock",
+  TransportShipEgyptian: "Dock",
+  TransportShip: "Dock",
+  EnclosedDeck: "Dock",
+  HeavyWarships: "Dock",
+  ChampionWarships: "Dock",
+  HeroicFleet: "Dock",
+  ConscriptSailors: "Dock",
+  Leviathan: "Dock",
+  WarTurtle: "Dock",
+
+  Temple: "Temple",
+  SkyPassage: "SkyPassage",
+  NezhaChild: "Temple",
+  NezhaYouth: "Temple",
+  Nezha: "Temple",
+  Priest: "Temple",
+  HandsOfThePharaoh: "Temple",
+  Omniscience: "Temple",
+  Wadjet: "Temple",
+  Sphinx: "Temple",
+  Criosphinx: "Temple",
+  Hieracosphinx: "Temple",
+  Anubite: "Temple",
+  FeetOfTheJackal: "Temple",
+  Necropolis: "Temple",
+  Petsuchos: "Temple",
+  Crocodilopolis: "Temple",
+  Roc: "Temple",
+  Scarab: "Temple",
+  ScorpionMan: "Temple",
+  SpiritOfMaat: "Temple",
+  FuneralRites: "Temple",
+  Nebty: "Temple",
+  Mummy: "Temple",
+  AtefCrown: "Temple",
+  Phoenix: "Temple",
+  Avenger: "Temple",
+  NewKingdom: "Temple",
+
+  MonumentToVillagers: "Monument",
+  MonumentToSoldiers: "Monument",
+  MonumentToPriests: "Monument",
+  MonumentToPharaohs: "Monument",
+  MonumentToGods: "Monument",
+
+  SentryTower: "SentryTower",
+  WatchTower: "SentryTower",
+  GuardTower: "SentryTower",
+  BallistaTower: "SentryTower",
+  SignalFires: "SentryTower",
+  CarrierPigeons: "SentryTower",
+  Crenellations: "SentryTower",
+  BoilingOil: "SentryTower",
+
+  Armory: "Armory",
+  DwarvenArmory: "Armory",
+  CopperWeapons: "Armory",
+  BronzeWeapons: "Armory",
+  IronWeapons: "Armory",
+  CopperArmor: "Armory",
+  BronzeArmor: "Armory",
+  IronArmor: "Armory",
+  CopperShields: "Armory",
+  BronzeShields: "Armory",
+  IronShields: "Armory",
+  Ballistics: "Armory",
+  BurningPitch: "Armory",
+  DwarvenWeapons: "Armory",
+  MeteoricIronArmor: "Armory",
+  DragonscaleShields: "Armory",
+  ElectrumBullets: "Armory",
+  ScallopedAxe: "Armory",
+  LeatherFrameShield: "Armory",
+  BoneBow: "Armory",
+  SlingsOfTheSun: "Armory",
+
+  Market: "Market",
+  CaravanEgyptian: "Market",
+  TaxCollectors: "Market",
+  Ambassadors: "Market",
+  Coinage: "Market",
+  DarkWater: "Market",
+
+  Barracks: "Barracks",
+  Spearman: "Barracks",
+  MediumSpearmen: "Barracks",
+  HeavySpearmen: "Barracks",
+  ChampionSpearmen: "Barracks",
+  Axeman: "Barracks",
+  MediumAxemen: "Barracks",
+  HeavyAxemen: "Barracks",
+  ChampionAxemen: "Barracks",
+  Slinger: "Barracks",
+  MediumSlingers: "Barracks",
+  HeavySlingers: "Barracks",
+  ChampionSlingers: "Barracks",
+  LevyBarracksSoldiers: "Barracks",
+  ConscriptBarracksSoldiers: "Barracks",
+  SerpentSpear: "Barracks",
+  SpearOfHorus: "Barracks",
+  AxeOfVengeance: "Barracks",
+  GreatestOfFifty: "Barracks",
+
+  MigdolStronghold: "MigdolStronghold",
+  ChariotArcher: "MigdolStronghold",
+  HeavyChariotArchers: "MigdolStronghold",
+  ChampionChariotArchers: "MigdolStronghold",
+  CamelRider: "MigdolStronghold",
+  HeavyCamelRiders: "MigdolStronghold",
+  ChampionCamelRiders: "MigdolStronghold",
+  WarElephant: "MigdolStronghold",
+  HeavyWarElephants: "MigdolStronghold",
+  ChampionWarElephants: "MigdolStronghold",
+  LevyMigdolSoldiers: "MigdolStronghold",
+  ConscriptMigdolSoldiers: "MigdolStronghold",
+  AdvancedFortifications: "MigdolStronghold",
+  DesertWind: "MigdolStronghold",
+  TusksOfApedemak: "MigdolStronghold",
+  ValleyOfTheKings: "MigdolStronghold",
+
+  SiegeWorks: "SiegeWorks",
+  SiegeTower: "SiegeWorks",
+  Catapult: "SiegeWorks",
+  DraftHorses: "SiegeWorks",
+  Engineers: "SiegeWorks",
+  ForceOfTheWestWind: "SiegeWorks",
+
+  Lighthouse: "Lighthouse",
+  Wonder: "Wonder",
+};
+
+function egyptianNodeGroupRoot(node) {
+  const parent = node?.parent || "";
+  const name = node?.name || "";
+  if (EGYPTIAN_TECHTREE_GROUP_ORDER.includes(parent)) return parent;
+  if (EGYPTIAN_TECHTREE_PARENT_LANE[parent]) return EGYPTIAN_TECHTREE_PARENT_LANE[parent];
+  if (!parent && EGYPTIAN_TECHTREE_GROUP_ORDER.includes(name)) return name;
+  if (EGYPTIAN_TECHTREE_PARENT_LANE[name]) return EGYPTIAN_TECHTREE_PARENT_LANE[name];
+  return parent || name;
+}
+
+function egyptianNodeGroupOrder(node) {
+  const root = egyptianNodeGroupRoot(node);
+  const idx = EGYPTIAN_TECHTREE_GROUP_ORDER.indexOf(root);
+  return idx >= 0 ? idx : 99;
+}
+
+const EGYPTIAN_TECHTREE_FIXED_LOCAL_X = {
+  Mercenary: 1,
+  VillagerEgyptian: 1,
+  Priest: 2,
+  Pharaoh: 3,
+  Masons: 2,
+  Architects: 2,
+  FortifiedTownCenter: 1,
+  MercenaryCavalry: 1,
+  SecretsOfTheTitans: 0,
+  TitanGate: 0,
+
+  HandAxe: 1,
+  BowSaw: 1,
+  Carpenters: 1,
+  Pickaxe: 1,
+  ShaftMine: 1,
+  Quarry: 1,
+  Husbandry: 1,
+  HuntingEquipment: 1,
+  Plow: 2,
+  Irrigation: 2,
+  FloodControl: 2,
+
+  StoneWall: 0,
+  FortifiedWall: 0,
+  CitadelWall: 0,
+  BronzeWall: 0,
+  IronWall: 0,
+
+  FishingShipEgyptian: 1,
+  FishingShip: 1,
+  PurseSeine: 1,
+  SaltAmphora: 1,
+  Kebenit: 2,
+  SolarBarque: 2,
+  RammingGalley: 3,
+  WarBarge: 4,
+  FuneralBarge: 4,
+  TransportShipEgyptian: 5,
+  TransportShip: 5,
+  EnclosedDeck: 5,
+  HeavyWarships: 3,
+  ChampionWarships: 3,
+
+  Omniscience: 0,
+  NezhaChild: 1,
+  NezhaYouth: 1,
+  Nezha: 1,
+  HandsOfThePharaoh: 1,
+  Criosphinx: 1,
+  Hieracosphinx: 1,
+  FeetOfTheJackal: 1,
+  Crocodilopolis: 1,
+
+  MonumentToVillagers: 0,
+  MonumentToPharaohs: 0,
+  MonumentToSoldiers: 1,
+  MonumentToGods: 1,
+  MonumentToPriests: 2,
+
+  WatchTower: 1,
+  GuardTower: 1,
+  BallistaTower: 1,
+  SignalFires: 2,
+  CarrierPigeons: 2,
+  Crenellations: 1,
+  BoilingOil: 1,
+
+  CopperWeapons: 1,
+  BronzeWeapons: 1,
+  IronWeapons: 1,
+  CopperArmor: 2,
+  BronzeArmor: 2,
+  IronArmor: 2,
+  CopperShields: 3,
+  BronzeShields: 3,
+  IronShields: 3,
+  Ballistics: 4,
+  BurningPitch: 4,
+  DwarvenWeapons: 1,
+  MeteoricIronArmor: 2,
+  DragonscaleShields: 3,
+
+  CaravanEgyptian: 1,
+  Coinage: 1,
+  TaxCollectors: 2,
+  Ambassadors: 2,
+
+  Spearman: 1,
+  MediumSpearmen: 1,
+  HeavySpearmen: 1,
+  ChampionSpearmen: 1,
+  Axeman: 2,
+  MediumAxemen: 2,
+  HeavyAxemen: 2,
+  ChampionAxemen: 2,
+  Slinger: 3,
+  MediumSlingers: 3,
+  HeavySlingers: 3,
+  ChampionSlingers: 3,
+  LevyBarracksSoldiers: 4,
+  ConscriptBarracksSoldiers: 4,
+
+  ChariotArcher: 1,
+  HeavyChariotArchers: 1,
+  ChampionChariotArchers: 1,
+  CamelRider: 2,
+  HeavyCamelRiders: 2,
+  ChampionCamelRiders: 2,
+  WarElephant: 3,
+  HeavyWarElephants: 3,
+  ChampionWarElephants: 3,
+  LevyMigdolSoldiers: 4,
+  ConscriptMigdolSoldiers: 4,
+
+  SiegeTower: 1,
+  Catapult: 1,
+  DraftHorses: 2,
+  Engineers: 2,
+};
+
+function egyptianFixedLocalX(node, group) {
+  const name = node?.name || "";
+  if (group === "TownCenter" && /^SkinOfTheRhino/.test(name)) return 2;
+  // Parent-child alignment is handled dynamically by egyptianCompactGroupNodes.
+  // Example: if Mummy exists, AtefCrown follows Mummy's actual placed column.
+  if (Object.prototype.hasOwnProperty.call(EGYPTIAN_TECHTREE_FIXED_LOCAL_X, name)) return EGYPTIAN_TECHTREE_FIXED_LOCAL_X[name];
+  return undefined;
+}
+
+const EGYPTIAN_TECHTREE_PROTECTED_LINE_LOCAL_X = {
+  TownCenter: [1, 2, 3],
+  LumberCamp: [1],
+  MiningCamp: [1],
+  Granary: [1, 2],
+  WallConnector: [0],
+  Dock: [1, 2, 3, 4, 5],
+  Temple: [0, 1],
+  SentryTower: [1, 2],
+  Armory: [1, 2, 3, 4],
+  Market: [1, 2],
+  Barracks: [1, 2, 3, 4],
+  MigdolStronghold: [1, 2, 3, 4],
+  SiegeWorks: [1, 2],
+};
+
+function egyptianProtectedLineColumns(group, groupNodes = null) {
+  const candidateColumns = new Set(EGYPTIAN_TECHTREE_PROTECTED_LINE_LOCAL_X[group] || []);
+  if (!Array.isArray(groupNodes)) return candidateColumns;
+  const activeColumns = new Set();
+  for (const node of groupNodes) {
+    const fixed = egyptianFixedLocalX(node, group);
+    if (!Number.isFinite(Number(fixed))) continue;
+    const localX = Number(fixed);
+    if (candidateColumns.has(localX)) activeColumns.add(localX);
+  }
+  return activeColumns;
+}
+
+function egyptianNextNonProtectedLocalX(group, minX, protectedColumns = null) {
+  const columns = protectedColumns instanceof Set ? protectedColumns : egyptianProtectedLineColumns(group);
+  for (let x = Math.max(0, Number(minX) || 0); x < 64; x += 1) {
+    if (!columns.has(x)) return x;
+  }
+  return Math.max(0, Number(minX) || 0);
+}
+
+function egyptianTechTreeSourceNodes(age) {
+  const templates = window.AOM_TECHTREE || {};
+  const byMajor = {};
+  for (const major of EGYPTIAN_TECHTREE_MAJOR_SOURCES) {
+    const block = age === "ArchaicAge"
+      ? extractXmlPropertyBlock(lookupTemplateBlock(templates.archaicByMajor, major) || "", "Technologies")
+      : templates.ageTechnologiesByMajorAge?.[`${major}|${age}`] || "";
+    byMajor[major] = parseTechTreeNodesFromBlock(block);
+  }
+  return byMajor;
+}
+
+function egyptianMinorBonusTokens(minorTech) {
+  const block = window.AOM_TECHTREE?.bonusTrackByGod?.[canonicalMinorTech(minorTech)] || "";
+  return parseTechTreeNodesFromBlock(block).filter((node) => node.type === "Unit" || node.type === "Tech");
+}
+
+function egyptianAllConditionalNodeNames() {
+  const names = new Set();
+  (UNIQUE_TECH_GROUPS || []).forEach((group) => {
+    names.add(group.id);
+    (group.techs || []).forEach((tech) => names.add(tech));
+  });
+  Object.values(EGYPTIAN_TECHTREE_MINOR_BY_AGE).flat().forEach((minor) => {
+    egyptianMinorBonusTokens(minor).forEach((node) => names.add(node.name));
+  });
+  return names;
+}
+
+function egyptianCommonNodesForAge(age) {
+  const byMajor = egyptianTechTreeSourceNodes(age);
+  const excluded = egyptianAllConditionalNodeNames();
+  const keySets = Object.fromEntries(Object.entries(byMajor).map(([major, nodes]) => [major, new Set(nodes.map(techTreeNodeKey))]));
+  const allKeys = [...(keySets.Ra || new Set())];
+  const commonKeys = allKeys.filter((key) => EGYPTIAN_TECHTREE_MAJOR_SOURCES.every((major) => keySets[major]?.has(key)));
+  const sourceNodes = Object.values(byMajor).flat();
+  const result = [];
+  for (const key of commonKeys) {
+    const matches = sourceNodes.filter((node) => techTreeNodeKey(node) === key);
+    const rep = chooseGreekRepresentativeNode(matches);
+    if (!rep || excluded.has(rep.name)) continue;
+    result.push({ ...rep });
+  }
+  return result;
+}
+
+function egyptianFindRightSideNodesForToken(age, tokenNode) {
+  const byMajor = egyptianTechTreeSourceNodes(age);
+  const matches = Object.values(byMajor).flat().filter((node) => node.type === tokenNode.type && node.name === tokenNode.name);
+  if (!matches.length) return [];
+  const byKey = new Map();
+  for (const node of matches) {
+    const key = techTreeNodeKey(node);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(node);
+  }
+  const reps = [...byKey.values()].map((nodes) => ({ count: nodes.length, node: chooseGreekRepresentativeNode(nodes) }));
+  reps.sort((a, b) => egyptianNodeGroupOrder(a.node) - egyptianNodeGroupOrder(b.node) || (a.node.x - b.node.x) || (a.node.y - b.node.y) || String(a.node.parent).localeCompare(String(b.node.parent)) || (b.count - a.count));
+  return reps.map((entry) => ({ ...entry.node }));
+}
+
+function egyptianSelectedMinorNodesForAge(age, config) {
+  const selected = (config.minorGods?.[age] || []).map(canonicalMinorTech);
+  const nodes = [];
+  for (const minor of selected) {
+    for (const token of egyptianMinorBonusTokens(minor)) {
+      nodes.push(...egyptianFindRightSideNodesForToken(age, token));
+    }
+  }
+  return nodes;
+}
+
+function egyptianResolveNodeGroupFromNodes(node, allNodes) {
+  const byName = new Map();
+  for (const candidate of allNodes || []) {
+    if (!candidate?.name) continue;
+    if (!byName.has(candidate.name)) byName.set(candidate.name, []);
+    byName.get(candidate.name).push(candidate);
+  }
+  const seen = new Set();
+  let current = node?.parent || node?.name || "";
+  for (let i = 0; i < 16 && current && !seen.has(current); i += 1) {
+    seen.add(current);
+    if (EGYPTIAN_TECHTREE_GROUP_ORDER.includes(current)) return current;
+    if (EGYPTIAN_TECHTREE_PARENT_LANE[current]) return EGYPTIAN_TECHTREE_PARENT_LANE[current];
+    const parentNode = (byName.get(current) || [])
+      .slice()
+      .sort((a, b) => (Number(a.x) || 0) - (Number(b.x) || 0) || (Number(a.y) || 0) - (Number(b.y) || 0))[0];
+    if (parentNode?.parent) {
+      current = parentNode.parent;
+      continue;
+    }
+    if (parentNode?.name && parentNode.name !== current) {
+      current = parentNode.name;
+      continue;
+    }
+    break;
+  }
+  if (EGYPTIAN_TECHTREE_PARENT_LANE[node?.name]) return EGYPTIAN_TECHTREE_PARENT_LANE[node.name];
+  return egyptianNodeGroupRoot(node);
+}
+
+function egyptianCompactGroupNodes(group, groupNodes, groupStartX = 0, protectedColumnsOverride = null, age = "") {
+  const nodes = (groupNodes || []).map((inputNode) => {
+    const node = { ...inputNode };
+    const [xRaw, yRaw] = String(node.position || `${node.x || 0},${node.y ?? 1}`).split(",");
+    node.x = Number.isFinite(Number(xRaw)) ? Number(xRaw) : Number(node.x || 0) || 0;
+    node.y = Number.isFinite(Number(yRaw)) ? Number(yRaw) : Number(node.y ?? 1) || 1;
+    if (node.y > 1) node.y = 1;
+    if (node.y < 0) node.y = 0;
+    return node;
+  });
+
+  const isGroupRootNode = (node) => !node?.parent && (node?.name === group || (group === "Armory" && node?.name === "DwarvenArmory") || (group === "Monument" && /^MonumentTo/.test(node?.name || "")));
+  const hasRoot = nodes.some((node) => isGroupRootNode(node));
+  const sourceOrder = (node) => (Number(node.x) || 0) * 10 + (Number(node.y) || 0);
+  const sorted = nodes.slice().sort((a, b) => {
+    const aIsRoot = isGroupRootNode(a);
+    const bIsRoot = isGroupRootNode(b);
+    if (aIsRoot !== bIsRoot) return aIsRoot ? -1 : 1;
+    if (a.name === b.parent && b.name !== a.parent) return -1;
+    if (b.name === a.parent && a.name !== b.parent) return 1;
+    const af = egyptianFixedLocalX(a, group);
+    const bf = egyptianFixedLocalX(b, group);
+    if (Number.isFinite(Number(af)) !== Number.isFinite(Number(bf))) return Number.isFinite(Number(af)) ? -1 : 1;
+    if (Number.isFinite(Number(af)) && af !== bf) return af - bf;
+    return sourceOrder(a) - sourceOrder(b) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name) || String(a.parent).localeCompare(String(b.parent));
+  });
+
+  const localOccupied = new Set();
+  const placedLocalByName = new Map();
+  const placedRowByName = new Map();
+  const placed = [];
+  const protectedLineColumns = protectedColumnsOverride instanceof Set ? protectedColumnsOverride : egyptianProtectedLineColumns(group, nodes);
+  const directChildCountByName = new Map();
+  const directChildFixedLocalXByName = new Map();
+  for (const child of nodes) {
+    const parentKey = techTreeNodeParentLookupKey(child);
+    if (!parentKey) continue;
+    directChildCountByName.set(parentKey, (directChildCountByName.get(parentKey) || 0) + 1);
+    const childFixed = egyptianFixedLocalX(child, group);
+    if (Number.isFinite(Number(childFixed))) {
+      const current = directChildFixedLocalXByName.get(parentKey);
+      const childFixedX = Number(childFixed);
+      if (!Number.isFinite(Number(current)) || childFixedX < Number(current)) {
+        directChildFixedLocalXByName.set(parentKey, childFixedX);
+      }
+    }
+  }
+
+  const isLaneRootParent = (parent) => parent === group || (group === "Armory" && parent === "DwarvenArmory") || (group === "TownCenter" && parent === "TownCenter");
+  const canUse = (x, y, allowProtectedLineColumn = true) => {
+    if (localOccupied.has(`${x},${y}`)) return false;
+    if (!allowProtectedLineColumn && protectedLineColumns.has(x)) return false;
+    return true;
+  };
+  const reserve = (node, localX, y) => {
+    localOccupied.add(`${localX},${y}`);
+    for (const placementKey of techTreeNodePlacementKeys(node)) {
+      if (!placedLocalByName.has(placementKey) || localX < placedLocalByName.get(placementKey)) {
+        placedLocalByName.set(placementKey, localX);
+        placedRowByName.set(placementKey, y);
+      }
+    }
+    const cleanNode = { ...node };
+    delete cleanNode._group;
+    placed.push({ ...cleanNode, x: groupStartX + localX, y, position: `${groupStartX + localX},${y}` });
+  };
+  const firstFree = (minX, preferredY = 0, allowProtectedLineColumn = true) => {
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      const rows = preferredY === 1 ? [1, 0] : [0, 1];
+      for (const y of rows) if (canUse(x, y, allowProtectedLineColumn)) return { x, y };
+    }
+    return { x: Math.max(0, minX || 0), y: preferredY === 1 ? 1 : 0 };
+  };
+  const firstFreeParentColumn = (minX, allowProtectedLineColumn = true) => {
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      if (canUse(x, 0, allowProtectedLineColumn) && canUse(x, 1, allowProtectedLineColumn)) return { x, y: 0 };
+    }
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      if (canUse(x, 0, allowProtectedLineColumn)) return { x, y: 0 };
+    }
+    return firstFree(minX, 0, allowProtectedLineColumn);
+  };
+
+  for (const node of techTreeParentFirstOrder(sorted, isGroupRootNode)) {
+    const isRoot = isGroupRootNode(node);
+    if (isRoot) {
+      const fixed = egyptianFixedLocalX(node, group);
+      const x = Number.isFinite(Number(fixed)) ? Number(fixed) : 0;
+      const y = 0;
+      if (!canUse(x, y, true)) {
+        const alt = firstFree(x, y, true);
+        reserve(node, alt.x, alt.y);
+      } else {
+        reserve(node, x, y);
+      }
+      continue;
+    }
+
+    const fixed = egyptianFixedLocalX(node, group);
+    const parentLookupKey = techTreeNodeParentLookupKey(node);
+    const parentLocal = placedLocalByName.get(parentLookupKey);
+    const parentRow = placedRowByName.get(parentLookupKey);
+    const childFixedLocal = directChildFixedLocalXByName.get(node.uniqueIdentifier || node.name);
+    let desiredX;
+    let preferredY = Number(node.y) === 0 ? 0 : 1;
+
+    if (Number.isFinite(Number(parentLocal)) && !isLaneRootParent(node.parent)) {
+      // Parent-line rule: once a parent is placed, every direct child follows
+      // the parent's actual column. Fixed local X values are only preferred
+      // before the parent is placed; they must not break the visible line if
+      // the parent had to move to a cleaner/available column.
+      desiredX = Number(parentLocal);
+      if (Number.isFinite(Number(parentRow))) preferredY = Number(parentRow) === 0 ? 1 : 0;
+    } else if (Number.isFinite(Number(fixed))) {
+      desiredX = Number(fixed);
+    } else if (Number.isFinite(Number(childFixedLocal))) {
+      // Generic parent-line rule: if a direct child is part of a fixed upgrade
+      // line, place the parent in that same column first. Example: Anubite
+      // inherits FeetOfTheJackal's column, so the pair forms a clean vertical
+      // parent line instead of the child occupying the protected column alone.
+      desiredX = Number(childFixedLocal);
+    } else {
+      desiredX = 1;
+    }
+
+    if (node.type === "Unit") preferredY = 0;
+    if (age === "ArchaicAge" && !isRoot && !localOccupied.has(`${desiredX},1`)) preferredY = 1;
+
+    if (!hasRoot && !isLaneRootParent(node.parent)) desiredX = Math.max(desiredX, 0);
+    if (hasRoot || group === "TownCenter") desiredX = Math.max(desiredX, 1);
+
+    const hasFixedLocalX = Number.isFinite(Number(fixed));
+    const isChildOfPlacedChain = Number.isFinite(Number(parentLocal)) && !isLaneRootParent(node.parent) && Number(parentLocal) === Number(desiredX);
+    const isParentOfFixedChildLine = Number.isFinite(Number(childFixedLocal)) && Number(childFixedLocal) === Number(desiredX);
+    const allowProtectedLineColumn = hasFixedLocalX || isChildOfPlacedChain || isParentOfFixedChildLine;
+    if (!allowProtectedLineColumn && protectedLineColumns.has(desiredX)) {
+      desiredX = egyptianNextNonProtectedLocalX(group, desiredX + 1, protectedLineColumns);
+    }
+
+    let placedHere = false;
+    const hasDirectChildren = (directChildCountByName.get(node.uniqueIdentifier || node.name) || 0) > 0;
+    if (hasDirectChildren) {
+      const cleanColumn = firstFreeParentColumn(desiredX, allowProtectedLineColumn);
+      reserve(node, cleanColumn.x, cleanColumn.y);
+      placedHere = true;
+    }
+    if (!placedHere) {
+      const rows = preferredY === 1 ? [1, 0] : [0, 1];
+      for (const y of rows) {
+        if (canUse(desiredX, y, allowProtectedLineColumn)) {
+          reserve(node, desiredX, y);
+          placedHere = true;
+          break;
+        }
+      }
+    }
+    if (!placedHere) {
+      const alt = firstFree(desiredX + 1, preferredY, allowProtectedLineColumn);
+      reserve(node, alt.x, alt.y);
+    }
+  }
+
+  return placed.sort((a, b) => (a.x - b.x) || (a.y - b.y) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+function egyptianNormalizeTechTreeNodes(age, nodes, forcedGroupStarts = null, protectedColumnsByGroup = null) {
+  const unique = new Map();
+  for (const inputNode of nodes) {
+    if (!inputNode || !inputNode.type || !inputNode.name) continue;
+    const node = { ...inputNode };
+    const [xRaw, yRaw] = String(node.position || `${node.x || 0},${node.y ?? 1}`).split(",");
+    node.x = Number.isFinite(Number(xRaw)) ? Number(xRaw) : Number(node.x || 0) || 0;
+    node.y = Number.isFinite(Number(yRaw)) ? Number(yRaw) : Number(node.y ?? 1) || 1;
+    if (node.y > 1) node.y = 1;
+    if (node.y < 0) node.y = 0;
+    node.position = `${node.x},${node.y}`;
+    const key = techTreeNodeKey(node);
+    if (!unique.has(key)) unique.set(key, node);
+  }
+
+  const allNodes = [...unique.values()];
+  const grouped = new Map();
+  for (const node of allNodes) {
+    const group = egyptianResolveNodeGroupFromNodes(node, allNodes);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push({ ...node, _group: group });
+  }
+
+  const orderedGroups = [...grouped.entries()].sort(([groupA], [groupB]) => {
+    const ai = EGYPTIAN_TECHTREE_GROUP_ORDER.indexOf(groupA);
+    const bi = EGYPTIAN_TECHTREE_GROUP_ORDER.indexOf(groupB);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi) || String(groupA).localeCompare(String(groupB));
+  });
+
+  const placed = [];
+  let nextGroupX = 0;
+  for (const [group, groupNodes] of orderedGroups) {
+    const forcedX = forcedGroupStarts && Number.isFinite(Number(forcedGroupStarts[group])) ? Number(forcedGroupStarts[group]) : undefined;
+    const groupStartX = Number.isFinite(Number(forcedX)) ? Number(forcedX) : nextGroupX;
+    const protectedColumns = protectedColumnsByGroup && protectedColumnsByGroup[group] instanceof Set ? protectedColumnsByGroup[group] : null;
+    const groupPlaced = egyptianCompactGroupNodes(group, groupNodes, groupStartX, protectedColumns, age);
+    placed.push(...groupPlaced);
+    const width = groupPlaced.length ? Math.max(...groupPlaced.map((node) => Number(node.x) - groupStartX)) + 1 : 0;
+    nextGroupX = groupStartX + Math.max(width, 0);
+  }
+
+  return placed.sort((a, b) => (a.x - b.x) || (a.y - b.y) || egyptianNodeGroupOrder(a) - egyptianNodeGroupOrder(b) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+function egyptianApplyThorDwarvenArmoryRightSide(nodes, config) {
+  if (!selectedHasThorDwarvenArmoryBonus(config)) return nodes || [];
+  return (nodes || []).map((inputNode) => {
+    const node = { ...inputNode };
+    if (node.type === "Unit" && node.name === "Armory") node.name = "DwarvenArmory";
+    if (node.parent === "Armory") node.parent = "DwarvenArmory";
+    return node;
+  });
+}
+
+function egyptianThorDwarvenArmoryExtraRightSideNodes(age, config) {
+  if (!selectedHasThorDwarvenArmoryBonus(config)) return [];
+  if (age !== "MythicAge") return [];
+  return [
+    { type: "Tech", name: "DwarvenWeapons", parent: "IronWeapons", position: "30,1", x: 30, y: 1 },
+    { type: "Tech", name: "MeteoricIronArmor", parent: "IronArmor", position: "31,1", x: 31, y: 1 },
+    { type: "Tech", name: "DragonscaleShields", parent: "IronShields", position: "32,1", x: 32, y: 1 },
+  ];
+}
+
+function egyptianRawTechTreeNodesForAge(age, config) {
+  let nodes = [
+    ...egyptianCommonNodesForAge(age),
+    ...egyptianSelectedMinorNodesForAge(age, config),
+    ...egyptianThorDwarvenArmoryExtraRightSideNodes(age, config),
+  ].filter(Boolean);
+  if (age === "ArchaicAge") {
+    const group = selectedUniqueTechGroup(config);
+    const tech = selectedUniqueTechRightSideName(config, group);
+    if (group && tech) {
+      for (const spec of uniqueTechRightSideNodeSpecs(config, "", group)) {
+        const [xRaw, yRaw] = String(spec.position || spec.preferred?.[0] || "18,1").split(",");
+        nodes.push({
+          type: "Tech",
+          name: tech,
+          parent: spec.parent,
+          position: `${Number(xRaw) || 0},${Number(yRaw) || 1}`,
+          x: Number(xRaw) || 0,
+          y: Number(yRaw) || 1,
+        });
+      }
+    }
+  }
+  nodes = applyGenericBonusRightSideNodes("Egyptian", age, config, nodes);
+  return egyptianApplyThorDwarvenArmoryRightSide(nodes, config);
+}
+
+function egyptianMeasureGroupWidths(nodes, protectedColumnsByGroup = null, age = "") {
+  const widths = {};
+  const grouped = new Map();
+  for (const node of nodes || []) {
+    const group = egyptianResolveNodeGroupFromNodes(node, nodes || []);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(node);
+  }
+  for (const [group, groupNodes] of grouped.entries()) {
+    const protectedColumns = protectedColumnsByGroup && protectedColumnsByGroup[group] instanceof Set ? protectedColumnsByGroup[group] : null;
+    const placed = egyptianCompactGroupNodes(group, groupNodes, 0, protectedColumns, age);
+    widths[group] = placed.length ? Math.max(...placed.map((node) => Number(node.x) || 0)) + 1 : 0;
+  }
+  return widths;
+}
+
+function egyptianBuildGlobalProtectedLineColumns(rawByAge) {
+  const allNodes = Object.values(rawByAge || {}).flat();
+  const grouped = new Map();
+  for (const node of allNodes) {
+    if (!node || !node.name) continue;
+    const group = egyptianResolveNodeGroupFromNodes(node, allNodes);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(node);
+  }
+
+  const out = {};
+  for (const [group, groupNodes] of grouped.entries()) {
+    const candidateColumns = new Set(EGYPTIAN_TECHTREE_PROTECTED_LINE_LOCAL_X[group] || []);
+    const activeColumns = new Set();
+    for (const node of groupNodes) {
+      const fixed = egyptianFixedLocalX(node, group);
+      if (!Number.isFinite(Number(fixed))) continue;
+      const localX = Number(fixed);
+      if (candidateColumns.has(localX)) activeColumns.add(localX);
+    }
+    if (activeColumns.size) out[group] = activeColumns;
+  }
+  return out;
+}
+
+function buildEgyptianTechTreeGroupStarts(config) {
+  if (config?.baseCulture !== "Egyptian") return null;
+  const rawByAge = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    rawByAge[age] = egyptianRawTechTreeNodesForAge(age, config);
+  }
+  const protectedColumnsByGroup = egyptianBuildGlobalProtectedLineColumns(rawByAge);
+  config._egyptianTechTreeProtectedColumns = protectedColumnsByGroup;
+
+  const maxWidths = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    const widths = egyptianMeasureGroupWidths(rawByAge[age], protectedColumnsByGroup, age);
+    for (const [group, width] of Object.entries(widths)) maxWidths[group] = Math.max(maxWidths[group] || 0, width);
+  }
+
+  const starts = {};
+  let nextX = 0;
+  for (const group of EGYPTIAN_TECHTREE_GROUP_ORDER) {
+    starts[group] = nextX;
+    nextX += Math.max(maxWidths[group] || 0, 0);
+  }
+  return starts;
+}
+
+function generateEgyptianDynamicTechTreeTechnologies(age, config) {
+  if (config?.baseCulture !== "Egyptian") return "";
+  const nodes = egyptianRawTechTreeNodesForAge(age, config);
+  const normalized = egyptianNormalizeTechTreeNodes(age, nodes, config?._egyptianTechTreeGroupStarts || null, config?._egyptianTechTreeProtectedColumns || null);
+  const body = normalized.map((node) => buildTechTreeNodeXml(node)).join("\n");
+  const block = `<local:TechTreeAge.Technologies>
+${body}
+            </local:TechTreeAge.Technologies>`;
+  return applyCustomTechNamesToUiBlock(block, config || {});
+}
+
+const NORSE_TECHTREE_MAJOR_SOURCES = ["Freyr", "Loki", "Odin", "Thor"];
+const NORSE_TECHTREE_MINOR_BY_AGE = {
+  ClassicalAge: ["ClassicalAgeForseti", "ClassicalAgeFreyja", "ClassicalAgeHeimdall", "ClassicalAgeUllr"],
+  HeroicAge: ["HeroicAgeAegir", "HeroicAgeBragi", "HeroicAgeNjord", "HeroicAgeSkadi"],
+  MythicAge: ["MythicAgeBaldr", "MythicAgeHel", "MythicAgeTyr", "MythicAgeVidar"],
+};
+
+const NORSE_TECHTREE_GROUP_ORDER = [
+  "TownCenter", "OxCartBuilding", "Farm", "House", "WallConnector", "Dock", "Temple", "SkyPassage",
+  "SentryTower", "Armory", "Market", "Longhouse", "GreatHall", "HillFort", "Wonder",
+];
+
+const NORSE_TECHTREE_PARENT_LANE = {
+  TownCenter: "TownCenter",
+  VillagerNorse: "TownCenter",
+  VillagerDwarf: "TownCenter",
+  Berserk: "TownCenter",
+  Masons: "TownCenter",
+  Architects: "TownCenter",
+  FortifiedTownCenter: "TownCenter",
+  SecretsOfTheTitans: "TownCenter",
+  TitanGate: "TownCenter",
+  RingOath: "TownCenter",
+  Rigsthula: "TownCenter",
+
+  OxCartBuilding: "OxCartBuilding",
+  Husbandry: "OxCartBuilding",
+  HuntingEquipment: "OxCartBuilding",
+  WinterHarvest: "OxCartBuilding",
+  Plow: "OxCartBuilding",
+  Irrigation: "OxCartBuilding",
+  FloodControl: "OxCartBuilding",
+  Pickaxe: "OxCartBuilding",
+  ShaftMine: "OxCartBuilding",
+  Quarry: "OxCartBuilding",
+  HandAxe: "OxCartBuilding",
+  BowSaw: "OxCartBuilding",
+  Carpenters: "OxCartBuilding",
+
+  Farm: "Farm",
+  House: "House",
+  WallConnector: "WallConnector",
+  StoneWall: "WallConnector",
+  FortifiedWall: "WallConnector",
+  BronzeWall: "WallConnector",
+  IronWall: "WallConnector",
+
+  Dock: "Dock",
+  FishingShipNorse: "Dock",
+  FishingShip: "Dock",
+  PurseSeine: "Dock",
+  FishBasket: "Dock",
+  SaltAmphora: "Dock",
+  Longboat: "Dock",
+  LongSerpent: "Dock",
+  Dreki: "Dock",
+  ArcticWinds: "Dock",
+  DragonShip: "Dock",
+  GraspOfRan: "Dock",
+  TransportShipNorse: "Dock",
+  TransportShip: "Dock",
+  EnclosedDeck: "Dock",
+  HeavyWarShips: "Dock",
+  ChampionWarShips: "Dock",
+  HeroicFleet: "Dock",
+  ConscriptSailors: "Dock",
+  Kraken: "Dock",
+  JormunElver: "Dock",
+  WrathOfTheDeep: "Dock",
+
+  Temple: "Temple",
+  SkyPassage: "SkyPassage",
+  NezhaChild: "Temple",
+  NezhaYouth: "Temple",
+  Nezha: "Temple",
+  Hersir: "Temple",
+  Omniscience: "Temple",
+  Valkyrie: "Temple",
+  Disablot: "Temple",
+  Draugr: "Temple",
+  Valgaldr: "Temple",
+  Troll: "Temple",
+  CaveTroll: "Temple",
+  Einheri: "Temple",
+  Gjallarhorn: "Temple",
+  BattleBoar: "Temple",
+  MountainGiant: "Temple",
+  Jotuns: "Temple",
+  FrostGiant: "Temple",
+  Rime: "Temple",
+  RockGiant: "Temple",
+  GraniteMaw: "Temple",
+  FireGiant: "Temple",
+  GraniteBlood: "Temple",
+  Fafnir: "Temple",
+  FenrisWolfBrood: "Temple",
+  Rampage: "Temple",
+  FeastsOfRenown: "Temple",
+  NineWaves: "Temple",
+  HallOfThanes: "Temple",
+  Safeguard: "Temple",
+  ThurisazRune: "Temple",
+  EyesInTheForest: "Temple",
+
+  SentryTower: "SentryTower",
+  WatchTower: "SentryTower",
+  GuardTower: "SentryTower",
+  SignalFires: "SentryTower",
+  CarrierPigeons: "SentryTower",
+  Crenellations: "SentryTower",
+  BoilingOil: "SentryTower",
+
+  Armory: "Armory",
+  DwarvenArmory: "Armory",
+  CopperWeapons: "Armory",
+  BronzeWeapons: "Armory",
+  IronWeapons: "Armory",
+  CopperArmor: "Armory",
+  BronzeArmor: "Armory",
+  IronArmor: "Armory",
+  CopperShields: "Armory",
+  BronzeShields: "Armory",
+  IronShields: "Armory",
+  Ballistics: "Armory",
+  BurningPitch: "Armory",
+  DwarvenWeapons: "Armory",
+  MeteoricIronArmor: "Armory",
+  DragonscaleShields: "Armory",
+  DwarvenBreastplate: "Armory",
+
+  Market: "Market",
+  CaravanNorse: "Market",
+  Coinage: "Market",
+  TaxCollectors: "Market",
+  Ambassadors: "Market",
+
+  Longhouse: "Longhouse",
+  Hirdman: "Longhouse",
+  SwineArray: "Longhouse",
+  ThrowingAxeman: "Longhouse",
+  HuntressAxe: "Longhouse",
+  MediumInfantry: "Longhouse",
+  HeavyInfantry: "Longhouse",
+  ChampionInfantry: "Longhouse",
+  LevyLonghouseSoldiers: "Longhouse",
+  ConscriptLonghouseSoldiers: "Longhouse",
+  CallOfValhalla: "Longhouse",
+  Berserkergang: "Longhouse",
+  FuryOfTheFallen: "Longhouse",
+  ServantsOfGlory: "Longhouse",
+  SilentResolve: "Longhouse",
+  TwilightOfTheGods: "Longhouse",
+  Hamask: "Longhouse",
+
+  GreatHall: "GreatHall",
+  Godi: "GreatHall",
+  RaidingCavalry: "GreatHall",
+  Jarl: "GreatHall",
+  MediumCavalry: "GreatHall",
+  HeavyCavalry: "GreatHall",
+  ChampionCavalry: "GreatHall",
+  LevyGreatHallSoldiers: "GreatHall",
+  ConscriptGreatHallSoldiers: "GreatHall",
+  HallOfThanes: "GreatHall",
+  Sessrumnir: "GreatHall",
+  ThunderingHooves: "GreatHall",
+  Vikings: "GreatHall",
+  RingGiver: "GreatHall",
+  SonsOfSleipnir: "GreatHall",
+  AvengingSpirit: "GreatHall",
+  HammerOfThunder: "GreatHall",
+
+  HillFort: "HillFort",
+  Huskarl: "HillFort",
+  PortableRam: "HillFort",
+  Ballista: "HillFort",
+  DraftHorses: "HillFort",
+  Engineers: "HillFort",
+  AdvancedFortifications: "HillFort",
+  MediumInfantry: "HillFort",
+  HeavyInfantry: "HillFort",
+  ChampionInfantry: "HillFort",
+  LevyHillFortSoldiers: "HillFort",
+  ConscriptHillFortSoldiers: "HillFort",
+  Bravery: "HillFort",
+  DwarvenAuger: "HillFort",
+  Ydalir: "HillFort",
+
+  Wonder: "Wonder",
+};
+
+const NORSE_TECHTREE_AMBIGUOUS_PARENT_NAMES = new Set([
+  "MediumInfantry",
+  "HeavyInfantry",
+  "ChampionInfantry",
+]);
+
+function norseCanUseStaticParentLane(name) {
+  return !!name && !NORSE_TECHTREE_AMBIGUOUS_PARENT_NAMES.has(name) && !!NORSE_TECHTREE_PARENT_LANE[name];
+}
+
+function norseGroupFromUniqueReference(ref) {
+  const value = String(ref || "");
+  if (!value) return "";
+  return NORSE_TECHTREE_GROUP_ORDER.find((group) => value.startsWith(group)) || "";
+}
+
+function norseGroupFromAmbiguousParentReference(parent, node) {
+  if (!parent || node?.uniqueParent || !NORSE_TECHTREE_AMBIGUOUS_PARENT_NAMES.has(parent)) return "";
+  // Norse infantry upgrades are shown from both Longhouse and Hill Fort. The
+  // Longhouse branch uses UniqueParent/UniqueIdentifier in vanilla; the plain
+  // Parent="MediumInfantry" / Parent="HeavyInfantry" branch belongs to Hill Fort.
+  if (["MediumInfantry", "HeavyInfantry", "ChampionInfantry"].includes(parent)) return "HillFort";
+  return "";
+}
+
+function norseChooseParentNodeForChain(current, node, candidates) {
+  const list = (candidates || []).filter(Boolean);
+  if (!list.length) return null;
+  if (node?.uniqueParent) {
+    const exact = list.find((candidate) => candidate?.uniqueIdentifier === node.uniqueParent);
+    if (exact) return exact;
+  }
+  const nodeX = Number(node?.x);
+  return list.slice().sort((a, b) => {
+    const ax = Number(a.x) || 0;
+    const bx = Number(b.x) || 0;
+    const aDistance = Number.isFinite(nodeX) ? Math.abs(ax - nodeX) : ax;
+    const bDistance = Number.isFinite(nodeX) ? Math.abs(bx - nodeX) : bx;
+    const aAfterPenalty = Number.isFinite(nodeX) && ax > nodeX ? 1000 : 0;
+    const bAfterPenalty = Number.isFinite(nodeX) && bx > nodeX ? 1000 : 0;
+    return (aDistance + aAfterPenalty) - (bDistance + bAfterPenalty) || ax - bx || (Number(a.y) || 0) - (Number(b.y) || 0);
+  })[0];
+}
+
+function norseNodeGroupRoot(node) {
+  const parent = node?.parent || "";
+  const name = node?.name || "";
+  const uniqueGroup = norseGroupFromUniqueReference(node?.uniqueParent || node?.uniqueIdentifier || "");
+  if (uniqueGroup) return uniqueGroup;
+  const ambiguousGroup = norseGroupFromAmbiguousParentReference(parent, node);
+  if (ambiguousGroup) return ambiguousGroup;
+  if (NORSE_TECHTREE_GROUP_ORDER.includes(parent)) return parent;
+  if (norseCanUseStaticParentLane(parent)) return NORSE_TECHTREE_PARENT_LANE[parent];
+  if (!parent && NORSE_TECHTREE_GROUP_ORDER.includes(name)) return name;
+  if (norseCanUseStaticParentLane(name)) return NORSE_TECHTREE_PARENT_LANE[name];
+  return parent || name;
+}
+
+function norseNodeGroupOrder(node) {
+  const root = norseNodeGroupRoot(node);
+  const idx = NORSE_TECHTREE_GROUP_ORDER.indexOf(root);
+  return idx >= 0 ? idx : 99;
+}
+
+const NORSE_TECHTREE_FIXED_LOCAL_X = {
+  // Town Center / starting unit chain
+  Berserk: 1,
+  VillagerNorse: 1,
+  Masons: 1,
+  Architects: 1,
+  VillagerDwarf: 2,
+  FortifiedTownCenter: 2,
+  SecretsOfTheTitans: 1,
+  TitanGate: 1,
+
+  // Ox Cart economic chains
+  Husbandry: 1,
+  HuntingEquipment: 1,
+  WinterHarvest: 1,
+  Plow: 2,
+  Irrigation: 2,
+  FloodControl: 2,
+  Pickaxe: 3,
+  ShaftMine: 3,
+  Quarry: 3,
+  HandAxe: 4,
+  BowSaw: 4,
+  Carpenters: 4,
+
+  // Walls: wall upgrade line can share the building column.
+  StoneWall: 0,
+  FortifiedWall: 0,
+  BronzeWall: 0,
+  IronWall: 0,
+
+  // Dock chains
+  FishingShipNorse: 1,
+  FishingShip: 1,
+  PurseSeine: 1,
+  SaltAmphora: 1,
+  Longboat: 2,
+  LongSerpent: 2,
+  Dreki: 3,
+  ArcticWinds: 3,
+  DragonShip: 4,
+  GraspOfRan: 4,
+  TransportShipNorse: 5,
+  TransportShip: 5,
+  EnclosedDeck: 5,
+  HeavyWarShips: 6,
+  ChampionWarShips: 6,
+  HeroicFleet: 7,
+  ConscriptSailors: 7,
+
+  // Temple: Omniscience can share the Temple building column.
+  Omniscience: 0,
+  NezhaChild: 1,
+  NezhaYouth: 1,
+  Nezha: 1,
+
+  // Towers
+  WatchTower: 1,
+  GuardTower: 1,
+  BoilingOil: 1,
+  Crenellations: 1,
+  SignalFires: 2,
+  CarrierPigeons: 2,
+
+  // Armory chains
+  CopperWeapons: 1,
+  BronzeWeapons: 1,
+  IronWeapons: 1,
+  CopperArmor: 2,
+  BronzeArmor: 2,
+  IronArmor: 2,
+  CopperShields: 3,
+  BronzeShields: 3,
+  IronShields: 3,
+  Ballistics: 4,
+  BurningPitch: 4,
+  DwarvenWeapons: 1,
+  MeteoricIronArmor: 2,
+  DragonscaleShields: 3,
+
+  // Market chains
+  CaravanNorse: 1,
+  Coinage: 1,
+  TaxCollectors: 2,
+  Ambassadors: 2,
+
+  // Military production chains
+  Hirdman: 1,
+  ThrowingAxeman: 2,
+  Berserk: 3,
+  MediumInfantry: 4,
+  HeavyInfantry: 4,
+  ChampionInfantry: 4,
+  LevyLonghouseSoldiers: 5,
+  ConscriptLonghouseSoldiers: 5,
+
+  Hersir: 1,
+  Godi: 1,
+  RaidingCavalry: 2,
+  Jarl: 2,
+  MediumCavalry: 4,
+  HeavyCavalry: 4,
+  ChampionCavalry: 4,
+  LevyGreatHallSoldiers: 3,
+  ConscriptGreatHallSoldiers: 3,
+
+  Huskarl: 1,
+  PortableRam: 2,
+  Ballista: 2,
+  LevyHillFortSoldiers: 3,
+  ConscriptHillFortSoldiers: 3,
+
+  // Minor-god parent/child lines and direct military techs
+  SwineArray: 1,
+  HuntressAxe: 2,
+  CallOfValhalla: 3,
+  Berserkergang: 3,
+  Hamask: 3,
+  ServantsOfGlory: 5,
+  FuryOfTheFallen: 5,
+  SilentResolve: 5,
+  TwilightOfTheGods: 5,
+
+  HallOfThanes: 1,
+  Sessrumnir: 1,
+  Vikings: 1,
+  AvengingSpirit: 1,
+  ThunderingHooves: 2,
+  RingGiver: 2,
+  SonsOfSleipnir: 2,
+  HammerOfThunder: 1,
+
+  NineWaves: 1,
+  FeastsOfRenown: 1,
+  Bravery: 1,
+  DraftHorses: 2,
+  Engineers: 2,
+  AdvancedFortifications: 2,
+  DwarvenAuger: 2,
+  Ydalir: 2,
+
+  Disablot: 1,
+  Valgaldr: 2,
+  CaveTroll: 2,
+  Gjallarhorn: 2,
+  Jotuns: 1,
+  Rime: 2,
+  GraniteMaw: 3,
+  GraniteBlood: 1,
+  Rampage: 2,
+  GraniteMaw: 3,
+  ThurisazRune: 4,
+  Safeguard: 4,
+
+  LongSerpent: 2,
+  ArcticWinds: 3,
+  GraspOfRan: 4,
+  WrathOfTheDeep: 7,
+};
+
+function norseFixedLocalX(node, group) {
+  const name = node?.name || "";
+  if (group === "TownCenter" && /^SkinOfTheRhino/.test(name)) return 2;
+  // Norse has several duplicate unit names across buildings. Keep the
+  // TownCenter starting line compact and distinct from the Longhouse Berserk
+  // line: TC uses Villager=1, Berserk=2, Dwarf=3.
+  if (group === "TownCenter" && name === "Berserk") return 2;
+  if (group === "TownCenter" && name === "VillagerDwarf") return 3;
+  if (group === "Longhouse" && name === "Berserk") return 3;
+  // Parent-child alignment is handled dynamically by norseCompactGroupNodes.
+  if (Object.prototype.hasOwnProperty.call(NORSE_TECHTREE_FIXED_LOCAL_X, name)) return NORSE_TECHTREE_FIXED_LOCAL_X[name];
+  return undefined;
+}
+
+const NORSE_TECHTREE_PROTECTED_LINE_LOCAL_X = {
+  TownCenter: [1, 2],
+  OxCartBuilding: [1, 2, 3, 4],
+  WallConnector: [0],
+  Dock: [1, 2, 3, 4, 5, 6, 7],
+  Temple: [0, 1, 2, 3, 4],
+  SentryTower: [1, 2],
+  Armory: [1, 2, 3, 4],
+  Market: [1, 2],
+  Longhouse: [1, 2, 3, 4, 5],
+  GreatHall: [1, 2, 3, 4],
+  HillFort: [1, 2, 3],
+};
+
+function norseProtectedLineColumns(group, groupNodes = null) {
+  const candidateColumns = new Set(NORSE_TECHTREE_PROTECTED_LINE_LOCAL_X[group] || []);
+  if (!Array.isArray(groupNodes)) return candidateColumns;
+  const activeColumns = new Set();
+  for (const node of groupNodes) {
+    const fixed = norseFixedLocalX(node, group);
+    if (!Number.isFinite(Number(fixed))) continue;
+    const localX = Number(fixed);
+    if (candidateColumns.has(localX)) activeColumns.add(localX);
+  }
+  return activeColumns;
+}
+
+function norseIsLaneRootParent(group, parent) {
+  return parent === group
+    || (group === "Armory" && parent === "DwarvenArmory")
+    || (group === "TownCenter" && parent === "TownCenter")
+    || (group === "Monument" && /^MonumentTo/.test(parent || ""));
+}
+
+function norseNextNonProtectedLocalX(group, minX, protectedColumns = null) {
+  const columns = protectedColumns instanceof Set ? protectedColumns : norseProtectedLineColumns(group);
+  for (let x = Math.max(0, Number(minX) || 0); x < 64; x += 1) {
+    if (!columns.has(x)) return x;
+  }
+  return Math.max(0, Number(minX) || 0);
+}
+
+function norseTechTreeSourceNodes(age) {
+  const templates = window.AOM_TECHTREE || {};
+  const byMajor = {};
+  for (const major of NORSE_TECHTREE_MAJOR_SOURCES) {
+    const block = age === "ArchaicAge"
+      ? extractXmlPropertyBlock(lookupTemplateBlock(templates.archaicByMajor, major) || "", "Technologies")
+      : templates.ageTechnologiesByMajorAge?.[`${major}|${age}`] || "";
+    byMajor[major] = parseTechTreeNodesFromBlock(block);
+  }
+  return byMajor;
+}
+
+function norseMinorBonusTokens(minorTech) {
+  const block = window.AOM_TECHTREE?.bonusTrackByGod?.[canonicalMinorTech(minorTech)] || "";
+  return parseTechTreeNodesFromBlock(block).filter((node) => node.type === "Unit" || node.type === "Tech");
+}
+
+function norseAllConditionalNodeNames() {
+  const names = new Set();
+  (UNIQUE_TECH_GROUPS || []).forEach((group) => {
+    names.add(group.id);
+    (group.techs || []).forEach((tech) => names.add(tech));
+  });
+  Object.values(NORSE_TECHTREE_MINOR_BY_AGE).flat().forEach((minor) => {
+    norseMinorBonusTokens(minor).forEach((node) => names.add(node.name));
+  });
+  return names;
+}
+
+function norseCommonNodesForAge(age) {
+  const byMajor = norseTechTreeSourceNodes(age);
+  const excluded = norseAllConditionalNodeNames();
+  const keySets = Object.fromEntries(Object.entries(byMajor).map(([major, nodes]) => [major, new Set(nodes.map(techTreeNodeKey))]));
+  const baseSource = NORSE_TECHTREE_MAJOR_SOURCES[0];
+  const allKeys = [...(keySets[baseSource] || new Set())];
+  const commonKeys = allKeys.filter((key) => NORSE_TECHTREE_MAJOR_SOURCES.every((major) => keySets[major]?.has(key)));
+  const sourceNodes = Object.values(byMajor).flat();
+  const result = [];
+  for (const key of commonKeys) {
+    const matches = sourceNodes.filter((node) => techTreeNodeKey(node) === key);
+    const rep = chooseGreekRepresentativeNode(matches);
+    if (!rep || excluded.has(rep.name)) continue;
+    result.push({ ...rep });
+  }
+  return result;
+}
+
+function norseFindRightSideNodesForToken(age, tokenNode) {
+  const byMajor = norseTechTreeSourceNodes(age);
+  const matches = Object.values(byMajor).flat().filter((node) => node.type === tokenNode.type && node.name === tokenNode.name);
+  if (!matches.length) return [];
+  const byKey = new Map();
+  for (const node of matches) {
+    const key = techTreeNodeKey(node);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(node);
+  }
+  const reps = [...byKey.values()].map((nodes) => ({ count: nodes.length, node: chooseGreekRepresentativeNode(nodes) }));
+  reps.sort((a, b) => norseNodeGroupOrder(a.node) - norseNodeGroupOrder(b.node) || (a.node.x - b.node.x) || (a.node.y - b.node.y) || String(a.node.parent).localeCompare(String(b.node.parent)) || (b.count - a.count));
+  return reps.map((entry) => ({ ...entry.node }));
+}
+
+function norseMinorNodeSameBuildingKey(node, contextNodes = []) {
+  if (!node?.type || !node?.name) return "";
+  const group = norseResolveNodeGroupFromNodes(node, contextNodes && contextNodes.length ? contextNodes : [node]);
+  return `${node.type}|${node.name}|${group}`;
+}
+
+function norsePriorSelectedMinorBuildingKeys(age, config) {
+  const out = new Set();
+  const order = ["ClassicalAge", "HeroicAge", "MythicAge"];
+  const index = order.indexOf(age);
+  if (index <= 0) return out;
+  for (const priorAge of order.slice(0, index)) {
+    const selected = (config.minorGods?.[priorAge] || []).map(canonicalMinorTech);
+    const priorNodes = [];
+    for (const minor of selected) {
+      for (const token of norseMinorBonusTokens(minor)) {
+        priorNodes.push(...norseFindRightSideNodesForToken(priorAge, token));
+      }
+    }
+    for (const node of priorNodes) {
+      const key = norseMinorNodeSameBuildingKey(node, priorNodes);
+      if (key) out.add(key);
+    }
+  }
+  return out;
+}
+
+function norseSelectedMinorNodesForAge(age, config) {
+  const selected = (config.minorGods?.[age] || []).map(canonicalMinorTech);
+  const nodes = [];
+  const seenSameBuilding = norsePriorSelectedMinorBuildingKeys(age, config);
+  for (const minor of selected) {
+    for (const token of norseMinorBonusTokens(minor)) {
+      for (const candidate of norseFindRightSideNodesForToken(age, token)) {
+        const key = norseMinorNodeSameBuildingKey(candidate, [...nodes, candidate]);
+        if (key && seenSameBuilding.has(key)) continue;
+        nodes.push(candidate);
+        if (key) seenSameBuilding.add(key);
+      }
+    }
+  }
+  return nodes;
+}
+
+function norseResolveNodeGroupFromNodes(node, allNodes) {
+  const byName = new Map();
+  const byUniqueIdentifier = new Map();
+  for (const candidate of allNodes || []) {
+    if (!candidate?.name) continue;
+    if (!byName.has(candidate.name)) byName.set(candidate.name, []);
+    byName.get(candidate.name).push(candidate);
+    if (candidate.uniqueIdentifier) byUniqueIdentifier.set(candidate.uniqueIdentifier, candidate);
+  }
+  const uniqueGroup = norseGroupFromUniqueReference(node?.uniqueParent || node?.uniqueIdentifier || "");
+  if (uniqueGroup) return uniqueGroup;
+  const ambiguousGroup = norseGroupFromAmbiguousParentReference(node?.parent || "", node);
+  if (ambiguousGroup) return ambiguousGroup;
+  const seen = new Set();
+  let current = node?.uniqueParent || node?.parent || node?.name || "";
+  let walkerNode = node;
+  for (let i = 0; i < 16 && current && !seen.has(current); i += 1) {
+    seen.add(current);
+    if (NORSE_TECHTREE_GROUP_ORDER.includes(current)) return current;
+    if (norseCanUseStaticParentLane(current)) return NORSE_TECHTREE_PARENT_LANE[current];
+    let parentNode = byUniqueIdentifier.get(current) || null;
+    if (!parentNode) parentNode = norseChooseParentNodeForChain(current, walkerNode, byName.get(current) || []);
+    if (parentNode?.uniqueParent || parentNode?.parent) {
+      walkerNode = parentNode;
+      current = parentNode.uniqueParent || parentNode.parent;
+      continue;
+    }
+    if (parentNode?.name && parentNode.name !== current) {
+      walkerNode = parentNode;
+      current = parentNode.name;
+      continue;
+    }
+    break;
+  }
+  if (norseCanUseStaticParentLane(node?.name)) return NORSE_TECHTREE_PARENT_LANE[node.name];
+  return norseNodeGroupRoot(node);
+}
+
+function norseCompactGroupNodes(group, groupNodes, groupStartX = 0, protectedColumnsOverride = null, age = "", lineMemberKeys = null) {
+  const nodes = (groupNodes || []).map((inputNode) => {
+    const node = { ...inputNode };
+    const [xRaw, yRaw] = String(node.position || `${node.x || 0},${node.y ?? 1}`).split(",");
+    node.x = Number.isFinite(Number(xRaw)) ? Number(xRaw) : Number(node.x || 0) || 0;
+    node.y = Number.isFinite(Number(yRaw)) ? Number(yRaw) : Number(node.y ?? 1) || 1;
+    if (node.y > 1) node.y = 1;
+    if (node.y < 0) node.y = 0;
+    return node;
+  });
+
+  const isGroupRootNode = (node) => !node?.parent && (node?.name === group || (group === "Armory" && node?.name === "DwarvenArmory") || (group === "Monument" && /^MonumentTo/.test(node?.name || "")));
+  const hasRoot = nodes.some((node) => isGroupRootNode(node));
+  const sourceOrder = (node) => (Number(node.x) || 0) * 10 + (Number(node.y) || 0);
+  const sorted = nodes.slice().sort((a, b) => {
+    const aIsRoot = isGroupRootNode(a);
+    const bIsRoot = isGroupRootNode(b);
+    if (aIsRoot !== bIsRoot) return aIsRoot ? -1 : 1;
+    if (a.name === b.parent && b.name !== a.parent) return -1;
+    if (b.name === a.parent && a.name !== b.parent) return 1;
+    const af = norseFixedLocalX(a, group);
+    const bf = norseFixedLocalX(b, group);
+    if (Number.isFinite(Number(af)) !== Number.isFinite(Number(bf))) return Number.isFinite(Number(af)) ? -1 : 1;
+    if (Number.isFinite(Number(af)) && af !== bf) return af - bf;
+    return sourceOrder(a) - sourceOrder(b) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name) || String(a.parent).localeCompare(String(b.parent));
+  });
+
+  const localOccupied = new Set();
+  const placedLocalByName = new Map();
+  const placedRowByName = new Map();
+  const placed = [];
+  const protectedLineColumns = protectedColumnsOverride instanceof Set ? protectedColumnsOverride : norseProtectedLineColumns(group, nodes);
+  const isLineMemberNode = (node) => lineMemberKeys instanceof Set && lineMemberKeys.has(techTreeNodeKey(node));
+  const directChildCountByName = new Map();
+  const directChildFixedLocalXByName = new Map();
+  const rootDirectChildTypeCounts = { Unit: 0, Tech: 0 };
+  const rootDirectChildlessTypeCounts = { Unit: 0, Tech: 0 };
+  const rootDirectChildWithChildrenTypeCounts = { Unit: 0, Tech: 0 };
+  const rootDirectChildlessTypesByLocalX = new Map();
+  const isLaneRootParent = (parent) => norseIsLaneRootParent(group, parent);
+  for (const child of nodes) {
+    const parentKey = techTreeNodeParentLookupKey(child);
+    if (!parentKey) continue;
+    directChildCountByName.set(parentKey, (directChildCountByName.get(parentKey) || 0) + 1);
+    const childFixed = norseFixedLocalX(child, group);
+    if (Number.isFinite(Number(childFixed))) {
+      const current = directChildFixedLocalXByName.get(parentKey);
+      const childFixedX = Number(childFixed);
+      if (!Number.isFinite(Number(current)) || childFixedX < Number(current)) {
+        directChildFixedLocalXByName.set(parentKey, childFixedX);
+      }
+    }
+  }
+  for (const child of nodes) {
+    if (!child || !isLaneRootParent(child.parent)) continue;
+    if (child.type === "Unit" || child.type === "Tech") {
+      rootDirectChildTypeCounts[child.type] += 1;
+      const childKey = child.uniqueIdentifier || child.name;
+      if (directChildCountByName.get(childKey) || 0) {
+        rootDirectChildWithChildrenTypeCounts[child.type] += 1;
+      } else {
+        rootDirectChildlessTypeCounts[child.type] += 1;
+        const fixedLocal = norseFixedLocalX(child, group);
+        const localX = Number.isFinite(Number(fixedLocal)) ? Number(fixedLocal) : undefined;
+        if (Number.isFinite(localX)) {
+          if (!rootDirectChildlessTypesByLocalX.has(localX)) rootDirectChildlessTypesByLocalX.set(localX, new Set());
+          rootDirectChildlessTypesByLocalX.get(localX).add(child.type);
+        }
+      }
+    }
+  }
+
+  const canUse = (x, y, allowProtectedLineColumn = true) => {
+    if (localOccupied.has(`${x},${y}`)) return false;
+    if (!allowProtectedLineColumn && protectedLineColumns.has(x)) return false;
+    return true;
+  };
+  const reserve = (node, localX, y) => {
+    localOccupied.add(`${localX},${y}`);
+    for (const placementKey of techTreeNodePlacementKeys(node)) {
+      if (!placedLocalByName.has(placementKey) || localX < placedLocalByName.get(placementKey)) {
+        placedLocalByName.set(placementKey, localX);
+        placedRowByName.set(placementKey, y);
+      }
+    }
+    const cleanNode = { ...node };
+    delete cleanNode._group;
+    placed.push({ ...cleanNode, x: groupStartX + localX, y, position: `${groupStartX + localX},${y}` });
+  };
+  const firstFree = (minX, preferredY = 0, allowProtectedLineColumn = true) => {
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      const rows = preferredY === 1 ? [1, 0] : [0, 1];
+      for (const y of rows) if (canUse(x, y, allowProtectedLineColumn)) return { x, y };
+    }
+    return { x: Math.max(0, minX || 0), y: preferredY === 1 ? 1 : 0 };
+  };
+  const firstFreeParentColumn = (minX, allowProtectedLineColumn = true) => {
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      if (canUse(x, 0, allowProtectedLineColumn) && canUse(x, 1, allowProtectedLineColumn)) return { x, y: 0 };
+    }
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      if (canUse(x, 0, allowProtectedLineColumn)) return { x, y: 0 };
+    }
+    return firstFree(minX, 0, allowProtectedLineColumn);
+  };
+
+  for (const node of techTreeParentDepthFirstOrder(sorted, isGroupRootNode)) {
+    const isRoot = isGroupRootNode(node);
+    if (isRoot) {
+      const fixed = norseFixedLocalX(node, group);
+      const x = Number.isFinite(Number(fixed)) ? Number(fixed) : 0;
+      const y = 0;
+      if (!canUse(x, y, true)) {
+        const alt = firstFree(x, y, true);
+        reserve(node, alt.x, alt.y);
+      } else {
+        reserve(node, x, y);
+      }
+      continue;
+    }
+
+    const fixed = norseFixedLocalX(node, group);
+    const parentLookupKey = techTreeNodeParentLookupKey(node);
+    const parentLocal = placedLocalByName.get(parentLookupKey);
+    const parentRow = placedRowByName.get(parentLookupKey);
+    const childFixedLocal = directChildFixedLocalXByName.get(node.uniqueIdentifier || node.name);
+    let desiredX;
+    let preferredY = Number(node.y) === 0 ? 0 : 1;
+
+    if (Number.isFinite(Number(parentLocal)) && !isLaneRootParent(node.parent)) {
+      // Parent-line rule: once a parent is placed, every direct child follows
+      // the parent's actual column. Fixed local X values are only preferred
+      // before the parent is placed; they must not break the visible line if
+      // the parent had to move to a cleaner/available column.
+      desiredX = Number(parentLocal);
+      if (Number.isFinite(Number(parentRow))) preferredY = Number(parentRow) === 0 ? 1 : 0;
+    } else if (Number.isFinite(Number(fixed))) {
+      desiredX = Number(fixed);
+    } else if (Number.isFinite(Number(childFixedLocal))) {
+      // Generic parent-line rule: if a direct child is part of a fixed upgrade
+      // line, place the parent in that same column first. Example: Anubite
+      // inherits FeetOfTheJackal's column, so the pair forms a clean vertical
+      // parent line instead of the child occupying the protected column alone.
+      desiredX = Number(childFixedLocal);
+    } else {
+      desiredX = 1;
+    }
+
+    const hasDirectChildren = (directChildCountByName.get(node.uniqueIdentifier || node.name) || 0) > 0;
+    const directFromRootBuilding = hasRoot && isLaneRootParent(node.parent);
+    const rootHasChildlessUnitAndTech = rootDirectChildlessTypeCounts.Unit > 0 && rootDirectChildlessTypeCounts.Tech > 0;
+    const rootChildlessTypesAtDesiredX = rootDirectChildlessTypesByLocalX.get(Number(desiredX)) || new Set();
+    const rootColumnHasChildlessUnitAndTech = rootChildlessTypesAtDesiredX.has("Unit") && rootChildlessTypesAtDesiredX.has("Tech");
+    const rootHasOnlyChildlessUnits = directFromRootBuilding
+      && !hasDirectChildren
+      && node.type === "Unit"
+      && !isLineMemberNode(node)
+      && rootDirectChildlessTypeCounts.Unit > 0
+      && rootDirectChildlessTypeCounts.Tech === 0
+      && rootDirectChildWithChildrenTypeCounts.Unit === 0
+      && rootDirectChildWithChildrenTypeCounts.Tech === 0;
+    if (rootHasOnlyChildlessUnits) {
+      // When a building appears in the current age and only trains units from
+      // its root command row, keep those units together on row 1 and pack them
+      // compactly from the first available column. This avoids gaps like an
+      // empty TownCenter column 1/2 while all trained units are shifted right.
+      desiredX = 1;
+      preferredY = 1;
+    } else if (directFromRootBuilding && !hasDirectChildren) {
+      // Direct children of a building that appears in this age should keep the
+      // building row clean. Childless units prefer row 1 unless a childless tech
+      // also wants that exact column; only then use the classic unit row 0 /
+      // tech row 1 split. This keeps Longhouse units together on row 1 while
+      // still handling HillFort columns that contain both a unit and a tech.
+      if (node.type === "Unit") preferredY = rootColumnHasChildlessUnitAndTech ? 0 : 1;
+      if (node.type === "Tech") preferredY = 1;
+    } else if (node.type === "Unit") {
+      preferredY = 0;
+    }
+    if (age === "ArchaicAge" && !isRoot && node.type === "Unit" && !hasDirectChildren && !rootHasChildlessUnitAndTech && !localOccupied.has(`${desiredX},1`)) preferredY = 1;
+    if (age === "ArchaicAge" && !isRoot && node.type !== "Unit" && !localOccupied.has(`${desiredX},1`)) preferredY = 1;
+
+    if (!hasRoot && !isLaneRootParent(node.parent)) desiredX = Math.max(desiredX, 0);
+    if (hasRoot || group === "TownCenter") desiredX = Math.max(desiredX, 1);
+
+    const hasFixedLocalX = Number.isFinite(Number(fixed));
+    const isChildOfPlacedChain = Number.isFinite(Number(parentLocal)) && !isLaneRootParent(node.parent) && Number(parentLocal) === Number(desiredX);
+    const isParentOfFixedChildLine = Number.isFinite(Number(childFixedLocal)) && Number(childFixedLocal) === Number(desiredX);
+    const isGlobalLineMember = isLineMemberNode(node);
+    const isFixedLineNode = hasFixedLocalX && protectedLineColumns.has(Number(fixed)) && (isGlobalLineMember || !isLaneRootParent(node.parent) || hasDirectChildren || isParentOfFixedChildLine);
+    const isSharedColumnException = (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(node.name))
+      || (group === "Temple" && node.name === "Omniscience");
+    const allowProtectedLineColumn = rootHasOnlyChildlessUnits || isChildOfPlacedChain || isParentOfFixedChildLine || isFixedLineNode || isSharedColumnException;
+    if (!allowProtectedLineColumn && protectedLineColumns.has(desiredX)) {
+      desiredX = norseNextNonProtectedLocalX(group, desiredX + 1, protectedLineColumns);
+    }
+
+    let placedHere = false;
+    if (rootHasOnlyChildlessUnits) {
+      for (let x = Math.max(1, Number(desiredX) || 1); x < 64; x += 1) {
+        if (canUse(x, 1, true)) {
+          reserve(node, x, 1);
+          placedHere = true;
+          break;
+        }
+      }
+    }
+    if (!placedHere && hasDirectChildren) {
+      // Any visible parent line, including tech upgrade chains, should reserve
+      // a clean column first. This keeps chains such as CopperWeapons ->
+      // BronzeWeapons and Valkyrie -> Disablot in one vertical line instead
+      // of letting an unrelated node occupy the child row.
+      const cleanColumn = firstFreeParentColumn(desiredX, allowProtectedLineColumn);
+      reserve(node, cleanColumn.x, cleanColumn.y);
+      placedHere = true;
+    }
+    if (!placedHere) {
+      const rows = preferredY === 1 ? [1, 0] : [0, 1];
+      for (const y of rows) {
+        if (canUse(desiredX, y, allowProtectedLineColumn)) {
+          reserve(node, desiredX, y);
+          placedHere = true;
+          break;
+        }
+      }
+    }
+    if (!placedHere) {
+      const alt = firstFree(desiredX + 1, preferredY, allowProtectedLineColumn);
+      reserve(node, alt.x, alt.y);
+    }
+  }
+
+  return placed.sort((a, b) => (a.x - b.x) || (a.y - b.y) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+function norseNormalizeTechTreeNodes(age, nodes, forcedGroupStarts = null, protectedColumnsByGroup = null, lineMemberKeys = null) {
+  const unique = new Map();
+  for (const inputNode of nodes) {
+    if (!inputNode || !inputNode.type || !inputNode.name) continue;
+    const node = { ...inputNode };
+    const [xRaw, yRaw] = String(node.position || `${node.x || 0},${node.y ?? 1}`).split(",");
+    node.x = Number.isFinite(Number(xRaw)) ? Number(xRaw) : Number(node.x || 0) || 0;
+    node.y = Number.isFinite(Number(yRaw)) ? Number(yRaw) : Number(node.y ?? 1) || 1;
+    if (node.y > 1) node.y = 1;
+    if (node.y < 0) node.y = 0;
+    node.position = `${node.x},${node.y}`;
+    const key = techTreeNodeKey(node);
+    if (!unique.has(key)) unique.set(key, node);
+  }
+
+  const allNodes = [...unique.values()];
+  const grouped = new Map();
+  for (const node of allNodes) {
+    const group = norseResolveNodeGroupFromNodes(node, allNodes);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push({ ...node, _group: group });
+  }
+
+  const orderedGroups = [...grouped.entries()].sort(([groupA], [groupB]) => {
+    const ai = NORSE_TECHTREE_GROUP_ORDER.indexOf(groupA);
+    const bi = NORSE_TECHTREE_GROUP_ORDER.indexOf(groupB);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi) || String(groupA).localeCompare(String(groupB));
+  });
+
+  const placed = [];
+  let nextGroupX = 0;
+  for (const [group, groupNodes] of orderedGroups) {
+    const forcedX = forcedGroupStarts && Number.isFinite(Number(forcedGroupStarts[group])) ? Number(forcedGroupStarts[group]) : undefined;
+    const groupStartX = Number.isFinite(Number(forcedX)) ? Number(forcedX) : nextGroupX;
+    const protectedColumns = protectedColumnsByGroup && protectedColumnsByGroup[group] instanceof Set ? protectedColumnsByGroup[group] : null;
+    const groupPlaced = norseCompactGroupNodes(group, groupNodes, groupStartX, protectedColumns, age, lineMemberKeys);
+    placed.push(...groupPlaced);
+    const width = groupPlaced.length ? Math.max(...groupPlaced.map((node) => Number(node.x) - groupStartX)) + 1 : 0;
+    nextGroupX = groupStartX + Math.max(width, 0);
+  }
+
+  return placed.sort((a, b) => (a.x - b.x) || (a.y - b.y) || norseNodeGroupOrder(a) - norseNodeGroupOrder(b) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+function norseApplyThorDwarvenArmoryRightSide(nodes, config) {
+  if (!selectedHasThorDwarvenArmoryBonus(config)) return nodes || [];
+  return (nodes || []).map((inputNode) => {
+    const node = { ...inputNode };
+    if (node.type === "Unit" && node.name === "Armory") node.name = "DwarvenArmory";
+    if (node.parent === "Armory") node.parent = "DwarvenArmory";
+    return node;
+  });
+}
+
+
+function norseBaseArmoryRightSideNodes(age, config) {
+  const useDwarven = selectedHasThorDwarvenArmoryBonus(config);
+  const armory = useDwarven ? "DwarvenArmory" : "Armory";
+  const node = (type, name, parent, position) => {
+    const [xRaw, yRaw] = String(position).split(",");
+    return { type, name, parent: parent || "", position, x: Number(xRaw) || 0, y: Number(yRaw) || 0 };
+  };
+  if (useDwarven) {
+    if (age === "ArchaicAge") {
+      return [
+        node("Unit", armory, "", "24,0"),
+        node("Tech", "Ballistics", armory, "25,1"),
+        node("Tech", "CopperWeapons", armory, "26,0"),
+        node("Tech", "BronzeWeapons", "CopperWeapons", "26,1"),
+        node("Tech", "CopperArmor", armory, "27,0"),
+        node("Tech", "BronzeArmor", "CopperArmor", "27,1"),
+        node("Tech", "CopperShields", armory, "28,0"),
+        node("Tech", "BronzeShields", "CopperShields", "28,1"),
+      ];
+    }
+    if (age === "ClassicalAge") {
+      return [
+        node("Tech", "BurningPitch", armory, "25,1"),
+        node("Tech", "IronWeapons", "BronzeWeapons", "26,0"),
+        node("Tech", "DwarvenWeapons", "IronWeapons", "26,1"),
+        node("Tech", "IronArmor", "BronzeArmor", "27,0"),
+        node("Tech", "MeteoricIronArmor", "IronArmor", "27,1"),
+        node("Tech", "IronShields", "BronzeShields", "28,0"),
+        node("Tech", "DragonscaleShields", "IronShields", "28,1"),
+      ];
+    }
+    return [];
+  }
+  if (age === "ClassicalAge") {
+    return [
+      node("Unit", armory, "", "24,0"),
+      node("Tech", "Ballistics", armory, "25,1"),
+      node("Tech", "CopperWeapons", armory, "26,1"),
+      node("Tech", "CopperArmor", armory, "27,1"),
+      node("Tech", "CopperShields", armory, "28,1"),
+    ];
+  }
+  if (age === "HeroicAge") {
+    return [
+      node("Tech", "BronzeWeapons", "CopperWeapons", "26,0"),
+      node("Tech", "BronzeArmor", "CopperArmor", "27,0"),
+      node("Tech", "BronzeShields", "CopperShields", "28,0"),
+    ];
+  }
+  if (age === "MythicAge") {
+    return [
+      node("Tech", "BurningPitch", armory, "25,0"),
+      node("Tech", "IronWeapons", "BronzeWeapons", "26,0"),
+      node("Tech", "IronArmor", "BronzeArmor", "27,0"),
+      node("Tech", "IronShields", "BronzeShields", "28,0"),
+    ];
+  }
+  return [];
+}
+
+function norseThorDwarvenArmoryExtraRightSideNodes(age, config) {
+  // Kept for compatibility; Norse Dwarven Armory right-side nodes are built
+  // by norseBaseArmoryRightSideNodes so the Armory/DwarvenArmory lane remains
+  // complete and age-appropriate.
+  return [];
+}
+
+function norseRawTechTreeNodesForAge(age, config) {
+  let nodes = [
+    ...norseCommonNodesForAge(age),
+    ...norseBaseArmoryRightSideNodes(age, config),
+    ...norseSelectedMinorNodesForAge(age, config),
+    ...norseThorDwarvenArmoryExtraRightSideNodes(age, config),
+  ].filter(Boolean);
+  if (age === "ArchaicAge") {
+    const group = selectedUniqueTechGroup(config);
+    const tech = selectedUniqueTechRightSideName(config, group);
+    if (group && tech) {
+      for (const spec of uniqueTechRightSideNodeSpecs(config, "", group)) {
+        const [xRaw, yRaw] = String(spec.position || spec.preferred?.[0] || "18,1").split(",");
+        nodes.push({
+          type: "Tech",
+          name: tech,
+          parent: spec.parent,
+          position: `${Number(xRaw) || 0},${Number(yRaw) || 1}`,
+          x: Number(xRaw) || 0,
+          y: Number(yRaw) || 1,
+        });
+      }
+    }
+  }
+  nodes = applyGenericBonusRightSideNodes("Norse", age, config, nodes, { applyThorCompact: false });
+  return norseApplyThorDwarvenArmoryRightSide(nodes, config);
+}
+
+function norseMeasureGroupWidths(nodes, protectedColumnsByGroup = null, age = "", lineMemberKeys = null) {
+  const widths = {};
+  const grouped = new Map();
+  for (const node of nodes || []) {
+    const group = norseResolveNodeGroupFromNodes(node, nodes || []);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(node);
+  }
+  for (const [group, groupNodes] of grouped.entries()) {
+    const protectedColumns = protectedColumnsByGroup && protectedColumnsByGroup[group] instanceof Set ? protectedColumnsByGroup[group] : null;
+    const placed = norseCompactGroupNodes(group, groupNodes, 0, protectedColumns, age, lineMemberKeys);
+    widths[group] = placed.length ? Math.max(...placed.map((node) => Number(node.x) || 0)) + 1 : 0;
+  }
+  return widths;
+}
+
+
+function norseBuildLineMemberKeySets(rawByAge) {
+  const byAge = {};
+  const global = new Set();
+  const allNodes = Object.values(rawByAge || {}).flat().filter(Boolean);
+  const parentRefs = new Set();
+  const childKeys = new Set();
+
+  const scopedKey = (group, key) => `${group || ""}::${key || ""}`;
+
+  for (const node of allNodes) {
+    const parentKey = techTreeNodeParentLookupKey(node);
+    if (!parentKey) continue;
+    const group = norseResolveNodeGroupFromNodes(node, allNodes);
+    if (norseIsLaneRootParent(group, parentKey)) continue;
+    // Scope parent references by resolved building lane. Otherwise duplicate
+    // Norse names such as Berserk/Hersir/MediumInfantry can falsely mark an
+    // unrelated building's node as part of a parent line.
+    parentRefs.add(scopedKey(group, parentKey));
+    childKeys.add(techTreeNodeKey(node));
+  }
+
+  for (const [age, nodes] of Object.entries(rawByAge || {})) {
+    const set = new Set();
+    for (const node of nodes || []) {
+      const key = techTreeNodeKey(node);
+      const group = norseResolveNodeGroupFromNodes(node, nodes || []);
+      const placementKeys = techTreeNodePlacementKeys(node);
+      const isParentInLine = placementKeys.some((placementKey) => parentRefs.has(scopedKey(group, placementKey)));
+      const isChildInLine = childKeys.has(key);
+      const isSharedColumnException = (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(node.name))
+        || (group === "Temple" && node.name === "Omniscience");
+      if (isParentInLine || isChildInLine || isSharedColumnException) {
+        set.add(key);
+        global.add(key);
+      }
+    }
+    byAge[age] = set;
+  }
+  return { byAge, global };
+}
+
+function norseBuildProtectedLineColumnsForNodes(nodesForAge, lineMemberKeys = null) {
+  const grouped = new Map();
+  for (const node of nodesForAge || []) {
+    if (!node || !node.name) continue;
+    const group = norseResolveNodeGroupFromNodes(node, nodesForAge || []);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(node);
+  }
+
+  const out = {};
+  for (const [group, groupNodes] of grouped.entries()) {
+    const activeColumns = new Set();
+    for (const node of groupNodes) {
+      const fixed = norseFixedLocalX(node, group);
+      if (!Number.isFinite(Number(fixed))) continue;
+      const localX = Number(fixed);
+      const isLineMember = lineMemberKeys instanceof Set && lineMemberKeys.has(techTreeNodeKey(node));
+      const isSharedColumnException = (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(node.name))
+        || (group === "Temple" && node.name === "Omniscience");
+      // Protect only actual active parent-line columns in this age. A column is
+      // protected when a node in this age is part of a parent/child line, even
+      // when the rest of that line appears in a different age. This keeps
+      // multi-age lines aligned without reserving dead columns in ages where
+      // the line has no node.
+      if (isLineMember || isSharedColumnException) activeColumns.add(localX);
+    }
+    if (activeColumns.size) out[group] = activeColumns;
+  }
+  return out;
+}
+
+function norseBuildGlobalProtectedLineColumns(rawByAge) {
+  const allNodes = Object.values(rawByAge || {}).flat();
+  return norseBuildProtectedLineColumnsForNodes(allNodes, norseBuildLineMemberKeySets({ All: allNodes }).byAge.All);
+}
+
+function buildNorseTechTreeGroupStarts(config) {
+  if (config?.baseCulture !== "Norse") return null;
+  const rawByAge = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    rawByAge[age] = norseRawTechTreeNodesForAge(age, config);
+  }
+  const lineKeySets = norseBuildLineMemberKeySets(rawByAge);
+  config._norseTechTreeLineMemberKeysByAge = lineKeySets.byAge;
+  config._norseTechTreeLineMemberKeys = lineKeySets.global;
+
+  const protectedColumnsByAge = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    protectedColumnsByAge[age] = norseBuildProtectedLineColumnsForNodes(rawByAge[age], lineKeySets.byAge[age]);
+  }
+  config._norseTechTreeProtectedColumnsByAge = protectedColumnsByAge;
+  config._norseTechTreeProtectedColumns = protectedColumnsByAge.ArchaicAge || {};
+
+  const maxWidths = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    const widths = norseMeasureGroupWidths(rawByAge[age], protectedColumnsByAge[age], age, lineKeySets.byAge[age]);
+    for (const [group, width] of Object.entries(widths)) maxWidths[group] = Math.max(maxWidths[group] || 0, width);
+  }
+
+  const starts = {};
+  let nextX = 0;
+  for (const group of NORSE_TECHTREE_GROUP_ORDER) {
+    starts[group] = nextX;
+    nextX += Math.max(maxWidths[group] || 0, 0);
+  }
+  return starts;
+}
+
+function generateNorseDynamicTechTreeTechnologies(age, config) {
+  if (config?.baseCulture !== "Norse") return "";
+  const nodes = norseRawTechTreeNodesForAge(age, config);
+  const protectedColumns = config?._norseTechTreeProtectedColumnsByAge?.[age] || config?._norseTechTreeProtectedColumns || null;
+  const lineMemberKeys = config?._norseTechTreeLineMemberKeysByAge?.[age] || config?._norseTechTreeLineMemberKeys || null;
+  const normalized = norseNormalizeTechTreeNodes(age, nodes, config?._norseTechTreeGroupStarts || null, protectedColumns, lineMemberKeys);
+  const body = normalized.map((node) => buildTechTreeNodeXml(node)).join("\n");
+  const block = `<local:TechTreeAge.Technologies>
+${body}
+            </local:TechTreeAge.Technologies>`;
+  return applyCustomTechNamesToUiBlock(block, config || {});
+}
+
+
+const ATLANTEAN_TECHTREE_MAJOR_SOURCES = ["Gaia", "Kronos", "Oranos"];
+const ATLANTEAN_TECHTREE_MINOR_BY_AGE = {
+  ClassicalAge: ["ClassicalAgeLeto", "ClassicalAgeOceanus", "ClassicalAgePrometheus"],
+  HeroicAge: ["HeroicAgeHyperion", "HeroicAgeRheia", "HeroicAgeTheia"],
+  MythicAge: ["MythicAgeAtlas", "MythicAgeHekate", "MythicAgeHelios"],
+};
+
+const ATLANTEAN_TECHTREE_GROUP_ORDER = [
+  "TownCenter", "EconomicGuild", "Farm", "Manor", "WallConnector", "Dock", "Temple", "SkyPassage",
+  "SentryTower", "Armory", "Market", "MilitaryBarracks", "CounterBarracks", "Palace", "Wonder",
+];
+
+const ATLANTEAN_TECHTREE_PARENT_LANE = {
+  TownCenter: "TownCenter",
+  VillagerAtlantean: "TownCenter",
+  Masons: "TownCenter",
+  Architects: "TownCenter",
+  FortifiedTownCenter: "TownCenter",
+  SecretsOfTheTitans: "TownCenter",
+  TitanGate: "TownCenter",
+
+  EconomicGuild: "EconomicGuild",
+  HuntingEquipment: "EconomicGuild",
+  Husbandry: "EconomicGuild",
+  TheftOfFire: "EconomicGuild",
+  Plow: "EconomicGuild",
+  Irrigation: "EconomicGuild",
+  FloodControl: "EconomicGuild",
+  HandAxe: "EconomicGuild",
+  BowSaw: "EconomicGuild",
+  Carpenters: "EconomicGuild",
+  Pickaxe: "EconomicGuild",
+  ShaftMine: "EconomicGuild",
+  Quarry: "EconomicGuild",
+
+  Farm: "Farm",
+  Manor: "Manor",
+  House: "Manor",
+  WallConnector: "WallConnector",
+  StoneWall: "WallConnector",
+  BronzeWall: "WallConnector",
+  IronWall: "WallConnector",
+  OrichalcumWall: "WallConnector",
+
+  Dock: "Dock",
+  FishingShipAtlantean: "Dock",
+  FishingShip: "Dock",
+  PurseSeine: "Dock",
+  FishBasket: "Dock",
+  SaltAmphora: "Dock",
+  Bireme: "Dock",
+  Servant: "Dock",
+  FireShip: "Dock",
+  SiegeBireme: "Dock",
+  TransportShipAtlantean: "Dock",
+  TransportShip: "Dock",
+  EnclosedDeck: "Dock",
+  HeavyWarShips: "Dock",
+  ChampionWarShips: "Dock",
+  HeroicFleet: "Dock",
+  ConscriptSailors: "Dock",
+  Nereid: "Dock",
+  DaughtersOfTheSea: "Dock",
+  Daktyloi: "Dock",
+  ManOWar: "Dock",
+  HaloOfTheSun: "Dock",
+  PioneerOfTheSkies: "Dock",
+
+  Temple: "Temple",
+  SkyPassage: "SkyPassage",
+  NezhaChild: "Temple",
+  NezhaYouth: "Temple",
+  Nezha: "Temple",
+  Oracle: "Temple",
+  Caladria: "Temple",
+  Automaton: "Temple",
+  Promethean: "Temple",
+  Behemoth: "Temple",
+  StymphalianBird: "Temple",
+  Satyr: "Temple",
+  Lampades: "Temple",
+  Argus: "Temple",
+  Centimanus: "Temple",
+  AlluvialClay: "Temple",
+  HephaestusRevenge: "Temple",
+  Perception: "Temple",
+  VolcanicForge: "Temple",
+  HeartOfTheTitans: "Temple",
+  RheiasGift: "Temple",
+  PropheticSight: "Temple",
+  SonsOfTheSun: "Temple",
+  Gemini: "Temple",
+  MythicRejuvenation: "Temple",
+  Celerity: "Temple",
+  AsperBlood: "Temple",
+  GuardianOfIo: "Temple",
+  Titanomachy: "Temple",
+  Omniscience: "Temple",
+  Channels: "Temple",
+  TemporalChaos: "Temple",
+  EmpyreanSpeed: "Temple",
+
+  SentryTower: "SentryTower",
+  MirrorTower: "SentryTower",
+  WatchTower: "SentryTower",
+  GuardTower: "SentryTower",
+  SignalFires: "SentryTower",
+  CarrierPigeons: "SentryTower",
+  Crenellations: "SentryTower",
+  BoilingOil: "SentryTower",
+
+  Armory: "Armory",
+  DwarvenArmory: "Armory",
+  Ballistics: "Armory",
+  BurningPitch: "Armory",
+  CopperWeapons: "Armory",
+  BronzeWeapons: "Armory",
+  IronWeapons: "Armory",
+  CopperArmor: "Armory",
+  BronzeArmor: "Armory",
+  IronArmor: "Armory",
+  CopperShields: "Armory",
+  BronzeShields: "Armory",
+  IronShields: "Armory",
+  DwarvenWeapons: "Armory",
+  MeteoricIronArmor: "Armory",
+  DragonscaleShields: "Armory",
+  WeightlessMace: "Armory",
+  BiteOfTheShark: "Armory",
+  OrichalcumMail: "Armory",
+
+  Market: "Market",
+  CaravanAtlantean: "Market",
+  Coinage: "Market",
+  TaxCollectors: "Market",
+  Ambassadors: "Market",
+
+  MilitaryBarracks: "MilitaryBarracks",
+  Murmillo: "MilitaryBarracks",
+  Contarius: "MilitaryBarracks",
+  Arcus: "MilitaryBarracks",
+  MediumInfantry: "MilitaryBarracks",
+  HeavyInfantry: "MilitaryBarracks",
+  ChampionInfantry: "MilitaryBarracks",
+  MediumArchers: "MilitaryBarracks",
+  HeavyArchers: "MilitaryBarracks",
+  ChampionArchers: "MilitaryBarracks",
+  MediumCavalry: "MilitaryBarracks",
+  HeavyCavalry: "MilitaryBarracks",
+  ChampionCavalry: "MilitaryBarracks",
+  LevyMainlineSoldiers: "MilitaryBarracks",
+  ConscriptMainlineSoldiers: "MilitaryBarracks",
+  LanceOfStone: "MilitaryBarracks",
+  PoseidonsSecret: "MilitaryBarracks",
+  FrontlineHeroics: "MilitaryBarracks",
+
+  CounterBarracks: "CounterBarracks",
+  Katapeltes: "CounterBarracks",
+  Turma: "CounterBarracks",
+  Cheiroballista: "CounterBarracks",
+  LevyCounterSoldiers: "CounterBarracks",
+  ConscriptCounterSoldiers: "CounterBarracks",
+
+  Palace: "Palace",
+  Destroyer: "Palace",
+  Fanatic: "Palace",
+  FireSiphon: "Palace",
+  DraftHorses: "Palace",
+  Engineers: "Palace",
+  AdvancedFortifications: "Palace",
+  LevyPalaceSoldiers: "Palace",
+  ConscriptPalaceSoldiers: "Palace",
+  HornsOfConsecration: "Palace",
+  TitanShield: "Palace",
+  DevoteesOfAtlas: "Palace",
+  Petrification: "Palace",
+
+  Wonder: "Wonder",
+};
+
+const ATLANTEAN_TECHTREE_AMBIGUOUS_PARENT_NAMES = new Set([
+  "MediumInfantry", "HeavyInfantry", "ChampionInfantry",
+  "MediumArchers", "HeavyArchers", "ChampionArchers",
+  "HeavyCavalry", "ChampionCavalry",
+]);
+
+function atlanteanCanUseStaticParentLane(name) {
+  return !!name && !ATLANTEAN_TECHTREE_AMBIGUOUS_PARENT_NAMES.has(name) && !!ATLANTEAN_TECHTREE_PARENT_LANE[name];
+}
+
+function atlanteanGroupFromUniqueReference(ref) {
+  const value = String(ref || "");
+  if (!value) return "";
+  return ATLANTEAN_TECHTREE_GROUP_ORDER.find((group) => value.startsWith(group)) || "";
+}
+
+function atlanteanGroupFromAmbiguousParentReference(parent, node) {
+  if (!parent || node?.uniqueParent || !ATLANTEAN_TECHTREE_AMBIGUOUS_PARENT_NAMES.has(parent)) return "";
+  if (["MediumInfantry", "HeavyInfantry", "ChampionInfantry"].includes(parent)) return "Palace";
+  if (["MediumArchers", "HeavyArchers", "ChampionArchers"].includes(parent)) return "CounterBarracks";
+  if (["HeavyCavalry", "ChampionCavalry"].includes(parent)) return "MilitaryBarracks";
+  return "";
+}
+
+function atlanteanChooseParentNodeForChain(current, node, candidates) {
+  const list = (candidates || []).filter(Boolean);
+  if (!list.length) return null;
+  if (node?.uniqueParent) {
+    const exact = list.find((candidate) => candidate?.uniqueIdentifier === node.uniqueParent);
+    if (exact) return exact;
+  }
+  const nodeX = Number(node?.x);
+  return list.slice().sort((a, b) => {
+    const ax = Number(a.x) || 0;
+    const bx = Number(b.x) || 0;
+    const aDistance = Number.isFinite(nodeX) ? Math.abs(ax - nodeX) : ax;
+    const bDistance = Number.isFinite(nodeX) ? Math.abs(bx - nodeX) : bx;
+    const aAfterPenalty = Number.isFinite(nodeX) && ax > nodeX ? 1000 : 0;
+    const bAfterPenalty = Number.isFinite(nodeX) && bx > nodeX ? 1000 : 0;
+    return (aDistance + aAfterPenalty) - (bDistance + bAfterPenalty) || ax - bx || (Number(a.y) || 0) - (Number(b.y) || 0);
+  })[0];
+}
+
+function atlanteanNodeGroupRoot(node) {
+  const parent = node?.parent || "";
+  const name = node?.name || "";
+  const uniqueGroup = atlanteanGroupFromUniqueReference(node?.uniqueParent || node?.uniqueIdentifier || "");
+  if (uniqueGroup) return uniqueGroup;
+  const ambiguousGroup = atlanteanGroupFromAmbiguousParentReference(parent, node);
+  if (ambiguousGroup) return ambiguousGroup;
+  if (ATLANTEAN_TECHTREE_GROUP_ORDER.includes(parent)) return parent;
+  if (atlanteanCanUseStaticParentLane(parent)) return ATLANTEAN_TECHTREE_PARENT_LANE[parent];
+  if (!parent && ATLANTEAN_TECHTREE_GROUP_ORDER.includes(name)) return name;
+  if (atlanteanCanUseStaticParentLane(name)) return ATLANTEAN_TECHTREE_PARENT_LANE[name];
+  return parent || name;
+}
+
+function atlanteanNodeGroupOrder(node) {
+  const root = atlanteanNodeGroupRoot(node);
+  const idx = ATLANTEAN_TECHTREE_GROUP_ORDER.indexOf(root);
+  return idx >= 0 ? idx : 99;
+}
+
+const ATLANTEAN_TECHTREE_FIXED_LOCAL_X = {
+  // Town Center
+  VillagerAtlantean: 1,
+  Masons: 1,
+  Architects: 1,
+  FortifiedTownCenter: 1,
+  SecretsOfTheTitans: 1,
+  TitanGate: 1,
+
+  // Economic Guild chains
+  HuntingEquipment: 1,
+  Husbandry: 1,
+  Plow: 2,
+  Irrigation: 2,
+  FloodControl: 2,
+  HandAxe: 3,
+  BowSaw: 3,
+  Carpenters: 3,
+  Pickaxe: 4,
+  ShaftMine: 4,
+  Quarry: 4,
+  TheftOfFire: 1,
+
+  // Walls: wall-upgrade line can share the building column.
+  StoneWall: 0,
+  BronzeWall: 0,
+  IronWall: 0,
+  OrichalcumWall: 0,
+
+  // Dock
+  FishingShipAtlantean: 1,
+  FishingShip: 1,
+  PurseSeine: 1,
+  SaltAmphora: 1,
+  Bireme: 2,
+  FireShip: 3,
+  SiegeBireme: 4,
+  PioneerOfTheSkies: 4,
+  TransportShipAtlantean: 5,
+  TransportShip: 5,
+  EnclosedDeck: 5,
+  HeavyWarShips: 6,
+  ChampionWarShips: 6,
+  HeroicFleet: 7,
+  ConscriptSailors: 7,
+
+  // Temple: Omniscience can share the Temple building column.
+  Omniscience: 0,
+  Oracle: 1,
+  NezhaChild: 1,
+  NezhaYouth: 1,
+  Nezha: 1,
+
+  // Towers
+  WatchTower: 2,
+  GuardTower: 2,
+  SignalFires: 1,
+  CarrierPigeons: 1,
+  BoilingOil: 2,
+  Crenellations: 2,
+
+  // Armory chains
+  Ballistics: 1,
+  BurningPitch: 1,
+  CopperWeapons: 2,
+  BronzeWeapons: 2,
+  IronWeapons: 2,
+  DwarvenWeapons: 2,
+  CopperArmor: 3,
+  BronzeArmor: 3,
+  IronArmor: 3,
+  MeteoricIronArmor: 3,
+  CopperShields: 4,
+  BronzeShields: 4,
+  IronShields: 4,
+  DragonscaleShields: 4,
+  WeightlessMace: 1,
+  BiteOfTheShark: 2,
+  VolcanicForge: 3,
+  OrichalcumMail: 1,
+
+  // Market
+  CaravanAtlantean: 1,
+  Coinage: 1,
+  TaxCollectors: 2,
+  Ambassadors: 2,
+
+  // Military Barracks
+  Murmillo: 1,
+  MediumInfantry: 1,
+  HeavyInfantry: 1,
+  ChampionInfantry: 1,
+  Contarius: 2,
+  HeavyCavalry: 2,
+  ChampionCavalry: 2,
+  Arcus: 3,
+  MediumArchers: 3,
+  HeavyArchers: 3,
+  ChampionArchers: 3,
+  LevyMainlineSoldiers: 4,
+  ConscriptMainlineSoldiers: 4,
+
+  // Counter Barracks
+  Katapeltes: 1,
+  Turma: 2,
+  Cheiroballista: 3,
+  LevyCounterSoldiers: 4,
+  ConscriptCounterSoldiers: 4,
+
+  // Palace
+  Destroyer: 1,
+  Fanatic: 2,
+  FireSiphon: 3,
+  MediumInfantry: 4,
+  HeavyInfantry: 4,
+  ChampionInfantry: 4,
+  DraftHorses: 5,
+  Engineers: 5,
+  AdvancedFortifications: 5,
+  LevyPalaceSoldiers: 6,
+  ConscriptPalaceSoldiers: 6,
+};
+
+function atlanteanFixedLocalX(node, group) {
+  const name = node?.name || "";
+  if (group === "TownCenter" && /^SkinOfTheRhino/.test(name)) return 2;
+
+  // Atlantean has several valid duplicate upgrade/unit names across different
+  // production buildings. Choose fixed columns by resolved building lane so a
+  // Military Barracks infantry line does not inherit the Palace infantry slot,
+  // and Counter Barracks archers do not inherit the Military Barracks slot.
+  if (group === "MilitaryBarracks") {
+    const map = {
+      Murmillo: 1, MediumInfantry: 1, HeavyInfantry: 1, ChampionInfantry: 1,
+      Contarius: 2, HeavyCavalry: 2, ChampionCavalry: 2,
+      Arcus: 3, MediumArchers: 3, HeavyArchers: 3, ChampionArchers: 3,
+      LevyMainlineSoldiers: 4, ConscriptMainlineSoldiers: 4,
+      BiteOfTheShark: 1, FrontlineHeroics: 2, OrichalcumMail: 1, PoseidonsSecret: 2, LanceOfStone: 2,
+      HaloOfTheSun: 1,
+    };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "CounterBarracks") {
+    const map = {
+      Katapeltes: 1, MediumInfantry: 1, HeavyInfantry: 1, ChampionInfantry: 1,
+      Turma: 2, MediumArchers: 2, HeavyArchers: 2, ChampionArchers: 2,
+      Cheiroballista: 3,
+      LevyCounterSoldiers: 4, ConscriptCounterSoldiers: 4,
+      WeightlessMace: 1, FrontlineHeroics: 2, OrichalcumMail: 1,
+    };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "Palace") {
+    const map = {
+      Destroyer: 1,
+      Fanatic: 2,
+      FireSiphon: 3,
+      MediumInfantry: 4, HeavyInfantry: 4, ChampionInfantry: 4,
+      DraftHorses: 5, Engineers: 5, AdvancedFortifications: 5,
+      LevyPalaceSoldiers: 6, ConscriptPalaceSoldiers: 6,
+      HornsOfConsecration: 1, HeroicRenewal: 1, FrontlineHeroics: 2, TitanShield: 2,
+      DevoteesOfAtlas: 2, Petrification: 2, HaloOfTheSun: 3,
+    };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+
+  // Parent-child alignment is handled dynamically by atlanteanCompactGroupNodes.
+  if (Object.prototype.hasOwnProperty.call(ATLANTEAN_TECHTREE_FIXED_LOCAL_X, name)) return ATLANTEAN_TECHTREE_FIXED_LOCAL_X[name];
+  return undefined;
+}
+
+const ATLANTEAN_TECHTREE_PROTECTED_LINE_LOCAL_X = {
+  TownCenter: [1, 2],
+  EconomicGuild: [1, 2, 3, 4],
+  WallConnector: [0],
+  Dock: [1, 2, 3, 4, 5, 6, 7],
+  Temple: [0, 1, 2, 3, 4],
+  SentryTower: [1, 2],
+  Armory: [1, 2, 3, 4],
+  Market: [1, 2],
+  MilitaryBarracks: [1, 2, 3, 4],
+  CounterBarracks: [1, 2, 3, 4],
+  Palace: [1, 2, 3, 4, 5, 6],
+};
+
+function atlanteanProtectedLineColumns(group, groupNodes = null) {
+  const candidateColumns = new Set(ATLANTEAN_TECHTREE_PROTECTED_LINE_LOCAL_X[group] || []);
+  if (!Array.isArray(groupNodes)) return candidateColumns;
+  const activeColumns = new Set();
+  for (const node of groupNodes) {
+    const fixed = atlanteanFixedLocalX(node, group);
+    if (!Number.isFinite(Number(fixed))) continue;
+    const localX = Number(fixed);
+    if (candidateColumns.has(localX)) activeColumns.add(localX);
+  }
+  return activeColumns;
+}
+
+function atlanteanIsLaneRootParent(group, parent) {
+  return parent === group
+    || (group === "Armory" && parent === "DwarvenArmory")
+    || (group === "TownCenter" && parent === "TownCenter")
+    || (group === "Monument" && /^MonumentTo/.test(parent || ""));
+}
+
+function atlanteanNextNonProtectedLocalX(group, minX, protectedColumns = null) {
+  const columns = protectedColumns instanceof Set ? protectedColumns : atlanteanProtectedLineColumns(group);
+  for (let x = Math.max(0, Number(minX) || 0); x < 64; x += 1) {
+    if (!columns.has(x)) return x;
+  }
+  return Math.max(0, Number(minX) || 0);
+}
+
+function atlanteanTechTreeSourceNodes(age) {
+  const templates = window.AOM_TECHTREE || {};
+  const byMajor = {};
+  for (const major of ATLANTEAN_TECHTREE_MAJOR_SOURCES) {
+    const block = age === "ArchaicAge"
+      ? extractXmlPropertyBlock(lookupTemplateBlock(templates.archaicByMajor, major) || "", "Technologies")
+      : templates.ageTechnologiesByMajorAge?.[`${major}|${age}`] || "";
+    byMajor[major] = parseTechTreeNodesFromBlock(block);
+  }
+  return byMajor;
+}
+
+function atlanteanMinorBonusTokens(minorTech) {
+  const block = window.AOM_TECHTREE?.bonusTrackByGod?.[canonicalMinorTech(minorTech)] || "";
+  return parseTechTreeNodesFromBlock(block).filter((node) => node.type === "Unit" || node.type === "Tech");
+}
+
+function atlanteanAllConditionalNodeNames() {
+  const names = new Set();
+  (UNIQUE_TECH_GROUPS || []).forEach((group) => {
+    names.add(group.id);
+    (group.techs || []).forEach((tech) => names.add(tech));
+  });
+  Object.values(ATLANTEAN_TECHTREE_MINOR_BY_AGE).flat().forEach((minor) => {
+    atlanteanMinorBonusTokens(minor).forEach((node) => names.add(node.name));
+  });
+  return names;
+}
+
+function atlanteanCommonNodesForAge(age) {
+  const byMajor = atlanteanTechTreeSourceNodes(age);
+  const excluded = atlanteanAllConditionalNodeNames();
+  const keySets = Object.fromEntries(Object.entries(byMajor).map(([major, nodes]) => [major, new Set(nodes.map(techTreeNodeKey))]));
+  const baseSource = ATLANTEAN_TECHTREE_MAJOR_SOURCES[0];
+  const allKeys = [...(keySets[baseSource] || new Set())];
+  const commonKeys = allKeys.filter((key) => ATLANTEAN_TECHTREE_MAJOR_SOURCES.every((major) => keySets[major]?.has(key)));
+  const sourceNodes = Object.values(byMajor).flat();
+  const result = [];
+  for (const key of commonKeys) {
+    const matches = sourceNodes.filter((node) => techTreeNodeKey(node) === key);
+    const rep = chooseGreekRepresentativeNode(matches);
+    if (!rep || excluded.has(rep.name)) continue;
+    result.push({ ...rep });
+  }
+  return result;
+}
+
+function atlanteanFindRightSideNodesForToken(age, tokenNode) {
+  const byMajor = atlanteanTechTreeSourceNodes(age);
+  const matches = Object.values(byMajor).flat().filter((node) => node.type === tokenNode.type && node.name === tokenNode.name);
+  if (!matches.length) return [];
+  const byKey = new Map();
+  for (const node of matches) {
+    const key = techTreeNodeKey(node);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(node);
+  }
+  const reps = [...byKey.values()].map((nodes) => ({ count: nodes.length, node: chooseGreekRepresentativeNode(nodes) }));
+  reps.sort((a, b) => atlanteanNodeGroupOrder(a.node) - atlanteanNodeGroupOrder(b.node) || (a.node.x - b.node.x) || (a.node.y - b.node.y) || String(a.node.parent).localeCompare(String(b.node.parent)) || (b.count - a.count));
+  return reps.map((entry) => ({ ...entry.node }));
+}
+
+function atlanteanMinorNodeSameBuildingKey(node, contextNodes = []) {
+  if (!node?.type || !node?.name) return "";
+  const group = atlanteanResolveNodeGroupFromNodes(node, contextNodes && contextNodes.length ? contextNodes : [node]);
+  return `${node.type}|${node.name}|${group}`;
+}
+
+function atlanteanPriorSelectedMinorBuildingKeys(age, config) {
+  const out = new Set();
+  const order = ["ClassicalAge", "HeroicAge", "MythicAge"];
+  const index = order.indexOf(age);
+  if (index <= 0) return out;
+  for (const priorAge of order.slice(0, index)) {
+    const selected = (config.minorGods?.[priorAge] || []).map(canonicalMinorTech);
+    const priorNodes = [];
+    for (const minor of selected) {
+      for (const token of atlanteanMinorBonusTokens(minor)) {
+        priorNodes.push(...atlanteanFindRightSideNodesForToken(priorAge, token));
+      }
+    }
+    for (const node of priorNodes) {
+      const key = atlanteanMinorNodeSameBuildingKey(node, priorNodes);
+      if (key) out.add(key);
+    }
+  }
+  return out;
+}
+
+function atlanteanSelectedMinorNodesForAge(age, config) {
+  const selected = (config.minorGods?.[age] || []).map(canonicalMinorTech);
+  const nodes = [];
+  const seenSameBuilding = atlanteanPriorSelectedMinorBuildingKeys(age, config);
+  for (const minor of selected) {
+    for (const token of atlanteanMinorBonusTokens(minor)) {
+      for (const candidate of atlanteanFindRightSideNodesForToken(age, token)) {
+        const key = atlanteanMinorNodeSameBuildingKey(candidate, [...nodes, candidate]);
+        if (key && seenSameBuilding.has(key)) continue;
+        nodes.push(candidate);
+        if (key) seenSameBuilding.add(key);
+      }
+    }
+  }
+  return nodes;
+}
+
+function atlanteanResolveNodeGroupFromNodes(node, allNodes) {
+  const byName = new Map();
+  const byUniqueIdentifier = new Map();
+  for (const candidate of allNodes || []) {
+    if (!candidate?.name) continue;
+    if (!byName.has(candidate.name)) byName.set(candidate.name, []);
+    byName.get(candidate.name).push(candidate);
+    if (candidate.uniqueIdentifier) byUniqueIdentifier.set(candidate.uniqueIdentifier, candidate);
+  }
+  const uniqueGroup = atlanteanGroupFromUniqueReference(node?.uniqueParent || node?.uniqueIdentifier || "");
+  if (uniqueGroup) return uniqueGroup;
+  const ambiguousGroup = atlanteanGroupFromAmbiguousParentReference(node?.parent || "", node);
+  if (ambiguousGroup) return ambiguousGroup;
+  const seen = new Set();
+  let current = node?.uniqueParent || node?.parent || node?.name || "";
+  let walkerNode = node;
+  for (let i = 0; i < 16 && current && !seen.has(current); i += 1) {
+    seen.add(current);
+    if (ATLANTEAN_TECHTREE_GROUP_ORDER.includes(current)) return current;
+    if (atlanteanCanUseStaticParentLane(current)) return ATLANTEAN_TECHTREE_PARENT_LANE[current];
+    let parentNode = byUniqueIdentifier.get(current) || null;
+    if (!parentNode) parentNode = atlanteanChooseParentNodeForChain(current, walkerNode, byName.get(current) || []);
+    if (parentNode?.uniqueParent || parentNode?.parent) {
+      walkerNode = parentNode;
+      current = parentNode.uniqueParent || parentNode.parent;
+      continue;
+    }
+    if (parentNode?.name && parentNode.name !== current) {
+      walkerNode = parentNode;
+      current = parentNode.name;
+      continue;
+    }
+    break;
+  }
+  if (atlanteanCanUseStaticParentLane(node?.name)) return ATLANTEAN_TECHTREE_PARENT_LANE[node.name];
+  return atlanteanNodeGroupRoot(node);
+}
+
+function atlanteanCompactGroupNodes(group, groupNodes, groupStartX = 0, protectedColumnsOverride = null, age = "", lineMemberKeys = null) {
+  const nodes = (groupNodes || []).map((inputNode) => {
+    const node = { ...inputNode };
+    const [xRaw, yRaw] = String(node.position || `${node.x || 0},${node.y ?? 1}`).split(",");
+    node.x = Number.isFinite(Number(xRaw)) ? Number(xRaw) : Number(node.x || 0) || 0;
+    node.y = Number.isFinite(Number(yRaw)) ? Number(yRaw) : Number(node.y ?? 1) || 1;
+    if (node.y > 1) node.y = 1;
+    if (node.y < 0) node.y = 0;
+    return node;
+  });
+
+  const isGroupRootNode = (node) => !node?.parent && (node?.name === group || (group === "Armory" && node?.name === "DwarvenArmory") || (group === "Monument" && /^MonumentTo/.test(node?.name || "")));
+  const hasRoot = nodes.some((node) => isGroupRootNode(node));
+  const preSortDirectChildCountByName = new Map();
+  for (const child of nodes) {
+    const parentKey = techTreeNodeParentLookupKey(child);
+    if (!parentKey) continue;
+    preSortDirectChildCountByName.set(parentKey, (preSortDirectChildCountByName.get(parentKey) || 0) + 1);
+  }
+  const nodeHasPreSortDirectChildren = (node) => (preSortDirectChildCountByName.get(node?.uniqueIdentifier || node?.name) || 0) > 0;
+  const sourceOrder = (node) => (Number(node.x) || 0) * 10 + (Number(node.y) || 0);
+  const sorted = nodes.slice().sort((a, b) => {
+    const aIsRoot = isGroupRootNode(a);
+    const bIsRoot = isGroupRootNode(b);
+    if (aIsRoot !== bIsRoot) return aIsRoot ? -1 : 1;
+    if (a.name === b.parent && b.name !== a.parent) return -1;
+    if (b.name === a.parent && a.name !== b.parent) return 1;
+    const aRootChild = atlanteanIsLaneRootParent(group, a.parent) && !nodeHasPreSortDirectChildren(a);
+    const bRootChild = atlanteanIsLaneRootParent(group, b.parent) && !nodeHasPreSortDirectChildren(b);
+    if (aRootChild && bRootChild && a.type !== b.type) {
+      // For direct childless nodes in a building lane, place units before
+      // childless techs. This lets units claim row 0 when the parent building
+      // was introduced in an earlier age, while the techs fall to row 1.
+      // The actual X column still comes from fixed/parent placement rules.
+      if (a.type === "Unit") return -1;
+      if (b.type === "Unit") return 1;
+    }
+    const af = atlanteanFixedLocalX(a, group);
+    const bf = atlanteanFixedLocalX(b, group);
+    if (Number.isFinite(Number(af)) !== Number.isFinite(Number(bf))) return Number.isFinite(Number(af)) ? -1 : 1;
+    if (Number.isFinite(Number(af)) && af !== bf) return af - bf;
+    return sourceOrder(a) - sourceOrder(b) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name) || String(a.parent).localeCompare(String(b.parent));
+  });
+
+  const localOccupied = new Set();
+  const placedLocalByName = new Map();
+  const placedRowByName = new Map();
+  const placed = [];
+  const protectedLineColumns = protectedColumnsOverride instanceof Set ? protectedColumnsOverride : atlanteanProtectedLineColumns(group, nodes);
+  const isLineMemberNode = (node) => lineMemberKeys instanceof Set && lineMemberKeys.has(techTreeNodeKey(node));
+  const directChildCountByName = new Map();
+  const directChildFixedLocalXByName = new Map();
+  const rootDirectChildTypeCounts = { Unit: 0, Tech: 0 };
+  const rootDirectChildlessTypeCounts = { Unit: 0, Tech: 0 };
+  const rootDirectChildWithChildrenTypeCounts = { Unit: 0, Tech: 0 };
+  const rootDirectChildlessTypesByLocalX = new Map();
+  const isLaneRootParent = (parent) => atlanteanIsLaneRootParent(group, parent);
+  for (const child of nodes) {
+    const parentKey = techTreeNodeParentLookupKey(child);
+    if (!parentKey) continue;
+    directChildCountByName.set(parentKey, (directChildCountByName.get(parentKey) || 0) + 1);
+    const childFixed = atlanteanFixedLocalX(child, group);
+    if (Number.isFinite(Number(childFixed))) {
+      const current = directChildFixedLocalXByName.get(parentKey);
+      const childFixedX = Number(childFixed);
+      if (!Number.isFinite(Number(current)) || childFixedX < Number(current)) {
+        directChildFixedLocalXByName.set(parentKey, childFixedX);
+      }
+    }
+  }
+  for (const child of nodes) {
+    if (!child || !isLaneRootParent(child.parent)) continue;
+    if (child.type === "Unit" || child.type === "Tech") {
+      rootDirectChildTypeCounts[child.type] += 1;
+      const childKey = child.uniqueIdentifier || child.name;
+      if (directChildCountByName.get(childKey) || 0) {
+        rootDirectChildWithChildrenTypeCounts[child.type] += 1;
+      } else {
+        rootDirectChildlessTypeCounts[child.type] += 1;
+        const fixedLocal = atlanteanFixedLocalX(child, group);
+        const localX = Number.isFinite(Number(fixedLocal)) ? Number(fixedLocal) : undefined;
+        if (Number.isFinite(localX)) {
+          if (!rootDirectChildlessTypesByLocalX.has(localX)) rootDirectChildlessTypesByLocalX.set(localX, new Set());
+          rootDirectChildlessTypesByLocalX.get(localX).add(child.type);
+        }
+      }
+    }
+  }
+
+  const canUse = (x, y, allowProtectedLineColumn = true) => {
+    if (localOccupied.has(`${x},${y}`)) return false;
+    if (!allowProtectedLineColumn && protectedLineColumns.has(x)) return false;
+    return true;
+  };
+  const reserve = (node, localX, y) => {
+    localOccupied.add(`${localX},${y}`);
+    for (const placementKey of techTreeNodePlacementKeys(node)) {
+      if (!placedLocalByName.has(placementKey) || localX < placedLocalByName.get(placementKey)) {
+        placedLocalByName.set(placementKey, localX);
+        placedRowByName.set(placementKey, y);
+      }
+    }
+    const cleanNode = { ...node };
+    delete cleanNode._group;
+    placed.push({ ...cleanNode, x: groupStartX + localX, y, position: `${groupStartX + localX},${y}` });
+  };
+  const firstFree = (minX, preferredY = 0, allowProtectedLineColumn = true) => {
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      const rows = preferredY === 1 ? [1, 0] : [0, 1];
+      for (const y of rows) if (canUse(x, y, allowProtectedLineColumn)) return { x, y };
+    }
+    return { x: Math.max(0, minX || 0), y: preferredY === 1 ? 1 : 0 };
+  };
+  const firstFreeParentColumn = (minX, allowProtectedLineColumn = true) => {
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      if (canUse(x, 0, allowProtectedLineColumn) && canUse(x, 1, allowProtectedLineColumn)) return { x, y: 0 };
+    }
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      if (canUse(x, 0, allowProtectedLineColumn)) return { x, y: 0 };
+    }
+    return firstFree(minX, 0, allowProtectedLineColumn);
+  };
+
+  for (const node of techTreeParentDepthFirstOrder(sorted, isGroupRootNode)) {
+    const isRoot = isGroupRootNode(node);
+    if (isRoot) {
+      const fixed = atlanteanFixedLocalX(node, group);
+      const x = Number.isFinite(Number(fixed)) ? Number(fixed) : 0;
+      const y = 0;
+      if (!canUse(x, y, true)) {
+        const alt = firstFree(x, y, true);
+        reserve(node, alt.x, alt.y);
+      } else {
+        reserve(node, x, y);
+      }
+      continue;
+    }
+
+    const fixed = atlanteanFixedLocalX(node, group);
+    const parentLookupKey = techTreeNodeParentLookupKey(node);
+    const parentLocal = placedLocalByName.get(parentLookupKey);
+    const parentRow = placedRowByName.get(parentLookupKey);
+    const childFixedLocal = directChildFixedLocalXByName.get(node.uniqueIdentifier || node.name);
+    let desiredX;
+    let preferredY = Number(node.y) === 0 ? 0 : 1;
+
+    if (Number.isFinite(Number(parentLocal)) && !isLaneRootParent(node.parent)) {
+      // Parent-line rule: once a parent is placed, every direct child follows
+      // the parent's actual column. Fixed local X values are only preferred
+      // before the parent is placed; they must not break the visible line if
+      // the parent had to move to a cleaner/available column.
+      desiredX = Number(parentLocal);
+      if (Number.isFinite(Number(parentRow))) preferredY = Number(parentRow) === 0 ? 1 : 0;
+    } else if (Number.isFinite(Number(fixed))) {
+      desiredX = Number(fixed);
+    } else if (Number.isFinite(Number(childFixedLocal))) {
+      // Generic parent-line rule: if a direct child is part of a fixed upgrade
+      // line, place the parent in that same column first. Example: Anubite
+      // inherits FeetOfTheJackal's column, so the pair forms a clean vertical
+      // parent line instead of the child occupying the protected column alone.
+      desiredX = Number(childFixedLocal);
+    } else {
+      desiredX = 1;
+    }
+
+    const hasDirectChildren = (directChildCountByName.get(node.uniqueIdentifier || node.name) || 0) > 0;
+    const directFromRootBuilding = hasRoot && isLaneRootParent(node.parent);
+    const rootHasChildlessUnitAndTech = rootDirectChildlessTypeCounts.Unit > 0 && rootDirectChildlessTypeCounts.Tech > 0;
+    const rootChildlessTypesAtDesiredX = rootDirectChildlessTypesByLocalX.get(Number(desiredX)) || new Set();
+    const rootColumnHasChildlessUnitAndTech = rootChildlessTypesAtDesiredX.has("Unit") && rootChildlessTypesAtDesiredX.has("Tech");
+    const rootHasOnlyChildlessUnits = directFromRootBuilding
+      && !hasDirectChildren
+      && node.type === "Unit"
+      && !isLineMemberNode(node)
+      && rootDirectChildlessTypeCounts.Unit > 0
+      && rootDirectChildlessTypeCounts.Tech === 0
+      && rootDirectChildWithChildrenTypeCounts.Unit === 0
+      && rootDirectChildWithChildrenTypeCounts.Tech === 0;
+    if (rootHasOnlyChildlessUnits) {
+      // When a building appears in the current age and only trains units from
+      // its root command row, keep those units together on row 1 and pack them
+      // compactly from the first available column. This avoids gaps like an
+      // empty TownCenter column 1/2 while all trained units are shifted right.
+      desiredX = 1;
+      preferredY = 1;
+    } else if (directFromRootBuilding && !hasDirectChildren) {
+      // Direct children of a building that appears in this age should keep the
+      // building row clean. Childless units prefer row 1 unless a childless tech
+      // also wants that exact column; only then use the classic unit row 0 /
+      // tech row 1 split. This keeps Longhouse units together on row 1 while
+      // still handling HillFort columns that contain both a unit and a tech.
+      if (node.type === "Unit") preferredY = rootColumnHasChildlessUnitAndTech ? 0 : 1;
+      if (node.type === "Tech") preferredY = 1;
+    } else if (node.type === "Unit") {
+      preferredY = 0;
+    }
+    if (age === "ArchaicAge" && !isRoot && node.type === "Unit" && !hasDirectChildren && !rootHasChildlessUnitAndTech && !localOccupied.has(`${desiredX},1`)) preferredY = 1;
+    if (age === "ArchaicAge" && !isRoot && node.type !== "Unit" && !localOccupied.has(`${desiredX},1`)) preferredY = 1;
+
+    if (!hasRoot && !isLaneRootParent(node.parent)) desiredX = Math.max(desiredX, 0);
+    if (hasRoot || group === "TownCenter") desiredX = Math.max(desiredX, 1);
+
+    const hasFixedLocalX = Number.isFinite(Number(fixed));
+    const isChildOfPlacedChain = Number.isFinite(Number(parentLocal)) && !isLaneRootParent(node.parent) && Number(parentLocal) === Number(desiredX);
+    const isParentOfFixedChildLine = Number.isFinite(Number(childFixedLocal)) && Number(childFixedLocal) === Number(desiredX);
+    const isGlobalLineMember = isLineMemberNode(node);
+    const isFixedLineNode = hasFixedLocalX && protectedLineColumns.has(Number(fixed)) && (isGlobalLineMember || !isLaneRootParent(node.parent) || hasDirectChildren || isParentOfFixedChildLine);
+    const isSharedColumnException = (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(node.name))
+      || (group === "Temple" && node.name === "Omniscience");
+    const allowProtectedLineColumn = rootHasOnlyChildlessUnits || isChildOfPlacedChain || isParentOfFixedChildLine || isFixedLineNode || isSharedColumnException;
+    if (!allowProtectedLineColumn && protectedLineColumns.has(desiredX)) {
+      desiredX = atlanteanNextNonProtectedLocalX(group, desiredX + 1, protectedLineColumns);
+    }
+
+    let placedHere = false;
+    if (rootHasOnlyChildlessUnits) {
+      for (let x = Math.max(1, Number(desiredX) || 1); x < 64; x += 1) {
+        if (canUse(x, 1, true)) {
+          reserve(node, x, 1);
+          placedHere = true;
+          break;
+        }
+      }
+    }
+    if (!placedHere && hasDirectChildren) {
+      // Any visible parent line, including tech upgrade chains, should reserve
+      // a clean column first. This keeps chains such as CopperWeapons ->
+      // BronzeWeapons and Valkyrie -> Disablot in one vertical line instead
+      // of letting an unrelated node occupy the child row.
+      const cleanColumn = firstFreeParentColumn(desiredX, allowProtectedLineColumn);
+      reserve(node, cleanColumn.x, cleanColumn.y);
+      placedHere = true;
+    }
+    if (!placedHere) {
+      const rows = preferredY === 1 ? [1, 0] : [0, 1];
+      for (const y of rows) {
+        if (canUse(desiredX, y, allowProtectedLineColumn)) {
+          reserve(node, desiredX, y);
+          placedHere = true;
+          break;
+        }
+      }
+    }
+    if (!placedHere) {
+      const alt = firstFree(desiredX + 1, preferredY, allowProtectedLineColumn);
+      reserve(node, alt.x, alt.y);
+    }
+  }
+
+  // Final row cleanup: if a direct childless unit and a direct childless tech
+  // from the same building lane ended up in the same column, keep the unit on
+  // row 0 and the tech on row 1. This preserves the compact column while
+  // keeping units visually prominent.
+  const childlessRootNode = (node) => isLaneRootParent(node?.parent) && !(directChildCountByName.get(node?.uniqueIdentifier || node?.name) || 0);
+  const byColumn = new Map();
+  for (const node of placed) {
+    if (!childlessRootNode(node)) continue;
+    if (!byColumn.has(node.x)) byColumn.set(node.x, []);
+    byColumn.get(node.x).push(node);
+  }
+  for (const columnNodes of byColumn.values()) {
+    const unitRow1 = columnNodes.find((node) => node.type === "Unit" && Number(node.y) === 1);
+    const techRow0 = columnNodes.find((node) => node.type === "Tech" && Number(node.y) === 0);
+    if (unitRow1 && techRow0) {
+      unitRow1.y = 0;
+      unitRow1.position = `${unitRow1.x},0`;
+      techRow0.y = 1;
+      techRow0.position = `${techRow0.x},1`;
+    }
+  }
+
+  return placed.sort((a, b) => (a.x - b.x) || (a.y - b.y) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+function atlanteanNormalizeTechTreeNodes(age, nodes, forcedGroupStarts = null, protectedColumnsByGroup = null, lineMemberKeys = null) {
+  const unique = new Map();
+  for (const inputNode of nodes) {
+    if (!inputNode || !inputNode.type || !inputNode.name) continue;
+    const node = { ...inputNode };
+    const [xRaw, yRaw] = String(node.position || `${node.x || 0},${node.y ?? 1}`).split(",");
+    node.x = Number.isFinite(Number(xRaw)) ? Number(xRaw) : Number(node.x || 0) || 0;
+    node.y = Number.isFinite(Number(yRaw)) ? Number(yRaw) : Number(node.y ?? 1) || 1;
+    if (node.y > 1) node.y = 1;
+    if (node.y < 0) node.y = 0;
+    node.position = `${node.x},${node.y}`;
+    const key = techTreeNodeKey(node);
+    if (!unique.has(key)) unique.set(key, node);
+  }
+
+  const allNodes = [...unique.values()];
+  const grouped = new Map();
+  for (const node of allNodes) {
+    const group = atlanteanResolveNodeGroupFromNodes(node, allNodes);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push({ ...node, _group: group });
+  }
+
+  const orderedGroups = [...grouped.entries()].sort(([groupA], [groupB]) => {
+    const ai = ATLANTEAN_TECHTREE_GROUP_ORDER.indexOf(groupA);
+    const bi = ATLANTEAN_TECHTREE_GROUP_ORDER.indexOf(groupB);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi) || String(groupA).localeCompare(String(groupB));
+  });
+
+  const placed = [];
+  let nextGroupX = 0;
+  for (const [group, groupNodes] of orderedGroups) {
+    const forcedX = forcedGroupStarts && Number.isFinite(Number(forcedGroupStarts[group])) ? Number(forcedGroupStarts[group]) : undefined;
+    const groupStartX = Number.isFinite(Number(forcedX)) ? Number(forcedX) : nextGroupX;
+    const protectedColumns = protectedColumnsByGroup && protectedColumnsByGroup[group] instanceof Set ? protectedColumnsByGroup[group] : null;
+    const groupPlaced = atlanteanCompactGroupNodes(group, groupNodes, groupStartX, protectedColumns, age, lineMemberKeys);
+    placed.push(...groupPlaced);
+    const width = groupPlaced.length ? Math.max(...groupPlaced.map((node) => Number(node.x) - groupStartX)) + 1 : 0;
+    nextGroupX = groupStartX + Math.max(width, 0);
+  }
+
+  return placed.sort((a, b) => (a.x - b.x) || (a.y - b.y) || atlanteanNodeGroupOrder(a) - atlanteanNodeGroupOrder(b) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+function atlanteanApplyThorDwarvenArmoryRightSide(nodes, config) {
+  if (!selectedHasThorDwarvenArmoryBonus(config)) return nodes || [];
+  return (nodes || []).map((inputNode) => {
+    const node = { ...inputNode };
+    if (node.type === "Unit" && node.name === "Armory") node.name = "DwarvenArmory";
+    if (node.parent === "Armory") node.parent = "DwarvenArmory";
+    return node;
+  });
+}
+
+
+function atlanteanBaseArmoryRightSideNodes(age, config) {
+  const useDwarven = selectedHasThorDwarvenArmoryBonus(config);
+  const armory = useDwarven ? "DwarvenArmory" : "Armory";
+  const node = (type, name, parent, position) => {
+    const [xRaw, yRaw] = String(position).split(",");
+    return { type, name, parent: parent || "", position, x: Number(xRaw) || 0, y: Number(yRaw) || 0 };
+  };
+  if (useDwarven) {
+    if (age === "ArchaicAge") {
+      return [
+        node("Unit", armory, "", "24,0"),
+        node("Tech", "Ballistics", armory, "25,1"),
+        node("Tech", "CopperWeapons", armory, "26,0"),
+        node("Tech", "BronzeWeapons", "CopperWeapons", "26,1"),
+        node("Tech", "CopperArmor", armory, "27,0"),
+        node("Tech", "BronzeArmor", "CopperArmor", "27,1"),
+        node("Tech", "CopperShields", armory, "28,0"),
+        node("Tech", "BronzeShields", "CopperShields", "28,1"),
+      ];
+    }
+    if (age === "ClassicalAge") {
+      return [
+        node("Tech", "BurningPitch", armory, "25,1"),
+        node("Tech", "IronWeapons", "BronzeWeapons", "26,0"),
+        node("Tech", "DwarvenWeapons", "IronWeapons", "26,1"),
+        node("Tech", "IronArmor", "BronzeArmor", "27,0"),
+        node("Tech", "MeteoricIronArmor", "IronArmor", "27,1"),
+        node("Tech", "IronShields", "BronzeShields", "28,0"),
+        node("Tech", "DragonscaleShields", "IronShields", "28,1"),
+      ];
+    }
+    return [];
+  }
+  if (age === "ClassicalAge") {
+    return [
+      node("Unit", armory, "", "24,0"),
+      node("Tech", "Ballistics", armory, "25,1"),
+      node("Tech", "CopperWeapons", armory, "26,1"),
+      node("Tech", "CopperArmor", armory, "27,1"),
+      node("Tech", "CopperShields", armory, "28,1"),
+    ];
+  }
+  if (age === "HeroicAge") {
+    return [
+      node("Tech", "BronzeWeapons", "CopperWeapons", "26,0"),
+      node("Tech", "BronzeArmor", "CopperArmor", "27,0"),
+      node("Tech", "BronzeShields", "CopperShields", "28,0"),
+    ];
+  }
+  if (age === "MythicAge") {
+    return [
+      node("Tech", "BurningPitch", armory, "25,0"),
+      node("Tech", "IronWeapons", "BronzeWeapons", "26,0"),
+      node("Tech", "IronArmor", "BronzeArmor", "27,0"),
+      node("Tech", "IronShields", "BronzeShields", "28,0"),
+    ];
+  }
+  return [];
+}
+
+function atlanteanThorDwarvenArmoryExtraRightSideNodes(age, config) {
+  // Kept for compatibility; Atlantean Dwarven Armory right-side nodes are built
+  // by atlanteanBaseArmoryRightSideNodes so the Armory/DwarvenArmory lane remains
+  // complete and age-appropriate.
+  return [];
+}
+
+function atlanteanRawTechTreeNodesForAge(age, config) {
+  let nodes = [
+    ...atlanteanCommonNodesForAge(age),
+    ...atlanteanSelectedMinorNodesForAge(age, config),
+    ...atlanteanThorDwarvenArmoryExtraRightSideNodes(age, config),
+  ].filter(Boolean);
+  if (age === "ArchaicAge") {
+    const group = selectedUniqueTechGroup(config);
+    const tech = selectedUniqueTechRightSideName(config, group);
+    if (group && tech) {
+      for (const spec of uniqueTechRightSideNodeSpecs(config, "", group)) {
+        const [xRaw, yRaw] = String(spec.position || spec.preferred?.[0] || "18,1").split(",");
+        nodes.push({
+          type: "Tech",
+          name: tech,
+          parent: spec.parent,
+          position: `${Number(xRaw) || 0},${Number(yRaw) || 1}`,
+          x: Number(xRaw) || 0,
+          y: Number(yRaw) || 1,
+        });
+      }
+    }
+  }
+  nodes = applyGenericBonusRightSideNodes("Atlantean", age, config, nodes);
+  return atlanteanApplyThorDwarvenArmoryRightSide(nodes, config);
+}
+
+function atlanteanMeasureGroupWidths(nodes, protectedColumnsByGroup = null, age = "", lineMemberKeys = null) {
+  const widths = {};
+  const grouped = new Map();
+  for (const node of nodes || []) {
+    const group = atlanteanResolveNodeGroupFromNodes(node, nodes || []);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(node);
+  }
+  for (const [group, groupNodes] of grouped.entries()) {
+    const protectedColumns = protectedColumnsByGroup && protectedColumnsByGroup[group] instanceof Set ? protectedColumnsByGroup[group] : null;
+    const placed = atlanteanCompactGroupNodes(group, groupNodes, 0, protectedColumns, age, lineMemberKeys);
+    widths[group] = placed.length ? Math.max(...placed.map((node) => Number(node.x) || 0)) + 1 : 0;
+  }
+  return widths;
+}
+
+
+function atlanteanBuildLineMemberKeySets(rawByAge) {
+  const byAge = {};
+  const global = new Set();
+  const allNodes = Object.values(rawByAge || {}).flat().filter(Boolean);
+  const parentRefs = new Set();
+  const childKeys = new Set();
+
+  const scopedKey = (group, key) => `${group || ""}::${key || ""}`;
+
+  for (const node of allNodes) {
+    const parentKey = techTreeNodeParentLookupKey(node);
+    if (!parentKey) continue;
+    const group = atlanteanResolveNodeGroupFromNodes(node, allNodes);
+    if (atlanteanIsLaneRootParent(group, parentKey)) continue;
+    // Scope parent references by resolved building lane. Otherwise duplicate
+    // Atlantean names such as Berserk/Hersir/MediumInfantry can falsely mark an
+    // unrelated building's node as part of a parent line.
+    parentRefs.add(scopedKey(group, parentKey));
+    childKeys.add(techTreeNodeKey(node));
+  }
+
+  for (const [age, nodes] of Object.entries(rawByAge || {})) {
+    const set = new Set();
+    for (const node of nodes || []) {
+      const key = techTreeNodeKey(node);
+      const group = atlanteanResolveNodeGroupFromNodes(node, nodes || []);
+      const placementKeys = techTreeNodePlacementKeys(node);
+      const isParentInLine = placementKeys.some((placementKey) => parentRefs.has(scopedKey(group, placementKey)));
+      const isChildInLine = childKeys.has(key);
+      const isSharedColumnException = (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(node.name))
+        || (group === "Temple" && node.name === "Omniscience");
+      if (isParentInLine || isChildInLine || isSharedColumnException) {
+        set.add(key);
+        global.add(key);
+      }
+    }
+    byAge[age] = set;
+  }
+  return { byAge, global };
+}
+
+function atlanteanBuildProtectedLineColumnsForNodes(nodesForAge, lineMemberKeys = null) {
+  const grouped = new Map();
+  for (const node of nodesForAge || []) {
+    if (!node || !node.name) continue;
+    const group = atlanteanResolveNodeGroupFromNodes(node, nodesForAge || []);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(node);
+  }
+
+  const out = {};
+  for (const [group, groupNodes] of grouped.entries()) {
+    const activeColumns = new Set();
+    for (const node of groupNodes) {
+      const fixed = atlanteanFixedLocalX(node, group);
+      if (!Number.isFinite(Number(fixed))) continue;
+      const localX = Number(fixed);
+      const isLineMember = lineMemberKeys instanceof Set && lineMemberKeys.has(techTreeNodeKey(node));
+      const isSharedColumnException = (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(node.name))
+        || (group === "Temple" && node.name === "Omniscience");
+      // Protect only actual active parent-line columns in this age. A column is
+      // protected when a node in this age is part of a parent/child line, even
+      // when the rest of that line appears in a different age. This keeps
+      // multi-age lines aligned without reserving dead columns in ages where
+      // the line has no node.
+      if (isLineMember || isSharedColumnException) activeColumns.add(localX);
+    }
+    if (activeColumns.size) out[group] = activeColumns;
+  }
+  return out;
+}
+
+function atlanteanBuildGlobalProtectedLineColumns(rawByAge) {
+  const allNodes = Object.values(rawByAge || {}).flat();
+  return atlanteanBuildProtectedLineColumnsForNodes(allNodes, atlanteanBuildLineMemberKeySets({ All: allNodes }).byAge.All);
+}
+
+function buildAtlanteanTechTreeGroupStarts(config) {
+  if (config?.baseCulture !== "Atlantean") return null;
+  const rawByAge = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    rawByAge[age] = atlanteanRawTechTreeNodesForAge(age, config);
+  }
+  const lineKeySets = atlanteanBuildLineMemberKeySets(rawByAge);
+  config._atlanteanTechTreeLineMemberKeysByAge = lineKeySets.byAge;
+  config._atlanteanTechTreeLineMemberKeys = lineKeySets.global;
+
+  const protectedColumnsByAge = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    protectedColumnsByAge[age] = atlanteanBuildProtectedLineColumnsForNodes(rawByAge[age], lineKeySets.byAge[age]);
+  }
+  config._atlanteanTechTreeProtectedColumnsByAge = protectedColumnsByAge;
+  config._atlanteanTechTreeProtectedColumns = protectedColumnsByAge.ArchaicAge || {};
+
+  const maxWidths = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    const widths = atlanteanMeasureGroupWidths(rawByAge[age], protectedColumnsByAge[age], age, lineKeySets.byAge[age]);
+    for (const [group, width] of Object.entries(widths)) maxWidths[group] = Math.max(maxWidths[group] || 0, width);
+  }
+
+  const starts = {};
+  let nextX = 0;
+  for (const group of ATLANTEAN_TECHTREE_GROUP_ORDER) {
+    starts[group] = nextX;
+    nextX += Math.max(maxWidths[group] || 0, 0);
+  }
+  return starts;
+}
+
+function generateAtlanteanDynamicTechTreeTechnologies(age, config) {
+  if (config?.baseCulture !== "Atlantean") return "";
+  const nodes = atlanteanRawTechTreeNodesForAge(age, config);
+  const protectedColumns = config?._atlanteanTechTreeProtectedColumnsByAge?.[age] || config?._atlanteanTechTreeProtectedColumns || null;
+  const lineMemberKeys = config?._atlanteanTechTreeLineMemberKeysByAge?.[age] || config?._atlanteanTechTreeLineMemberKeys || null;
+  const normalized = atlanteanNormalizeTechTreeNodes(age, nodes, config?._atlanteanTechTreeGroupStarts || null, protectedColumns, lineMemberKeys);
+  const body = normalized.map((node) => buildTechTreeNodeXml(node)).join("\n");
+  const block = `<local:TechTreeAge.Technologies>
+${body}
+            </local:TechTreeAge.Technologies>`;
+  return applyCustomTechNamesToUiBlock(block, config || {});
+}
+
+
+
+
+const CHINESE_TECHTREE_MAJOR_SOURCES = ["Fuxi", "Nuwa", "Shennong"];
+const CHINESE_TECHTREE_MINOR_BY_AGE = {
+  ClassicalAge: ["ClassicalAgeChiyou", "ClassicalAgeHoutu", "ClassicalAgeXuannu"],
+  HeroicAge: ["HeroicAgeGoumang", "HeroicAgeNuba", "HeroicAgeRushou"],
+  MythicAge: ["MythicAgeGonggong", "MythicAgeHuangdi", "MythicAgeZhurong"],
+};
+
+const CHINESE_TECHTREE_GROUP_ORDER = [
+  "TownCenter", "Silo", "Farm", "House", "WallConnector", "Dock", "Temple", "SkyPassage",
+  "SentryTower", "Armory", "Market", "MilitaryCamp", "MachineWorkshop", "ImperialAcademy", "Baolei", "Wonder",
+];
+
+const CHINESE_TECHTREE_PARENT_LANE = {
+  TownCenter: "TownCenter",
+  VillagerChinese: "TownCenter",
+  Kuafu: "TownCenter",
+  TerracottaRiders: "TownCenter",
+  KuafuChieftain: "TownCenter",
+  ChasingTheSun: "TownCenter",
+  Masons: "TownCenter",
+  Architects: "TownCenter",
+  FortifiedTownCenter: "TownCenter",
+  SecretsOfTheTitans: "TownCenter",
+  TitanGate: "TownCenter",
+
+  Silo: "Silo",
+  HuntingEquipment: "Silo",
+  Husbandry: "Silo",
+  Plow: "Silo",
+  Irrigation: "Silo",
+  FloodControl: "Silo",
+  HandAxe: "Silo",
+  BowSaw: "Silo",
+  Carpenters: "Silo",
+  Pickaxe: "Silo",
+  ShaftMine: "Silo",
+  Quarry: "Silo",
+  Abundance: "Silo",
+  MountainousMight: "Silo",
+  SlashAndBurn: "Silo",
+
+  Farm: "Farm",
+  House: "House",
+  WallConnector: "WallConnector",
+  StoneWall: "WallConnector",
+  FortifiedWall: "WallConnector",
+  BronzeWall: "WallConnector",
+  IronWall: "WallConnector",
+  GreatWall: "WallConnector",
+  AdvancedDefenses: "WallConnector",
+
+  Dock: "Dock",
+  FishingShipChinese: "Dock",
+  HeroicFleet: "Dock",
+  DouJian: "Dock",
+  MengChong: "Dock",
+  LouChuan: "Dock",
+  TransportShipChinese: "Dock",
+  EnclosedDeck: "Dock",
+  PurseSeine: "Dock",
+  FishBasket: "Dock",
+  SaltAmphora: "Dock",
+  XuanWu: "Dock",
+  HeavyWarShips: "Dock",
+  ChampionWarShips: "Dock",
+  RedCliffsFleet: "Dock",
+  DroughtShips: "Dock",
+  ConscriptSailors: "Dock",
+
+  Temple: "Temple",
+  Pioneer: "Temple",
+  DivineLight: "Temple",
+  EastWind: "Temple",
+  SkyFire: "Temple",
+  QiLin: "Temple",
+  YaZi: "Temple",
+  QiongQi: "Temple",
+  Pixiu: "Temple",
+  BaiHu: "Temple",
+  TaoWu: "Temple",
+  TaoTie: "Temple",
+  ChiWen: "Temple",
+  QingLong: "Temple",
+  Hundun: "Temple",
+  HunDun: "Temple",
+  ZhuQue: "Temple",
+  QiLinsBlessing: "Temple",
+  SonOfLoong: "Temple",
+  RageOfSlaughter: "Temple",
+  Reincarnation: "Temple",
+  SinisterDefiance: "Temple",
+  Maelstrom: "Temple",
+  HoovesOfTheWind: "Temple",
+  BottomlessStomach: "Temple",
+  RockSolid: "Temple",
+  GildedShields: "Temple",
+  DivineJudgement: "Temple",
+  AutumnOfAbundance: "Temple",
+  RisingTide: "Temple",
+  PowerOfChaos: "Temple",
+  SongOfMidsummer: "Temple",
+  FlamingBlood: "Temple",
+  Omniscience: "Temple",
+  OlympianParentage: "Temple",
+  EmpyreanSpeed: "Temple",
+  TemporalChaos: "Temple",
+  Channels: "Temple",
+
+  SkyPassage: "SkyPassage",
+
+  SentryTower: "SentryTower",
+  SignalFires: "SentryTower",
+  WatchTower: "SentryTower",
+  GuardTower: "SentryTower",
+  CrossbowTower: "SentryTower",
+  Crenellations: "SentryTower",
+  BoilingOil: "SentryTower",
+
+  Armory: "Armory",
+  DwarvenArmory: "Armory",
+  Ballistics: "Armory",
+  BurningPitch: "Armory",
+  CopperWeapons: "Armory",
+  BronzeWeapons: "Armory",
+  IronWeapons: "Armory",
+  DwarvenWeapons: "Armory",
+  CopperArmor: "Armory",
+  BronzeArmor: "Armory",
+  IronArmor: "Armory",
+  MeteoricIronArmor: "Armory",
+  CopperShields: "Armory",
+  BronzeShields: "Armory",
+  IronShields: "Armory",
+  DragonscaleShields: "Armory",
+  MasterOfWeaponry: "Armory",
+  CelestialWeapons: "Armory",
+  LeizusSilk: "Armory",
+
+  Market: "Market",
+  SilkRoad: "Market",
+  CaravanChinese: "Market",
+  TaxCollectors: "Market",
+  Coinage: "Market",
+  Ambassadors: "Market",
+
+  MilitaryCamp: "MilitaryCamp",
+  DaoSwordsman: "MilitaryCamp",
+  GeHalberdier: "MilitaryCamp",
+  WuzuJavelineer: "MilitaryCamp",
+  MediumInfantry: "MilitaryCamp",
+  HeavyInfantry: "MilitaryCamp",
+  ChampionInfantry: "MilitaryCamp",
+  MediumArchers: "MilitaryCamp",
+  HeavyArchers: "MilitaryCamp",
+  ChampionArchers: "MilitaryCamp",
+  WhiteHorseCavalry: "MilitaryCamp",
+  HeavyCavalry: "MilitaryCamp",
+  ChampionCavalry: "MilitaryCamp",
+  DivineBooks: "MilitaryCamp",
+  FrenziedDash: "MilitaryCamp",
+  ImperialOrder: "MilitaryCamp",
+  XuanyuansBloodline: "MilitaryCamp",
+
+  MachineWorkshop: "MachineWorkshop",
+  FireArcher: "MachineWorkshop",
+  ChuKoNu: "MachineWorkshop",
+  SiegeCrossbow: "MachineWorkshop",
+  AxeCart: "MachineWorkshop",
+  ScorchingFeathers: "MachineWorkshop",
+  SouthernFire: "MachineWorkshop",
+  DraftHorses: "MachineWorkshop",
+  Engineers: "MachineWorkshop",
+
+  ImperialAcademy: "ImperialAcademy",
+  Sage: "ImperialAcademy",
+  JiangZiYa: "ImperialAcademy",
+  YangJian: "ImperialAcademy",
+  LiJing: "ImperialAcademy",
+  WenZhong: "ImperialAcademy",
+  NezhaChild: "ImperialAcademy",
+  NezhaYouth: "ImperialAcademy",
+  Nezha: "ImperialAcademy",
+  TaiChi: "ImperialAcademy",
+  PeachOfImmortality: "ImperialAcademy",
+  HerbalMedicine: "ImperialAcademy",
+  TempestuousStorm: "ImperialAcademy",
+  ShakerOfHeaven: "ImperialAcademy",
+
+  Baolei: "Baolei",
+  TigerCavalry: "Baolei",
+  LevyBaoleiSoldiers: "Baolei",
+  ConscriptBaoleiSoldiers: "Baolei",
+  AdvancedFortifications: "Baolei",
+  LastStand: "Baolei",
+  ChampionCavalry: "Baolei",
+  HeavyCavalry: "Baolei",
+
+  Wonder: "Wonder",
+};
+
+const CHINESE_TECHTREE_AMBIGUOUS_PARENT_NAMES = new Set([
+  "MediumArchers", "HeavyArchers", "ChampionArchers",
+  "MediumInfantry", "HeavyInfantry", "ChampionInfantry",
+  "HeavyCavalry", "ChampionCavalry",
+  "Pioneer", "DivineLight", "EastWind", "SkyFire",
+  "AdvancedDefenses", "DivineBooks", "LeizusSilk", "MasterOfWeaponry",
+]);
+
+function chineseCanUseStaticParentLane(name) {
+  return !!name && !CHINESE_TECHTREE_AMBIGUOUS_PARENT_NAMES.has(name) && !!CHINESE_TECHTREE_PARENT_LANE[name];
+}
+
+function chineseGroupFromUniqueReference(ref) {
+  const value = String(ref || "");
+  if (!value) return "";
+  return CHINESE_TECHTREE_GROUP_ORDER.find((group) => value.startsWith(group)) || "";
+}
+
+function chineseGroupFromAmbiguousParentReference(parent, node) {
+  if (!parent || node?.uniqueParent || !CHINESE_TECHTREE_AMBIGUOUS_PARENT_NAMES.has(parent)) return "";
+  if (["MediumArchers", "HeavyArchers", "ChampionArchers"].includes(parent)) {
+    if (String(node?.uniqueParent || node?.uniqueIdentifier || "").startsWith("MachineWorkshop")) return "MachineWorkshop";
+    if (String(node?.uniqueParent || node?.uniqueIdentifier || "").startsWith("MilitaryCamp")) return "MilitaryCamp";
+  }
+  if (["MediumInfantry", "HeavyInfantry", "ChampionInfantry"].includes(parent)) return "MilitaryCamp";
+  if (["HeavyCavalry", "ChampionCavalry"].includes(parent)) {
+    // Chinese heavy/champion cavalry in the provided Chinese trees belong to
+    // the Baolei line. If the current node has an explicit MilitaryCamp marker
+    // in UniqueParent/UniqueIdentifier we keep it there, otherwise preserve the
+    // visible Baolei parent line across ages.
+    const marker = String(node?.uniqueParent || node?.uniqueIdentifier || "");
+    if (marker.startsWith("MilitaryCamp")) return "MilitaryCamp";
+    return "Baolei";
+  }
+  if (["Pioneer", "DivineLight", "EastWind", "SkyFire"].includes(parent)) {
+    if (String(node?.uniqueParent || node?.uniqueIdentifier || "").startsWith("Temple")) return "Temple";
+    return "ImperialAcademy";
+  }
+  if (parent === "AdvancedDefenses") return node?.parent === "Baolei" || node?.name === "AdvancedFortifications" ? "Baolei" : "SentryTower";
+  if (parent === "DivineBooks") return node?.parent === "MachineWorkshop" ? "MachineWorkshop" : "MilitaryCamp";
+  if (parent === "LeizusSilk") return node?.parent === "MachineWorkshop" ? "MachineWorkshop" : (node?.parent === "MilitaryCamp" ? "MilitaryCamp" : "Armory");
+  if (parent === "MasterOfWeaponry") return node?.parent === "GeHalberdier" ? "MilitaryCamp" : "Armory";
+  return "";
+}
+
+function chineseChooseParentNodeForChain(current, node, candidates) {
+  const list = (candidates || []).filter(Boolean);
+  if (!list.length) return null;
+  if (node?.uniqueParent) {
+    const exact = list.find((candidate) => candidate?.uniqueIdentifier === node.uniqueParent);
+    if (exact) return exact;
+  }
+  const nodeX = Number(node?.x);
+  return list.slice().sort((a, b) => {
+    const ax = Number(a.x) || 0;
+    const bx = Number(b.x) || 0;
+    const aDistance = Number.isFinite(nodeX) ? Math.abs(ax - nodeX) : ax;
+    const bDistance = Number.isFinite(nodeX) ? Math.abs(bx - nodeX) : bx;
+    const aAfterPenalty = Number.isFinite(nodeX) && ax > nodeX ? 1000 : 0;
+    const bAfterPenalty = Number.isFinite(nodeX) && bx > nodeX ? 1000 : 0;
+    return (aDistance + aAfterPenalty) - (bDistance + bAfterPenalty) || ax - bx || (Number(a.y) || 0) - (Number(b.y) || 0);
+  })[0];
+}
+
+function chineseNodeGroupRoot(node) {
+  const parent = node?.parent || "";
+  const name = node?.name || "";
+  const uniqueGroup = chineseGroupFromUniqueReference(node?.uniqueParent || node?.uniqueIdentifier || "");
+  if (uniqueGroup) return uniqueGroup;
+  const ambiguousGroup = chineseGroupFromAmbiguousParentReference(parent, node);
+  if (ambiguousGroup) return ambiguousGroup;
+  if (CHINESE_TECHTREE_GROUP_ORDER.includes(parent)) return parent;
+  if (chineseCanUseStaticParentLane(parent)) return CHINESE_TECHTREE_PARENT_LANE[parent];
+  if (!parent && CHINESE_TECHTREE_GROUP_ORDER.includes(name)) return name;
+  if (chineseCanUseStaticParentLane(name)) return CHINESE_TECHTREE_PARENT_LANE[name];
+  return parent || name;
+}
+
+function chineseNodeGroupOrder(node) {
+  const root = chineseNodeGroupRoot(node);
+  const idx = CHINESE_TECHTREE_GROUP_ORDER.indexOf(root);
+  return idx >= 0 ? idx : 99;
+}
+
+const CHINESE_TECHTREE_FIXED_LOCAL_X = {
+  // Town Center
+  VillagerChinese: 1,
+  Kuafu: 2,
+  TerracottaRiders: 1,
+  KuafuChieftain: 1,
+  ChasingTheSun: 1,
+  Masons: 1,
+  Architects: 1,
+  SecretsOfTheTitans: 1,
+  TitanGate: 1,
+
+  // Silo economy chains
+  Husbandry: 1,
+  HuntingEquipment: 1,
+  Abundance: 1,
+  MountainousMight: 2,
+  Plow: 2,
+  Irrigation: 2,
+  FloodControl: 2,
+  HandAxe: 3,
+  BowSaw: 3,
+  Carpenters: 3,
+  Pickaxe: 4,
+  ShaftMine: 4,
+  Quarry: 4,
+  SlashAndBurn: 1,
+
+  // Wall / Dock
+  StoneWall: 0,
+  FortifiedWall: 0,
+  BronzeWall: 0,
+  IronWall: 0,
+  GreatWall: 0,
+  HeroicFleet: 1,
+  DouJian: 2,
+  MengChong: 3,
+  LouChuan: 4,
+  TransportShipChinese: 5,
+  EnclosedDeck: 5,
+  FishingShipChinese: 6,
+  PurseSeine: 6,
+  FishBasket: 6,
+  SaltAmphora: 6,
+  HeavyWarShips: 4,
+  ChampionWarShips: 4,
+  ConscriptSailors: 5,
+
+  // Temple fallback columns
+  Pioneer: 1,
+  DivineLight: 1,
+  EastWind: 1,
+  SkyFire: 1,
+  QiLin: 2,
+  YaZi: 3,
+  QiongQi: 3,
+  BaiHu: 2,
+  Pixiu: 3,
+  TaoWu: 2,
+  TaoTie: 3,
+  ChiWen: 4,
+  QingLong: 2,
+  Hundun: 3,
+  HunDun: 3,
+  ZhuQue: 4,
+  Omniscience: 0,
+
+  // Tower / Armory / Market
+  SignalFires: 0,
+  WatchTower: 1,
+  GuardTower: 1,
+  CrossbowTower: 1,
+  Crenellations: 1,
+  BoilingOil: 1,
+  Ballistics: 1,
+  BurningPitch: 1,
+  CopperWeapons: 2,
+  BronzeWeapons: 2,
+  IronWeapons: 2,
+  DwarvenWeapons: 2,
+  CopperArmor: 3,
+  BronzeArmor: 3,
+  IronArmor: 3,
+  MeteoricIronArmor: 3,
+  CopperShields: 4,
+  BronzeShields: 4,
+  IronShields: 4,
+  DragonscaleShields: 4,
+  CaravanChinese: 1,
+  SilkRoad: 1,
+  Coinage: 1,
+  TaxCollectors: 2,
+  Ambassadors: 2,
+
+  // Production lanes
+  DaoSwordsman: 1,
+  GeHalberdier: 2,
+  WuzuJavelineer: 3,
+  MediumArchers: 3,
+  HeavyArchers: 3,
+  ChampionArchers: 3,
+  MediumInfantry: 4,
+  HeavyInfantry: 4,
+  ChampionInfantry: 4,
+  WhiteHorseCavalry: 5,
+  HeavyCavalry: 5,
+  ChampionCavalry: 5,
+  FireArcher: 1,
+  ChuKoNu: 2,
+  SiegeCrossbow: 3,
+  AxeCart: 1,
+  DraftHorses: 3,
+  Engineers: 3,
+
+  // Imperial Academy / Baolei
+  Sage: 1,
+  JiangZiYa: 2,
+  YangJian: 1,
+  LiJing: 1,
+  WenZhong: 1,
+  NezhaChild: 2,
+  NezhaYouth: 2,
+  Nezha: 2,
+  TaiChi: 3,
+  PeachOfImmortality: 4,
+  HerbalMedicine: 3,
+  TigerCavalry: 1,
+  LevyBaoleiSoldiers: 2,
+  ConscriptBaoleiSoldiers: 2,
+  HeavyCavalry: 3,
+  ChampionCavalry: 3,
+  AdvancedFortifications: 2,
+};
+
+function chineseFixedLocalX(node, group) {
+  const name = node?.name || "";
+  if (group === "TownCenter" && /^SkinOfTheRhino/.test(name)) return 2;
+  if (group === "SkyPassage" && name === "SkyPassage") return 0;
+  if (group === "ImperialAcademy" && ["NezhaChild", "NezhaYouth", "Nezha"].includes(name)) return 2;
+  if (group === "Temple" && ["NezhaChild", "NezhaYouth", "Nezha"].includes(name)) return undefined;
+  if (group === "Armory") {
+    const map = {
+      Armory: 0, DwarvenArmory: 0, Ballistics: 1, BurningPitch: 1,
+      CopperWeapons: 2, BronzeWeapons: 2, IronWeapons: 2, DwarvenWeapons: 2,
+      CopperArmor: 3, BronzeArmor: 3, IronArmor: 3, MeteoricIronArmor: 3,
+      CopperShields: 4, BronzeShields: 4, IronShields: 4, DragonscaleShields: 4,
+      MasterOfWeaponry: 1, CelestialWeapons: 1, LeizusSilk: 1,
+    };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "MilitaryCamp") {
+    const map = {
+      MilitaryCamp: 0, DaoSwordsman: 1, DivineBooks: 1, GeHalberdier: 2, MasterOfWeaponry: 2,
+      WuzuJavelineer: 3, MediumArchers: 3, HeavyArchers: 3, ChampionArchers: 3,
+      MediumInfantry: 4, HeavyInfantry: 4, ChampionInfantry: 4,
+      WhiteHorseCavalry: 5, HeavyCavalry: 5, ChampionCavalry: 5,
+      FrenziedDash: 1, LeizusSilk: 1, XuanyuansBloodline: 1, ImperialOrder: 2,
+    };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "MachineWorkshop") {
+    const map = {
+      MachineWorkshop: 0, DivineBooks: 1, FireArcher: 1, MediumArchers: 1, HeavyArchers: 1, ChampionArchers: 1,
+      ChuKoNu: 2, ScorchingFeathers: 2, SiegeCrossbow: 3, DraftHorses: 3, AxeCart: 1,
+      Engineers: 3, SouthernFire: 1, LeizusSilk: 2,
+    };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "ImperialAcademy") {
+    const map = {
+      ImperialAcademy: 0, Sage: 1, JiangZiYa: 2, YangJian: 1, LiJing: 1, WenZhong: 1,
+      NezhaChild: 2, NezhaYouth: 2, Nezha: 2, Pioneer: 3, DivineLight: 3, EastWind: 3, SkyFire: 3,
+      CelestialWeapons: 1, TaiChi: 3, PeachOfImmortality: 4, HerbalMedicine: 3,
+      TempestuousStorm: 1, ShakerOfHeaven: 2,
+    };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "SentryTower") {
+    const map = {
+      SentryTower: 0,
+      WatchTower: 1,
+      Crenellations: 1,
+      GuardTower: 1,
+      BoilingOil: 1,
+      CrossbowTower: 1,
+      // Keep standalone tower techs out of the protected WatchTower line so
+      // WatchTower -> GuardTower -> CrossbowTower can stay in one column.
+      SignalFires: 2,
+      CarrierPigeons: 2,
+      AdvancedDefenses: 2,
+    };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "Baolei") {
+    const map = {
+      Baolei: 0, TigerCavalry: 1, LastStand: 1, LevyBaoleiSoldiers: 2, ConscriptBaoleiSoldiers: 2,
+      HeavyCavalry: 3, ChampionCavalry: 3, AdvancedDefenses: 1, AdvancedFortifications: 2,
+    };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (Object.prototype.hasOwnProperty.call(CHINESE_TECHTREE_FIXED_LOCAL_X, name)) return CHINESE_TECHTREE_FIXED_LOCAL_X[name];
+  return undefined;
+}
+
+const CHINESE_TECHTREE_PROTECTED_LINE_LOCAL_X = {
+  TownCenter: [1, 2],
+  Silo: [1, 2, 3, 4],
+  WallConnector: [0],
+  Dock: [1, 2, 3, 4, 5, 6, 7, 8],
+  Temple: [0, 1, 2, 3, 4],
+  SentryTower: [0, 1],
+  Armory: [1, 2, 3, 4],
+  Market: [1, 2],
+  MilitaryCamp: [1, 2, 3, 4, 5],
+  MachineWorkshop: [1, 2, 3],
+  ImperialAcademy: [1, 2, 3, 4],
+  Baolei: [1, 2, 3],
+};
+
+function chineseProtectedLineColumns(group, groupNodes = null) {
+  const candidateColumns = new Set(CHINESE_TECHTREE_PROTECTED_LINE_LOCAL_X[group] || []);
+  if (!Array.isArray(groupNodes)) return candidateColumns;
+  const activeColumns = new Set();
+  for (const node of groupNodes) {
+    const fixed = chineseFixedLocalX(node, group);
+    if (!Number.isFinite(Number(fixed))) continue;
+    const localX = Number(fixed);
+    if (candidateColumns.has(localX)) activeColumns.add(localX);
+  }
+  return activeColumns;
+}
+
+function chineseIsLaneRootParent(group, parent) {
+  return parent === group
+    || (group === "Armory" && parent === "DwarvenArmory")
+    || (group === "TownCenter" && parent === "TownCenter")
+    || (group === "Monument" && /^MonumentTo/.test(parent || ""));
+}
+
+function chineseNextNonProtectedLocalX(group, minX, protectedColumns = null) {
+  const columns = protectedColumns instanceof Set ? protectedColumns : chineseProtectedLineColumns(group);
+  for (let x = Math.max(0, Number(minX) || 0); x < 64; x += 1) {
+    if (!columns.has(x)) return x;
+  }
+  return Math.max(0, Number(minX) || 0);
+}
+
+function chineseTechTreeSourceNodes(age) {
+  const templates = window.AOM_TECHTREE || {};
+  const byMajor = {};
+  for (const major of CHINESE_TECHTREE_MAJOR_SOURCES) {
+    const block = age === "ArchaicAge"
+      ? extractXmlPropertyBlock(lookupTemplateBlock(templates.archaicByMajor, major) || "", "Technologies")
+      : templates.ageTechnologiesByMajorAge?.[`${major}|${age}`] || "";
+    byMajor[major] = parseTechTreeNodesFromBlock(block);
+  }
+  return byMajor;
+}
+
+function chineseMinorBonusTokens(minorTech) {
+  const block = window.AOM_TECHTREE?.bonusTrackByGod?.[canonicalMinorTech(minorTech)] || "";
+  return parseTechTreeNodesFromBlock(block).filter((node) => node.type === "Unit" || node.type === "Tech");
+}
+
+function chineseAllConditionalNodeNames() {
+  const names = new Set();
+  (UNIQUE_TECH_GROUPS || []).forEach((group) => {
+    names.add(group.id);
+    (group.techs || []).forEach((tech) => names.add(tech));
+  });
+  Object.values(CHINESE_TECHTREE_MINOR_BY_AGE).flat().forEach((minor) => {
+    chineseMinorBonusTokens(minor).forEach((node) => names.add(node.name));
+  });
+  return names;
+}
+
+function chineseCommonNodesForAge(age) {
+  const byMajor = chineseTechTreeSourceNodes(age);
+  const excluded = chineseAllConditionalNodeNames();
+  const keySets = Object.fromEntries(Object.entries(byMajor).map(([major, nodes]) => [major, new Set(nodes.map(techTreeNodeKey))]));
+  const baseSource = CHINESE_TECHTREE_MAJOR_SOURCES[0];
+  const allKeys = [...(keySets[baseSource] || new Set())];
+  const commonKeys = allKeys.filter((key) => CHINESE_TECHTREE_MAJOR_SOURCES.every((major) => keySets[major]?.has(key)));
+  const sourceNodes = Object.values(byMajor).flat();
+  const result = [];
+  for (const key of commonKeys) {
+    const matches = sourceNodes.filter((node) => techTreeNodeKey(node) === key);
+    const rep = chooseGreekRepresentativeNode(matches);
+    if (!rep || excluded.has(rep.name)) continue;
+    result.push({ ...rep });
+  }
+  return result;
+}
+
+function chineseFindRightSideNodesForToken(age, tokenNode) {
+  const byMajor = chineseTechTreeSourceNodes(age);
+  const matches = Object.values(byMajor).flat().filter((node) => node.type === tokenNode.type && node.name === tokenNode.name);
+  if (!matches.length) return [];
+  const byKey = new Map();
+  for (const node of matches) {
+    const key = techTreeNodeKey(node);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(node);
+  }
+  const reps = [...byKey.values()].map((nodes) => ({ count: nodes.length, node: chooseGreekRepresentativeNode(nodes) }));
+  reps.sort((a, b) => chineseNodeGroupOrder(a.node) - chineseNodeGroupOrder(b.node) || (a.node.x - b.node.x) || (a.node.y - b.node.y) || String(a.node.parent).localeCompare(String(b.node.parent)) || (b.count - a.count));
+  return reps.map((entry) => ({ ...entry.node }));
+}
+
+function chineseMinorNodeSameBuildingKey(node, contextNodes = []) {
+  if (!node?.type || !node?.name) return "";
+  const group = chineseResolveNodeGroupFromNodes(node, contextNodes && contextNodes.length ? contextNodes : [node]);
+  return `${node.type}|${node.name}|${group}`;
+}
+
+function chinesePriorSelectedMinorBuildingKeys(age, config) {
+  const out = new Set();
+  const order = ["ClassicalAge", "HeroicAge", "MythicAge"];
+  const index = order.indexOf(age);
+  if (index <= 0) return out;
+  for (const priorAge of order.slice(0, index)) {
+    const selected = (config.minorGods?.[priorAge] || []).map(canonicalMinorTech);
+    const priorNodes = [];
+    for (const minor of selected) {
+      for (const token of chineseMinorBonusTokens(minor)) {
+        priorNodes.push(...chineseFindRightSideNodesForToken(priorAge, token));
+      }
+    }
+    for (const node of priorNodes) {
+      const key = chineseMinorNodeSameBuildingKey(node, priorNodes);
+      if (key) out.add(key);
+    }
+  }
+  return out;
+}
+
+function chineseSelectedMinorNodesForAge(age, config) {
+  const selected = (config.minorGods?.[age] || []).map(canonicalMinorTech);
+  const nodes = [];
+  const seenSameBuilding = chinesePriorSelectedMinorBuildingKeys(age, config);
+  for (const minor of selected) {
+    for (const token of chineseMinorBonusTokens(minor)) {
+      for (const candidate of chineseFindRightSideNodesForToken(age, token)) {
+        const key = chineseMinorNodeSameBuildingKey(candidate, [...nodes, candidate]);
+        if (key && seenSameBuilding.has(key)) continue;
+        nodes.push(candidate);
+        if (key) seenSameBuilding.add(key);
+      }
+    }
+  }
+  return nodes;
+}
+
+function chineseResolveNodeGroupFromNodes(node, allNodes) {
+  const byName = new Map();
+  const byUniqueIdentifier = new Map();
+  for (const candidate of allNodes || []) {
+    if (!candidate?.name) continue;
+    if (!byName.has(candidate.name)) byName.set(candidate.name, []);
+    byName.get(candidate.name).push(candidate);
+    if (candidate.uniqueIdentifier) byUniqueIdentifier.set(candidate.uniqueIdentifier, candidate);
+  }
+  const uniqueGroup = chineseGroupFromUniqueReference(node?.uniqueParent || node?.uniqueIdentifier || "");
+  if (uniqueGroup) return uniqueGroup;
+  const ambiguousGroup = chineseGroupFromAmbiguousParentReference(node?.parent || "", node);
+  if (ambiguousGroup) return ambiguousGroup;
+  const seen = new Set();
+  let current = node?.uniqueParent || node?.parent || node?.name || "";
+  let walkerNode = node;
+  for (let i = 0; i < 16 && current && !seen.has(current); i += 1) {
+    seen.add(current);
+    if (CHINESE_TECHTREE_GROUP_ORDER.includes(current)) return current;
+    if (chineseCanUseStaticParentLane(current)) return CHINESE_TECHTREE_PARENT_LANE[current];
+    let parentNode = byUniqueIdentifier.get(current) || null;
+    if (!parentNode) parentNode = chineseChooseParentNodeForChain(current, walkerNode, byName.get(current) || []);
+    if (parentNode?.uniqueParent || parentNode?.parent) {
+      walkerNode = parentNode;
+      current = parentNode.uniqueParent || parentNode.parent;
+      continue;
+    }
+    if (parentNode?.name && parentNode.name !== current) {
+      walkerNode = parentNode;
+      current = parentNode.name;
+      continue;
+    }
+    break;
+  }
+  if (chineseCanUseStaticParentLane(node?.name)) return CHINESE_TECHTREE_PARENT_LANE[node.name];
+  return chineseNodeGroupRoot(node);
+}
+
+function chineseCompactGroupNodes(group, groupNodes, groupStartX = 0, protectedColumnsOverride = null, age = "", lineMemberKeys = null) {
+  const nodes = (groupNodes || []).map((inputNode) => {
+    const node = { ...inputNode };
+    const [xRaw, yRaw] = String(node.position || `${node.x || 0},${node.y ?? 1}`).split(",");
+    node.x = Number.isFinite(Number(xRaw)) ? Number(xRaw) : Number(node.x || 0) || 0;
+    node.y = Number.isFinite(Number(yRaw)) ? Number(yRaw) : Number(node.y ?? 1) || 1;
+    if (node.y > 1) node.y = 1;
+    if (node.y < 0) node.y = 0;
+    return node;
+  });
+
+  const isGroupRootNode = (node) => !node?.parent && (node?.name === group || (group === "Armory" && node?.name === "DwarvenArmory") || (group === "Monument" && /^MonumentTo/.test(node?.name || "")));
+  const hasRoot = nodes.some((node) => isGroupRootNode(node));
+  const preSortDirectChildCountByName = new Map();
+  for (const child of nodes) {
+    const parentKey = techTreeNodeParentLookupKey(child);
+    if (!parentKey) continue;
+    preSortDirectChildCountByName.set(parentKey, (preSortDirectChildCountByName.get(parentKey) || 0) + 1);
+  }
+  const nodeHasPreSortDirectChildren = (node) => (preSortDirectChildCountByName.get(node?.uniqueIdentifier || node?.name) || 0) > 0;
+  const sourceOrder = (node) => (Number(node.x) || 0) * 10 + (Number(node.y) || 0);
+  const sorted = nodes.slice().sort((a, b) => {
+    const aIsRoot = isGroupRootNode(a);
+    const bIsRoot = isGroupRootNode(b);
+    if (aIsRoot !== bIsRoot) return aIsRoot ? -1 : 1;
+    if (a.name === b.parent && b.name !== a.parent) return -1;
+    if (b.name === a.parent && a.name !== b.parent) return 1;
+    const aRootChild = chineseIsLaneRootParent(group, a.parent) && !nodeHasPreSortDirectChildren(a);
+    const bRootChild = chineseIsLaneRootParent(group, b.parent) && !nodeHasPreSortDirectChildren(b);
+    if (aRootChild && bRootChild && a.type !== b.type) {
+      // For direct childless nodes in a building lane, place units before
+      // childless techs. This lets units claim row 0 when the parent building
+      // was introduced in an earlier age, while the techs fall to row 1.
+      // The actual X column still comes from fixed/parent placement rules.
+      if (a.type === "Unit") return -1;
+      if (b.type === "Unit") return 1;
+    }
+    const af = chineseFixedLocalX(a, group);
+    const bf = chineseFixedLocalX(b, group);
+    if (Number.isFinite(Number(af)) !== Number.isFinite(Number(bf))) return Number.isFinite(Number(af)) ? -1 : 1;
+    if (Number.isFinite(Number(af)) && af !== bf) return af - bf;
+    return sourceOrder(a) - sourceOrder(b) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name) || String(a.parent).localeCompare(String(b.parent));
+  });
+
+  const localOccupied = new Set();
+  const placedLocalByName = new Map();
+  const placedRowByName = new Map();
+  const placed = [];
+  const protectedLineColumns = protectedColumnsOverride instanceof Set ? protectedColumnsOverride : chineseProtectedLineColumns(group, nodes);
+  const isLineMemberNode = (node) => lineMemberKeys instanceof Set && lineMemberKeys.has(techTreeNodeKey(node));
+  const directChildCountByName = new Map();
+  const directChildFixedLocalXByName = new Map();
+  const rootDirectChildTypeCounts = { Unit: 0, Tech: 0 };
+  const rootDirectChildlessTypeCounts = { Unit: 0, Tech: 0 };
+  const rootDirectChildWithChildrenTypeCounts = { Unit: 0, Tech: 0 };
+  const rootDirectChildlessTypesByLocalX = new Map();
+  const isLaneRootParent = (parent) => chineseIsLaneRootParent(group, parent);
+  for (const child of nodes) {
+    const parentKey = techTreeNodeParentLookupKey(child);
+    if (!parentKey) continue;
+    directChildCountByName.set(parentKey, (directChildCountByName.get(parentKey) || 0) + 1);
+    const childFixed = chineseFixedLocalX(child, group);
+    if (Number.isFinite(Number(childFixed))) {
+      const current = directChildFixedLocalXByName.get(parentKey);
+      const childFixedX = Number(childFixed);
+      if (!Number.isFinite(Number(current)) || childFixedX < Number(current)) {
+        directChildFixedLocalXByName.set(parentKey, childFixedX);
+      }
+    }
+  }
+  for (const child of nodes) {
+    if (!child || !isLaneRootParent(child.parent)) continue;
+    if (child.type === "Unit" || child.type === "Tech") {
+      rootDirectChildTypeCounts[child.type] += 1;
+      const childKey = child.uniqueIdentifier || child.name;
+      if (directChildCountByName.get(childKey) || 0) {
+        rootDirectChildWithChildrenTypeCounts[child.type] += 1;
+      } else {
+        rootDirectChildlessTypeCounts[child.type] += 1;
+        const fixedLocal = chineseFixedLocalX(child, group);
+        const localX = Number.isFinite(Number(fixedLocal)) ? Number(fixedLocal) : undefined;
+        if (Number.isFinite(localX)) {
+          if (!rootDirectChildlessTypesByLocalX.has(localX)) rootDirectChildlessTypesByLocalX.set(localX, new Set());
+          rootDirectChildlessTypesByLocalX.get(localX).add(child.type);
+        }
+      }
+    }
+  }
+
+  const canUse = (x, y, allowProtectedLineColumn = true) => {
+    if (localOccupied.has(`${x},${y}`)) return false;
+    if (!allowProtectedLineColumn && protectedLineColumns.has(x)) return false;
+    return true;
+  };
+  const reserve = (node, localX, y) => {
+    localOccupied.add(`${localX},${y}`);
+    for (const placementKey of techTreeNodePlacementKeys(node)) {
+      if (!placedLocalByName.has(placementKey) || localX < placedLocalByName.get(placementKey)) {
+        placedLocalByName.set(placementKey, localX);
+        placedRowByName.set(placementKey, y);
+      }
+    }
+    const cleanNode = { ...node };
+    delete cleanNode._group;
+    placed.push({ ...cleanNode, x: groupStartX + localX, y, position: `${groupStartX + localX},${y}` });
+  };
+  const firstFree = (minX, preferredY = 0, allowProtectedLineColumn = true) => {
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      const rows = preferredY === 1 ? [1, 0] : [0, 1];
+      for (const y of rows) if (canUse(x, y, allowProtectedLineColumn)) return { x, y };
+    }
+    return { x: Math.max(0, minX || 0), y: preferredY === 1 ? 1 : 0 };
+  };
+  const firstFreeParentColumn = (minX, allowProtectedLineColumn = true) => {
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      if (canUse(x, 0, allowProtectedLineColumn) && canUse(x, 1, allowProtectedLineColumn)) return { x, y: 0 };
+    }
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      if (canUse(x, 0, allowProtectedLineColumn)) return { x, y: 0 };
+    }
+    return firstFree(minX, 0, allowProtectedLineColumn);
+  };
+
+  for (const node of techTreeParentDepthFirstOrder(sorted, isGroupRootNode)) {
+    const isRoot = isGroupRootNode(node);
+    if (isRoot) {
+      const fixed = chineseFixedLocalX(node, group);
+      const x = Number.isFinite(Number(fixed)) ? Number(fixed) : 0;
+      const y = 0;
+      if (!canUse(x, y, true)) {
+        const alt = firstFree(x, y, true);
+        reserve(node, alt.x, alt.y);
+      } else {
+        reserve(node, x, y);
+      }
+      continue;
+    }
+
+    const fixed = chineseFixedLocalX(node, group);
+    const parentLookupKey = techTreeNodeParentLookupKey(node);
+    const parentLocal = placedLocalByName.get(parentLookupKey);
+    const parentRow = placedRowByName.get(parentLookupKey);
+    const childFixedLocal = directChildFixedLocalXByName.get(node.uniqueIdentifier || node.name);
+    const parentFixedLocalRaw = parentLookupKey ? chineseFixedLocalX({ type: "Unit", name: parentLookupKey, parent: group }, group) : undefined;
+    const parentFixedLocal = Number.isFinite(Number(parentFixedLocalRaw)) ? Number(parentFixedLocalRaw) : undefined;
+    let desiredX;
+    let preferredY = Number(node.y) === 0 ? 0 : 1;
+
+    if (Number.isFinite(Number(parentLocal)) && !isLaneRootParent(node.parent)) {
+      // Parent-line rule: once a parent is placed, every direct child follows
+      // the parent's actual column. Fixed local X values are only preferred
+      // before the parent is placed; they must not break the visible line if
+      // the parent had to move to a cleaner/available column.
+      desiredX = Number(parentLocal);
+      if (Number.isFinite(Number(parentRow))) preferredY = Number(parentRow) === 0 ? 1 : 0;
+    } else if (Number.isFinite(Number(parentFixedLocal)) && !isLaneRootParent(node.parent)) {
+      // Multi-age parent-line rule: if the visible parent belongs to this
+      // building lane but is placed in another age, still use the parent's
+      // canonical local column. This keeps lines such as DouJian -> Maelstrom
+      // and CaravanChinese -> Coinage aligned even when only the child appears
+      // in the current age.
+      desiredX = Number(parentFixedLocal);
+      preferredY = node.type === "Tech" ? 1 : preferredY;
+    } else if (Number.isFinite(Number(fixed))) {
+      desiredX = Number(fixed);
+    } else if (Number.isFinite(Number(childFixedLocal))) {
+      // Generic parent-line rule: if a direct child is part of a fixed upgrade
+      // line, place the parent in that same column first. Example: Anubite
+      // inherits FeetOfTheJackal's column, so the pair forms a clean vertical
+      // parent line instead of the child occupying the protected column alone.
+      desiredX = Number(childFixedLocal);
+    } else {
+      desiredX = 1;
+    }
+
+    const hasDirectChildren = (directChildCountByName.get(node.uniqueIdentifier || node.name) || 0) > 0;
+    const directFromRootBuilding = hasRoot && isLaneRootParent(node.parent);
+    const rootHasChildlessUnitAndTech = rootDirectChildlessTypeCounts.Unit > 0 && rootDirectChildlessTypeCounts.Tech > 0;
+    const rootChildlessTypesAtDesiredX = rootDirectChildlessTypesByLocalX.get(Number(desiredX)) || new Set();
+    const rootColumnHasChildlessUnitAndTech = rootChildlessTypesAtDesiredX.has("Unit") && rootChildlessTypesAtDesiredX.has("Tech");
+    const rootHasOnlyChildlessUnits = directFromRootBuilding
+      && !hasDirectChildren
+      && node.type === "Unit"
+      && !isLineMemberNode(node)
+      && rootDirectChildlessTypeCounts.Unit > 0
+      && rootDirectChildlessTypeCounts.Tech === 0
+      && rootDirectChildWithChildrenTypeCounts.Unit === 0
+      && rootDirectChildWithChildrenTypeCounts.Tech === 0;
+    if (rootHasOnlyChildlessUnits) {
+      // When a building appears in the current age and only trains units from
+      // its root command row, keep those units together on row 1 and pack them
+      // compactly from the first available column. This avoids gaps like an
+      // empty TownCenter column 1/2 while all trained units are shifted right.
+      desiredX = 1;
+      preferredY = 1;
+    } else if (directFromRootBuilding && !hasDirectChildren) {
+      // Direct children of a building that appears in this age should keep the
+      // building row clean. Childless units prefer row 1 unless a childless tech
+      // also wants that exact column; only then use the classic unit row 0 /
+      // tech row 1 split. This keeps Longhouse units together on row 1 while
+      // still handling HillFort columns that contain both a unit and a tech.
+      if (node.type === "Unit") preferredY = rootColumnHasChildlessUnitAndTech ? 0 : 1;
+      if (node.type === "Tech") preferredY = 1;
+    } else if (node.type === "Unit") {
+      preferredY = 0;
+    }
+    if (age === "ArchaicAge" && !isRoot && node.type === "Unit" && !hasDirectChildren && !rootHasChildlessUnitAndTech && !localOccupied.has(`${desiredX},1`)) preferredY = 1;
+    if (age === "ArchaicAge" && !isRoot && node.type !== "Unit" && !localOccupied.has(`${desiredX},1`)) preferredY = 1;
+
+    if (!hasRoot && !isLaneRootParent(node.parent)) desiredX = Math.max(desiredX, 0);
+    if (hasRoot || group === "TownCenter") desiredX = Math.max(desiredX, 1);
+
+    const hasFixedLocalX = Number.isFinite(Number(fixed));
+    const isChildOfPlacedChain = Number.isFinite(Number(parentLocal)) && !isLaneRootParent(node.parent) && Number(parentLocal) === Number(desiredX);
+    const isParentOfFixedChildLine = Number.isFinite(Number(childFixedLocal)) && Number(childFixedLocal) === Number(desiredX);
+    const isGlobalLineMember = isLineMemberNode(node);
+    const isFixedLineNode = hasFixedLocalX && protectedLineColumns.has(Number(fixed)) && (isGlobalLineMember || !isLaneRootParent(node.parent) || hasDirectChildren || isParentOfFixedChildLine);
+    const isSharedColumnException = (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(node.name))
+      || (group === "Temple" && node.name === "Omniscience");
+    const allowProtectedLineColumn = rootHasOnlyChildlessUnits || isChildOfPlacedChain || isParentOfFixedChildLine || isFixedLineNode || isSharedColumnException;
+    if (!allowProtectedLineColumn && protectedLineColumns.has(desiredX)) {
+      desiredX = chineseNextNonProtectedLocalX(group, desiredX + 1, protectedLineColumns);
+    }
+
+    let placedHere = false;
+    if (rootHasOnlyChildlessUnits) {
+      for (let x = Math.max(1, Number(desiredX) || 1); x < 64; x += 1) {
+        if (canUse(x, 1, true)) {
+          reserve(node, x, 1);
+          placedHere = true;
+          break;
+        }
+      }
+    }
+    if (!placedHere && hasDirectChildren) {
+      // If this node is itself a child in an already placed parent line, keep it
+      // in the parent column first. This handles three-step lines such as
+      // YaZi -> SonOfLoong -> RageOfSlaughter: the middle node should sit under
+      // the unit parent before its own child pushes to a later free column.
+      if (isChildOfPlacedChain && canUse(desiredX, preferredY, allowProtectedLineColumn)) {
+        reserve(node, desiredX, preferredY);
+        placedHere = true;
+      }
+      if (!placedHere) {
+        // Any visible parent line, including tech upgrade chains, should reserve
+        // a clean column first. This keeps chains such as CopperWeapons ->
+        // BronzeWeapons and Valkyrie -> Disablot in one vertical line instead
+        // of letting an unrelated node occupy the child row.
+        const cleanColumn = firstFreeParentColumn(desiredX, allowProtectedLineColumn);
+        reserve(node, cleanColumn.x, cleanColumn.y);
+        placedHere = true;
+      }
+    }
+    if (!placedHere) {
+      const rows = preferredY === 1 ? [1, 0] : [0, 1];
+      for (const y of rows) {
+        if (canUse(desiredX, y, allowProtectedLineColumn)) {
+          reserve(node, desiredX, y);
+          placedHere = true;
+          break;
+        }
+      }
+    }
+    if (!placedHere) {
+      const fallbackPreferredY = node.type === "Tech" ? 1 : preferredY;
+      const alt = firstFree(desiredX + 1, fallbackPreferredY, allowProtectedLineColumn);
+      reserve(node, alt.x, alt.y);
+    }
+  }
+
+  // Final row cleanup: if a direct childless unit and a direct childless tech
+  // from the same building lane ended up in the same column, keep the unit on
+  // row 0 and the tech on row 1. This preserves the compact column while
+  // keeping units visually prominent.
+  const childlessRootNode = (node) => isLaneRootParent(node?.parent) && !(directChildCountByName.get(node?.uniqueIdentifier || node?.name) || 0);
+  const byColumn = new Map();
+  for (const node of placed) {
+    if (!childlessRootNode(node)) continue;
+    if (!byColumn.has(node.x)) byColumn.set(node.x, []);
+    byColumn.get(node.x).push(node);
+  }
+  for (const columnNodes of byColumn.values()) {
+    const unitRow1 = columnNodes.find((node) => node.type === "Unit" && Number(node.y) === 1);
+    const techRow0 = columnNodes.find((node) => node.type === "Tech" && Number(node.y) === 0);
+    if (unitRow1 && techRow0) {
+      unitRow1.y = 0;
+      unitRow1.position = `${unitRow1.x},0`;
+      techRow0.y = 1;
+      techRow0.position = `${techRow0.x},1`;
+    }
+  }
+
+  return placed.sort((a, b) => (a.x - b.x) || (a.y - b.y) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+function chineseNormalizeTechTreeNodes(age, nodes, forcedGroupStarts = null, protectedColumnsByGroup = null, lineMemberKeys = null) {
+  const unique = new Map();
+  for (const inputNode of nodes) {
+    if (!inputNode || !inputNode.type || !inputNode.name) continue;
+    const node = { ...inputNode };
+    const [xRaw, yRaw] = String(node.position || `${node.x || 0},${node.y ?? 1}`).split(",");
+    node.x = Number.isFinite(Number(xRaw)) ? Number(xRaw) : Number(node.x || 0) || 0;
+    node.y = Number.isFinite(Number(yRaw)) ? Number(yRaw) : Number(node.y ?? 1) || 1;
+    if (node.y > 1) node.y = 1;
+    if (node.y < 0) node.y = 0;
+    node.position = `${node.x},${node.y}`;
+    const key = techTreeNodeKey(node);
+    if (!unique.has(key)) unique.set(key, node);
+  }
+
+  const allNodes = [...unique.values()];
+  const grouped = new Map();
+  for (const node of allNodes) {
+    const group = chineseResolveNodeGroupFromNodes(node, allNodes);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push({ ...node, _group: group });
+  }
+
+  const orderedGroups = [...grouped.entries()].sort(([groupA], [groupB]) => {
+    const ai = CHINESE_TECHTREE_GROUP_ORDER.indexOf(groupA);
+    const bi = CHINESE_TECHTREE_GROUP_ORDER.indexOf(groupB);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi) || String(groupA).localeCompare(String(groupB));
+  });
+
+  const placed = [];
+  let nextGroupX = 0;
+  for (const [group, groupNodes] of orderedGroups) {
+    const forcedX = forcedGroupStarts && Number.isFinite(Number(forcedGroupStarts[group])) ? Number(forcedGroupStarts[group]) : undefined;
+    const groupStartX = Number.isFinite(Number(forcedX)) ? Number(forcedX) : nextGroupX;
+    const hasProtectionMap = protectedColumnsByGroup && typeof protectedColumnsByGroup === "object";
+    const protectedColumns = hasProtectionMap ? (protectedColumnsByGroup[group] instanceof Set ? protectedColumnsByGroup[group] : new Set()) : null;
+    const groupPlaced = chineseCompactGroupNodes(group, groupNodes, groupStartX, protectedColumns, age, lineMemberKeys);
+    placed.push(...groupPlaced);
+    const width = groupPlaced.length ? Math.max(...groupPlaced.map((node) => Number(node.x) - groupStartX)) + 1 : 0;
+    nextGroupX = groupStartX + Math.max(width, 0);
+  }
+
+  return placed.sort((a, b) => (a.x - b.x) || (a.y - b.y) || chineseNodeGroupOrder(a) - chineseNodeGroupOrder(b) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+function chineseApplyThorDwarvenArmoryRightSide(nodes, config) {
+  if (!selectedHasThorDwarvenArmoryBonus(config)) return nodes || [];
+  return (nodes || []).map((inputNode) => {
+    const node = { ...inputNode };
+    if (node.type === "Unit" && node.name === "Armory") node.name = "DwarvenArmory";
+    if (node.parent === "Armory") node.parent = "DwarvenArmory";
+    return node;
+  });
+}
+
+
+function chineseBaseArmoryRightSideNodes(age, config) {
+  const useDwarven = selectedHasThorDwarvenArmoryBonus(config);
+  const armory = useDwarven ? "DwarvenArmory" : "Armory";
+  const node = (type, name, parent, position) => {
+    const [xRaw, yRaw] = String(position).split(",");
+    return { type, name, parent: parent || "", position, x: Number(xRaw) || 0, y: Number(yRaw) || 0 };
+  };
+  if (useDwarven) {
+    if (age === "ArchaicAge") {
+      return [
+        node("Unit", armory, "", "24,0"),
+        node("Tech", "Ballistics", armory, "25,1"),
+        node("Tech", "CopperWeapons", armory, "26,0"),
+        node("Tech", "BronzeWeapons", "CopperWeapons", "26,1"),
+        node("Tech", "CopperArmor", armory, "27,0"),
+        node("Tech", "BronzeArmor", "CopperArmor", "27,1"),
+        node("Tech", "CopperShields", armory, "28,0"),
+        node("Tech", "BronzeShields", "CopperShields", "28,1"),
+      ];
+    }
+    if (age === "ClassicalAge") {
+      return [
+        node("Tech", "BurningPitch", armory, "25,1"),
+        node("Tech", "IronWeapons", "BronzeWeapons", "26,0"),
+        node("Tech", "DwarvenWeapons", "IronWeapons", "26,1"),
+        node("Tech", "IronArmor", "BronzeArmor", "27,0"),
+        node("Tech", "MeteoricIronArmor", "IronArmor", "27,1"),
+        node("Tech", "IronShields", "BronzeShields", "28,0"),
+        node("Tech", "DragonscaleShields", "IronShields", "28,1"),
+      ];
+    }
+    return [];
+  }
+  if (age === "ClassicalAge") {
+    return [
+      node("Unit", armory, "", "24,0"),
+      node("Tech", "Ballistics", armory, "25,1"),
+      node("Tech", "CopperWeapons", armory, "26,1"),
+      node("Tech", "CopperArmor", armory, "27,1"),
+      node("Tech", "CopperShields", armory, "28,1"),
+    ];
+  }
+  if (age === "HeroicAge") {
+    return [
+      node("Tech", "BronzeWeapons", "CopperWeapons", "26,0"),
+      node("Tech", "BronzeArmor", "CopperArmor", "27,0"),
+      node("Tech", "BronzeShields", "CopperShields", "28,0"),
+    ];
+  }
+  if (age === "MythicAge") {
+    return [
+      node("Tech", "BurningPitch", armory, "25,0"),
+      node("Tech", "IronWeapons", "BronzeWeapons", "26,0"),
+      node("Tech", "IronArmor", "BronzeArmor", "27,0"),
+      node("Tech", "IronShields", "BronzeShields", "28,0"),
+    ];
+  }
+  return [];
+}
+
+function chineseThorDwarvenArmoryExtraRightSideNodes(age, config) {
+  // Kept for compatibility; Chinese Dwarven Armory right-side nodes are built
+  // by chineseBaseArmoryRightSideNodes so the Armory/DwarvenArmory lane remains
+  // complete and age-appropriate.
+  return [];
+}
+
+
+function chineseSelectedMythicHeroRightSideNode(age, config) {
+  if (age !== "MythicAge" || config?.baseCulture !== "Chinese") return null;
+  const hero = Object.values(CHINESE_MYTHIC_HEROES).includes(config.chineseMythicHero) ? config.chineseMythicHero : CHINESE_MYTHIC_HEROES.Fuxi;
+  return rightSideNode("Unit", hero, "ImperialAcademy", "1,0");
+}
+
+function chineseRawTechTreeNodesForAge(age, config) {
+  let nodes = [
+    ...chineseCommonNodesForAge(age),
+    ...chineseSelectedMinorNodesForAge(age, config),
+    chineseSelectedMythicHeroRightSideNode(age, config),
+    ...chineseThorDwarvenArmoryExtraRightSideNodes(age, config),
+  ].filter(Boolean);
+  if (age === "ArchaicAge") {
+    const group = selectedUniqueTechGroup(config);
+    const tech = selectedUniqueTechRightSideName(config, group);
+    if (group && tech) {
+      for (const spec of uniqueTechRightSideNodeSpecs(config, "", group)) {
+        const [xRaw, yRaw] = String(spec.position || spec.preferred?.[0] || "18,1").split(",");
+        nodes.push({
+          type: "Tech",
+          name: tech,
+          parent: spec.parent,
+          position: `${Number(xRaw) || 0},${Number(yRaw) || 1}`,
+          x: Number(xRaw) || 0,
+          y: Number(yRaw) || 1,
+        });
+      }
+    }
+  }
+  nodes = applyGenericBonusRightSideNodes("Chinese", age, config, nodes);
+  if (age === "MythicAge" && !nodes.some((node) => node?.type === "Tech" && node?.name === "Coinage")) {
+    nodes.push(rightSideNode("Tech", "Coinage", "CaravanChinese", "1,0"));
+  }
+  return chineseApplyThorDwarvenArmoryRightSide(nodes, config);
+}
+
+function chineseMeasureGroupWidths(nodes, protectedColumnsByGroup = null, age = "", lineMemberKeys = null) {
+  const widths = {};
+  const grouped = new Map();
+  for (const node of nodes || []) {
+    const group = chineseResolveNodeGroupFromNodes(node, nodes || []);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(node);
+  }
+  for (const [group, groupNodes] of grouped.entries()) {
+    const hasProtectionMap = protectedColumnsByGroup && typeof protectedColumnsByGroup === "object";
+    const protectedColumns = hasProtectionMap ? (protectedColumnsByGroup[group] instanceof Set ? protectedColumnsByGroup[group] : new Set()) : null;
+    const placed = chineseCompactGroupNodes(group, groupNodes, 0, protectedColumns, age, lineMemberKeys);
+    widths[group] = placed.length ? Math.max(...placed.map((node) => Number(node.x) || 0)) + 1 : 0;
+  }
+  return widths;
+}
+
+
+function chineseBuildLineMemberKeySets(rawByAge) {
+  const byAge = {};
+  const global = new Set();
+  const allNodes = Object.values(rawByAge || {}).flat().filter(Boolean);
+  const parentRefs = new Set();
+  const childKeys = new Set();
+
+  const scopedKey = (group, key) => `${group || ""}::${key || ""}`;
+
+  for (const node of allNodes) {
+    const parentKey = techTreeNodeParentLookupKey(node);
+    if (!parentKey) continue;
+    const group = chineseResolveNodeGroupFromNodes(node, allNodes);
+    if (chineseIsLaneRootParent(group, parentKey)) continue;
+    // Scope parent references by resolved building lane. Otherwise duplicate
+    // Chinese names such as Berserk/Hersir/MediumInfantry can falsely mark an
+    // unrelated building's node as part of a parent line.
+    parentRefs.add(scopedKey(group, parentKey));
+    childKeys.add(techTreeNodeKey(node));
+  }
+
+  for (const [age, nodes] of Object.entries(rawByAge || {})) {
+    const set = new Set();
+    for (const node of nodes || []) {
+      const key = techTreeNodeKey(node);
+      const group = chineseResolveNodeGroupFromNodes(node, nodes || []);
+      const placementKeys = techTreeNodePlacementKeys(node);
+      const isParentInLine = placementKeys.some((placementKey) => parentRefs.has(scopedKey(group, placementKey)));
+      const isChildInLine = childKeys.has(key);
+      const isSharedColumnException = (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(node.name))
+        || (group === "Temple" && node.name === "Omniscience");
+      if (isParentInLine || isChildInLine || isSharedColumnException) {
+        set.add(key);
+        global.add(key);
+      }
+    }
+    byAge[age] = set;
+  }
+  return { byAge, global };
+}
+
+function chineseBuildProtectedLineColumnsForNodes(nodesForAge, lineMemberKeys = null) {
+  const grouped = new Map();
+  for (const node of nodesForAge || []) {
+    if (!node || !node.name) continue;
+    const group = chineseResolveNodeGroupFromNodes(node, nodesForAge || []);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(node);
+  }
+
+  const out = {};
+  for (const [group, groupNodes] of grouped.entries()) {
+    const activeColumns = new Set();
+    for (const node of groupNodes) {
+      const fixed = chineseFixedLocalX(node, group);
+      if (!Number.isFinite(Number(fixed))) continue;
+      const localX = Number(fixed);
+      const isLineMember = lineMemberKeys instanceof Set && lineMemberKeys.has(techTreeNodeKey(node));
+      const isSharedColumnException = (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(node.name))
+        || (group === "Temple" && node.name === "Omniscience");
+      // Protect only actual active parent-line columns in this age. A column is
+      // protected when a node in this age is part of a parent/child line, even
+      // when the rest of that line appears in a different age. This keeps
+      // multi-age lines aligned without reserving dead columns in ages where
+      // the line has no node.
+      if (isLineMember || isSharedColumnException) activeColumns.add(localX);
+    }
+    if (activeColumns.size) out[group] = activeColumns;
+  }
+  return out;
+}
+
+function chineseBuildGlobalProtectedLineColumns(rawByAge) {
+  const allNodes = Object.values(rawByAge || {}).flat();
+  return chineseBuildProtectedLineColumnsForNodes(allNodes, chineseBuildLineMemberKeySets({ All: allNodes }).byAge.All);
+}
+
+function buildChineseTechTreeGroupStarts(config) {
+  if (config?.baseCulture !== "Chinese") return null;
+  const rawByAge = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    rawByAge[age] = chineseRawTechTreeNodesForAge(age, config);
+  }
+  const lineKeySets = chineseBuildLineMemberKeySets(rawByAge);
+  config._chineseTechTreeLineMemberKeysByAge = lineKeySets.byAge;
+  config._chineseTechTreeLineMemberKeys = lineKeySets.global;
+
+  const protectedColumnsByAge = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    protectedColumnsByAge[age] = chineseBuildProtectedLineColumnsForNodes(rawByAge[age], lineKeySets.byAge[age]);
+  }
+  config._chineseTechTreeProtectedColumnsByAge = protectedColumnsByAge;
+  config._chineseTechTreeProtectedColumns = protectedColumnsByAge.ArchaicAge || {};
+
+  const maxWidths = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    const widths = chineseMeasureGroupWidths(rawByAge[age], protectedColumnsByAge[age], age, lineKeySets.byAge[age]);
+    for (const [group, width] of Object.entries(widths)) maxWidths[group] = Math.max(maxWidths[group] || 0, width);
+  }
+
+  const starts = {};
+  let nextX = 0;
+  for (const group of CHINESE_TECHTREE_GROUP_ORDER) {
+    starts[group] = nextX;
+    nextX += Math.max(maxWidths[group] || 0, 0);
+  }
+  return starts;
+}
+
+function generateChineseDynamicTechTreeTechnologies(age, config) {
+  if (config?.baseCulture !== "Chinese") return "";
+  const nodes = chineseRawTechTreeNodesForAge(age, config);
+  const protectedColumns = config?._chineseTechTreeProtectedColumnsByAge?.[age] || config?._chineseTechTreeProtectedColumns || null;
+  const lineMemberKeys = config?._chineseTechTreeLineMemberKeysByAge?.[age] || config?._chineseTechTreeLineMemberKeys || null;
+  const normalized = chineseNormalizeTechTreeNodes(age, nodes, config?._chineseTechTreeGroupStarts || null, protectedColumns, lineMemberKeys);
+  const body = normalized.map((node) => buildTechTreeNodeXml(node)).join("\n");
+  const block = `<local:TechTreeAge.Technologies>
+${body}
+            </local:TechTreeAge.Technologies>`;
+  return applyCustomTechNamesToUiBlock(block, config || {});
+}
+
+
+
+
+
+
+const JAPANESE_TECHTREE_MAJOR_SOURCES = ["Amaterasu", "Susanoo", "Tsukuyomi"];
+const JAPANESE_TECHTREE_MINOR_BY_AGE = {
+  ClassicalAge: ["ClassicalAgeAmeNoUzume", "ClassicalAgeInariOkami", "ClassicalAgeMinakatatomi"],
+  HeroicAge: ["HeroicAgeFujin", "HeroicAgeHachiman", "HeroicAgeRaijin"],
+  MythicAge: ["MythicAgeOkuninushi", "MythicAgeTakemikazuchi", "MythicAgeWatatsumi"],
+};
+
+const JAPANESE_TECHTREE_GROUP_ORDER = [
+  "TownCenter", "Watermill", "MiningCampJapanese", "Farm", "House", "WallConnector", "Dock", "Temple", "SkyPassage",
+  "ShrineJapanese", "SentryTower", "Armory", "Market", "Guardhouse", "Dojo", "StableJapanese", "Castle", "Wonder",
+];
+
+const JAPANESE_TECHTREE_PARENT_LANE = {
+  TownCenter: "TownCenter",
+  VillagerJapanese: "TownCenter", Miko: "TownCenter", Masons: "TownCenter", Architects: "TownCenter", FortifiedTownCenter: "TownCenter",
+  SecretsOfTheTitans: "TownCenter", TitanGate: "TownCenter", DivinePrefecture: "TownCenter",
+
+  Watermill: "Watermill", Husbandry: "Watermill", HuntingEquipment: "Watermill", SaltwaterSpring: "Watermill",
+  Plow: "Watermill", Irrigation: "Watermill", FloodControl: "Watermill", HandAxe: "Watermill", BowSaw: "Watermill", Carpenters: "Watermill",
+
+  MiningCampJapanese: "MiningCampJapanese", Pickaxe: "MiningCampJapanese", ShaftMine: "MiningCampJapanese", Quarry: "MiningCampJapanese",
+  Farm: "Farm", House: "House",
+
+  WallConnector: "WallConnector", StoneWall: "WallConnector", FortifiedWall: "WallConnector", BronzeWall: "WallConnector", IronWall: "WallConnector",
+
+  Dock: "Dock", FishingShipJapanese: "Dock", PurseSeine: "Dock", FishBasket: "Dock", SaltAmphora: "Dock",
+  Wasen: "Dock", RammingWasen: "Dock", Junkozosen: "Dock", TransportShipJapanese: "Dock", EnclosedDeck: "Dock",
+  HeroicFleet: "Dock", Honengyo: "Dock", Umibozu: "Dock", DanNoUraTactics: "Dock", HeavenlyBarrage: "Dock",
+  HeavyWarships: "Dock", ChampionWarships: "Dock", ConscriptSailors: "Dock",
+
+  Temple: "Temple", Kitsune: "Temple", Kamaitachi: "Temple", Wanyudo: "Temple", Jorogumo: "Temple",
+  Tengu: "Temple", Raiju: "Temple", Oni: "Temple", Shinigami: "Temple", Asura: "Temple", Onmoraki: "Temple",
+  WindSickles: "Temple", CondemnedSoul: "Temple", DeadlySnare: "Temple", WisdomOfNine: "Temple", IvoryNetsuke: "Temple",
+  AsceticPractices: "Temple", ThunderousPresence: "Temple", DeadlyRage: "Temple", OniMask: "Temple", DenDenDrums: "Temple",
+  EternalHaunting: "Temple", BurningMalevolence: "Temple", RestlessArmy: "Temple", Omniscience: "Temple", CrushingWaves: "Temple", NezhaChild: "Temple", NezhaYouth: "Temple", Nezha: "Temple",
+
+  SkyPassage: "SkyPassage",
+  ShrineJapanese: "ShrineJapanese", SacredCustodians: "ShrineJapanese", Kagura: "ShrineJapanese", GoheiWands: "ShrineJapanese", SakuraGardens: "ShrineJapanese",
+
+  SentryTower: "SentryTower", SignalFires: "SentryTower", WatchTower: "SentryTower", Crenellations: "SentryTower", CarrierPigeons: "SentryTower", GuardTower: "SentryTower", BoilingOil: "SentryTower", Tenshu: "SentryTower",
+
+  Armory: "Armory", DwarvenArmory: "Armory", Ballistics: "Armory", BurningPitch: "Armory",
+  CopperWeapons: "Armory", BronzeWeapons: "Armory", IronWeapons: "Armory", DwarvenWeapons: "Armory",
+  CopperArmor: "Armory", BronzeArmor: "Armory", IronArmor: "Armory", MeteoricIronArmor: "Armory",
+  CopperShields: "Armory", BronzeShields: "Armory", IronShields: "Armory", DragonscaleShields: "Armory",
+  GoldenKite: "Armory", HuntersStrength: "Armory",
+
+  Market: "Market", CaravanJapanese: "Market", Coinage: "Market", TaxCollectors: "Market", Ambassadors: "Market",
+
+  Guardhouse: "Guardhouse", YariSpearman: "Guardhouse", YumiArcher: "Guardhouse", Bushi: "Guardhouse",
+  MediumGuardhouseSoldiers: "Guardhouse", HeavyGuardhouseSoldiers: "Guardhouse", ChampionGuardhouseSoldiers: "Guardhouse",
+  LevyGuardhouseSoldiers: "Guardhouse", ConscriptGuardhouseSoldiers: "Guardhouse",
+  Kumiki: "Guardhouse", Katagi: "Guardhouse", HannyaMask: "Guardhouse", Sojutsu: "Guardhouse", SumoTraining: "Guardhouse",
+
+  Dojo: "Dojo", Samurai: "Dojo", OnnaMusha: "Dojo", Shinobi: "Dojo",
+  MediumDojoSoldiers: "Dojo", HeavyDojoSoldiers: "Dojo", ChampionDojoSoldiers: "Dojo", EliteDojoSoldiers: "Dojo",
+  LevyDojoSoldiers: "Dojo", ConscriptDojoSoldiers: "Dojo", TenFistSword: "Dojo", SeasideInfiltrators: "Dojo",
+
+  StableJapanese: "StableJapanese", NaginataRider: "StableJapanese", YumiHorseArcher: "StableJapanese", Daimyo: "StableJapanese",
+  MediumStableSoldiers: "StableJapanese", HeavyStableSoldiers: "StableJapanese", ChampionStableSoldiers: "StableJapanese",
+  LevyStableSoldiers: "StableJapanese", ConscriptStableSoldiers: "StableJapanese", SashimonoBannermen: "StableJapanese", GalesFury: "StableJapanese", AsymmetricalBows: "StableJapanese",
+
+  Castle: "Castle", Oyumi: "Castle", Onmyoji: "Castle", DraftHorses: "Castle", EightBanners: "Castle", Engineers: "Castle", AdvancedFortifications: "Castle", MechanicalArtisans: "Castle", Onmyodo: "Castle",
+  Wonder: "Wonder",
+};
+
+const JAPANESE_TECHTREE_AMBIGUOUS_PARENT_NAMES = new Set([
+  "GoldenKite", "HuntersStrength", "Katagi", "HannyaMask", "Kumiki", "SumoTraining", "Tenshu",
+  "MediumGuardhouseSoldiers", "HeavyGuardhouseSoldiers", "ChampionGuardhouseSoldiers",
+  "MediumDojoSoldiers", "HeavyDojoSoldiers", "ChampionDojoSoldiers", "EliteDojoSoldiers",
+  "MediumStableSoldiers", "HeavyStableSoldiers", "ChampionStableSoldiers"
+]);
+
+function japaneseCanUseStaticParentLane(name) {
+  return !!name && !JAPANESE_TECHTREE_AMBIGUOUS_PARENT_NAMES.has(name) && !!JAPANESE_TECHTREE_PARENT_LANE[name];
+}
+
+function japaneseGroupFromUniqueReference(ref) {
+  const value = String(ref || "");
+  if (!value) return "";
+  return JAPANESE_TECHTREE_GROUP_ORDER.find((group) => value.startsWith(group)) || "";
+}
+
+function japaneseGroupFromAmbiguousParentReference(parent, node) {
+  if (!parent || node?.uniqueParent || !JAPANESE_TECHTREE_AMBIGUOUS_PARENT_NAMES.has(parent)) return "";
+  const marker = String(node?.uniqueParent || node?.uniqueIdentifier || "");
+  if (["MediumGuardhouseSoldiers", "HeavyGuardhouseSoldiers", "ChampionGuardhouseSoldiers"].includes(parent)) return "Guardhouse";
+  if (["MediumDojoSoldiers", "HeavyDojoSoldiers", "ChampionDojoSoldiers", "EliteDojoSoldiers"].includes(parent)) return "Dojo";
+  if (["MediumStableSoldiers", "HeavyStableSoldiers", "ChampionStableSoldiers"].includes(parent)) return "StableJapanese";
+  if (parent === "GoldenKite" || parent === "HuntersStrength") return marker.startsWith("Guardhouse") ? "Guardhouse" : "Armory";
+  if (parent === "Katagi" || parent === "HannyaMask" || parent === "SumoTraining") return marker.startsWith("Dojo") ? "Dojo" : "Guardhouse";
+  if (parent === "Kumiki") return marker.startsWith("Castle") || node?.parent === "Castle" ? "Castle" : "Guardhouse";
+  if (parent === "Tenshu") return marker.startsWith("Castle") || node?.parent === "Castle" ? "Castle" : "SentryTower";
+  return "";
+}
+
+function japaneseChooseParentNodeForChain(current, node, candidates) {
+  const list = (candidates || []).filter(Boolean);
+  if (!list.length) return null;
+  if (node?.uniqueParent) {
+    const exact = list.find((candidate) => candidate?.uniqueIdentifier === node.uniqueParent);
+    if (exact) return exact;
+  }
+  const nodeX = Number(node?.x);
+  return list.slice().sort((a, b) => {
+    const ax = Number(a.x) || 0;
+    const bx = Number(b.x) || 0;
+    const aDistance = Number.isFinite(nodeX) ? Math.abs(ax - nodeX) : ax;
+    const bDistance = Number.isFinite(nodeX) ? Math.abs(bx - nodeX) : bx;
+    const aAfterPenalty = Number.isFinite(nodeX) && ax > nodeX ? 1000 : 0;
+    const bAfterPenalty = Number.isFinite(nodeX) && bx > nodeX ? 1000 : 0;
+    return (aDistance + aAfterPenalty) - (bDistance + bAfterPenalty) || ax - bx || (Number(a.y) || 0) - (Number(b.y) || 0);
+  })[0];
+}
+
+function japaneseNodeGroupRoot(node) {
+  const parent = node?.parent || "";
+  const name = node?.name || "";
+  const uniqueGroup = japaneseGroupFromUniqueReference(node?.uniqueParent || node?.uniqueIdentifier || "");
+  if (uniqueGroup) return uniqueGroup;
+  const ambiguousGroup = japaneseGroupFromAmbiguousParentReference(parent, node);
+  if (ambiguousGroup) return ambiguousGroup;
+  if (JAPANESE_TECHTREE_GROUP_ORDER.includes(parent)) return parent;
+  if (japaneseCanUseStaticParentLane(parent)) return JAPANESE_TECHTREE_PARENT_LANE[parent];
+  if (!parent && JAPANESE_TECHTREE_GROUP_ORDER.includes(name)) return name;
+  if (japaneseCanUseStaticParentLane(name)) return JAPANESE_TECHTREE_PARENT_LANE[name];
+  return parent || name;
+}
+
+function japaneseNodeGroupOrder(node) {
+  const root = japaneseNodeGroupRoot(node);
+  const idx = JAPANESE_TECHTREE_GROUP_ORDER.indexOf(root);
+  return idx >= 0 ? idx : 99;
+}
+
+const JAPANESE_TECHTREE_FIXED_LOCAL_X = {
+  VillagerJapanese: 1, Miko: 2, Masons: 1, Architects: 1, FortifiedTownCenter: 1, SecretsOfTheTitans: 1, TitanGate: 1, DivinePrefecture: 2,
+  Husbandry: 1, HuntingEquipment: 1, SaltwaterSpring: 1, Plow: 2, Irrigation: 2, FloodControl: 2, HandAxe: 3, BowSaw: 3, Carpenters: 3,
+  Pickaxe: 1, ShaftMine: 1, Quarry: 1,
+  StoneWall: 0, FortifiedWall: 0, BronzeWall: 0, IronWall: 0,
+  HeroicFleet: 1, Wasen: 2, DanNoUraTactics: 2, Honengyo: 2, Umibozu: 2,
+  RammingWasen: 3, Junkozosen: 4, HeavenlyBarrage: 4, TransportShipJapanese: 5, EnclosedDeck: 5,
+  FishingShipJapanese: 6, PurseSeine: 6, FishBasket: 6, SaltAmphora: 6, HeavyWarships: 4, ChampionWarships: 4, ConscriptSailors: 5,
+  Omniscience: 0, Kitsune: 1, Kamaitachi: 1, WindSickles: 1, Wanyudo: 2, CondemnedSoul: 2, Jorogumo: 3, DeadlySnare: 3, WisdomOfNine: 1, IvoryNetsuke: 1, NezhaChild: 3, NezhaYouth: 3, Nezha: 3,
+  Tengu: 1, AsceticPractices: 1, Raiju: 2, ThunderousPresence: 2, Oni: 3, DeadlyRage: 3, OniMask: 1, DenDenDrums: 2,
+  Shinigami: 1, EternalHaunting: 1, Asura: 2, BurningMalevolence: 2, Onmoraki: 3, RestlessArmy: 3,
+  SacredCustodians: 1, Kagura: 1, GoheiWands: 1, SakuraGardens: 1,
+  SignalFires: 2, WatchTower: 1, GuardTower: 1, Crenellations: 1, BoilingOil: 1, CarrierPigeons: 2, Tenshu: 1,
+  Ballistics: 1, BurningPitch: 1, CopperWeapons: 2, BronzeWeapons: 2, IronWeapons: 2, DwarvenWeapons: 2, CopperArmor: 3, BronzeArmor: 3, IronArmor: 3, MeteoricIronArmor: 3, CopperShields: 4, BronzeShields: 4, IronShields: 4, DragonscaleShields: 4, GoldenKite: 1, HuntersStrength: 1,
+  CaravanJapanese: 1, Coinage: 1, TaxCollectors: 2, Ambassadors: 2,
+  YariSpearman: 1, YumiArcher: 2, Bushi: 3, MediumGuardhouseSoldiers: 4, LevyGuardhouseSoldiers: 3, HeavyGuardhouseSoldiers: 4, ConscriptGuardhouseSoldiers: 3, ChampionGuardhouseSoldiers: 4, Kumiki: 2, Katagi: 3, HannyaMask: 1, Sojutsu: 1, SumoTraining: 2,
+  Samurai: 1, Shinobi: 1, OnnaMusha: 2, MediumDojoSoldiers: 4, LevyDojoSoldiers: 3, HeavyDojoSoldiers: 4, ConscriptDojoSoldiers: 3, ChampionDojoSoldiers: 4, EliteDojoSoldiers: 4, TenFistSword: 2, SeasideInfiltrators: 1,
+  NaginataRider: 1, YumiHorseArcher: 1, Daimyo: 2, MediumStableSoldiers: 4, LevyStableSoldiers: 3, HeavyStableSoldiers: 4, ConscriptStableSoldiers: 3, ChampionStableSoldiers: 4, SashimonoBannermen: 1, GalesFury: 1, AsymmetricalBows: 1,
+  Oyumi: 1, Onmyoji: 1, DraftHorses: 1, Onmyodo: 1, Engineers: 2, AdvancedFortifications: 2, MechanicalArtisans: 3, EightBanners: 2,
+};
+
+function japaneseFixedLocalX(node, group) {
+  const name = node?.name || "";
+  if (group === "TownCenter" && /^SkinOfTheRhino/.test(name)) return 2;
+  if (group === "SkyPassage" && name === "SkyPassage") return 0;
+  if (group === "Armory") {
+    const map = { Armory: 0, DwarvenArmory: 0, Ballistics: 1, BurningPitch: 1, CopperWeapons: 2, BronzeWeapons: 2, IronWeapons: 2, DwarvenWeapons: 2, CopperArmor: 3, BronzeArmor: 3, IronArmor: 3, MeteoricIronArmor: 3, CopperShields: 4, BronzeShields: 4, IronShields: 4, DragonscaleShields: 4, GoldenKite: 1, HuntersStrength: 1, CelestialWeapons: 1 };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "SentryTower") {
+    const map = { SentryTower: 0, WatchTower: 1, Crenellations: 1, GuardTower: 1, BoilingOil: 1, SignalFires: 2, CarrierPigeons: 2, Tenshu: 1 };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "Castle") {
+    const map = { Castle: 0, Oyumi: 1, Onmyoji: 1, DraftHorses: 1, Onmyodo: 1, Tenshu: 2, EightBanners: 2, Engineers: 2, AdvancedFortifications: 2, MechanicalArtisans: 3, Kumiki: 1 };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "TownCenter" && /^SkinOfTheRhino/.test(name)) return 2;
+  if (group === "SkyPassage" && name === "SkyPassage") return 0;
+  if (group === "Temple" && ["NezhaChild", "NezhaYouth", "Nezha"].includes(name)) return 3;
+  if (group === "Armory") {
+    const map = {
+      Armory: 0, DwarvenArmory: 0, Ballistics: 1, BurningPitch: 1,
+      CopperWeapons: 2, BronzeWeapons: 2, IronWeapons: 2, DwarvenWeapons: 2,
+      CopperArmor: 3, BronzeArmor: 3, IronArmor: 3, MeteoricIronArmor: 3,
+      CopperShields: 4, BronzeShields: 4, IronShields: 4, DragonscaleShields: 4,
+      MasterOfWeaponry: 1, CelestialWeapons: 1, LeizusSilk: 1,
+    };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "MilitaryCamp") {
+    const map = {
+      MilitaryCamp: 0, DaoSwordsman: 1, DivineBooks: 1, GeHalberdier: 2, MasterOfWeaponry: 2,
+      WuzuJavelineer: 3, MediumArchers: 3, HeavyArchers: 3, ChampionArchers: 3,
+      MediumInfantry: 4, HeavyInfantry: 4, ChampionInfantry: 4,
+      WhiteHorseCavalry: 5, HeavyCavalry: 5, ChampionCavalry: 5,
+      FrenziedDash: 1, LeizusSilk: 1, XuanyuansBloodline: 1, ImperialOrder: 2,
+    };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "MachineWorkshop") {
+    const map = {
+      MachineWorkshop: 0, DivineBooks: 1, FireArcher: 1, MediumArchers: 1, HeavyArchers: 1, ChampionArchers: 1,
+      ChuKoNu: 2, ScorchingFeathers: 2, SiegeCrossbow: 3, DraftHorses: 3, AxeCart: 1,
+      Engineers: 3, SouthernFire: 1, LeizusSilk: 2,
+    };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "ImperialAcademy") {
+    const map = {
+      ImperialAcademy: 0, Sage: 1, JiangZiYa: 2, YangJian: 1, LiJing: 1, WenZhong: 1,
+      NezhaChild: 2, NezhaYouth: 2, Nezha: 2, Pioneer: 3, DivineLight: 3, EastWind: 3, SkyFire: 3,
+      CelestialWeapons: 1, TaiChi: 3, PeachOfImmortality: 4, HerbalMedicine: 3,
+      TempestuousStorm: 1, ShakerOfHeaven: 2,
+    };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "SentryTower") {
+    const map = {
+      SentryTower: 0,
+      WatchTower: 1,
+      Crenellations: 1,
+      GuardTower: 1,
+      BoilingOil: 1,
+      CrossbowTower: 1,
+      // Keep standalone tower techs out of the protected WatchTower line so
+      // WatchTower -> GuardTower -> CrossbowTower can stay in one column.
+      SignalFires: 2,
+      CarrierPigeons: 2,
+      AdvancedDefenses: 2,
+    };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "Baolei") {
+    const map = {
+      Baolei: 0, TigerCavalry: 1, LastStand: 1, LevyBaoleiSoldiers: 2, ConscriptBaoleiSoldiers: 2,
+      HeavyCavalry: 3, ChampionCavalry: 3, AdvancedDefenses: 1, AdvancedFortifications: 2,
+    };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (Object.prototype.hasOwnProperty.call(JAPANESE_TECHTREE_FIXED_LOCAL_X, name)) return JAPANESE_TECHTREE_FIXED_LOCAL_X[name];
+  return undefined;
+}
+
+const JAPANESE_TECHTREE_PROTECTED_LINE_LOCAL_X = {
+  TownCenter: [1, 2],
+  Watermill: [1, 2, 3],
+  MiningCampJapanese: [1],
+  WallConnector: [0],
+  Dock: [1, 2, 3, 4, 5, 6, 7, 8],
+  Temple: [0, 1, 2, 3],
+  ShrineJapanese: [1],
+  SentryTower: [0, 1],
+  Armory: [1, 2, 3, 4],
+  Market: [1, 2],
+  Guardhouse: [1, 2, 3, 4],
+  Dojo: [1, 2, 3, 4],
+  StableJapanese: [1, 2, 3, 4],
+  Castle: [1, 2, 3],
+};
+
+function japaneseProtectedLineColumns(group, groupNodes = null) {
+  const candidateColumns = new Set(JAPANESE_TECHTREE_PROTECTED_LINE_LOCAL_X[group] || []);
+  if (!Array.isArray(groupNodes)) return candidateColumns;
+  const activeColumns = new Set();
+  for (const node of groupNodes) {
+    const fixed = japaneseFixedLocalX(node, group);
+    if (!Number.isFinite(Number(fixed))) continue;
+    const localX = Number(fixed);
+    if (candidateColumns.has(localX)) activeColumns.add(localX);
+  }
+  return activeColumns;
+}
+
+function japaneseIsLaneRootParent(group, parent) {
+  return parent === group
+    || (group === "Armory" && parent === "DwarvenArmory")
+    || (group === "TownCenter" && parent === "TownCenter")
+    || (group === "Monument" && /^MonumentTo/.test(parent || ""));
+}
+
+function japaneseNextNonProtectedLocalX(group, minX, protectedColumns = null) {
+  const columns = protectedColumns instanceof Set ? protectedColumns : japaneseProtectedLineColumns(group);
+  for (let x = Math.max(0, Number(minX) || 0); x < 64; x += 1) {
+    if (!columns.has(x)) return x;
+  }
+  return Math.max(0, Number(minX) || 0);
+}
+
+function japaneseTechTreeSourceNodes(age) {
+  const templates = window.AOM_TECHTREE || {};
+  const byMajor = {};
+  for (const major of JAPANESE_TECHTREE_MAJOR_SOURCES) {
+    const block = age === "ArchaicAge"
+      ? extractXmlPropertyBlock(lookupTemplateBlock(templates.archaicByMajor, major) || "", "Technologies")
+      : templates.ageTechnologiesByMajorAge?.[`${major}|${age}`] || "";
+    byMajor[major] = parseTechTreeNodesFromBlock(block);
+  }
+  return byMajor;
+}
+
+function japaneseCanonicalMinorTech(tech) {
+  const aliases = { ClassicalAgeAmenouzume: "ClassicalAgeAmeNoUzume", ClassicalAgeAmeNoUzume: "ClassicalAgeAmeNoUzume" };
+  return aliases[tech] || tech;
+}
+
+function japaneseMinorBonusTokens(minorTech) {
+  const canonical = japaneseCanonicalMinorTech(canonicalMinorTech(minorTech));
+  const block = window.AOM_TECHTREE?.bonusTrackByGod?.[canonical] || "";
+  return parseTechTreeNodesFromBlock(block).filter((node) => node.type === "Unit" || node.type === "Tech");
+}
+
+function japaneseAllConditionalNodeNames() {
+  const names = new Set();
+  (UNIQUE_TECH_GROUPS || []).forEach((group) => {
+    names.add(group.id);
+    (group.techs || []).forEach((tech) => names.add(tech));
+  });
+  Object.values(JAPANESE_TECHTREE_MINOR_BY_AGE).flat().forEach((minor) => {
+    japaneseMinorBonusTokens(minor).forEach((node) => names.add(node.name));
+  });
+  return names;
+}
+
+function japaneseCommonNodesForAge(age) {
+  const byMajor = japaneseTechTreeSourceNodes(age);
+  const excluded = japaneseAllConditionalNodeNames();
+  const keySets = Object.fromEntries(Object.entries(byMajor).map(([major, nodes]) => [major, new Set(nodes.map(techTreeNodeKey))]));
+  const baseSource = JAPANESE_TECHTREE_MAJOR_SOURCES[0];
+  const allKeys = [...(keySets[baseSource] || new Set())];
+  const commonKeys = allKeys.filter((key) => JAPANESE_TECHTREE_MAJOR_SOURCES.every((major) => keySets[major]?.has(key)));
+  const sourceNodes = Object.values(byMajor).flat();
+  const result = [];
+  for (const key of commonKeys) {
+    const matches = sourceNodes.filter((node) => techTreeNodeKey(node) === key);
+    const rep = chooseGreekRepresentativeNode(matches);
+    if (!rep || excluded.has(rep.name)) continue;
+    result.push({ ...rep });
+  }
+  return result;
+}
+
+function japaneseFindRightSideNodesForToken(age, tokenNode) {
+  const byMajor = japaneseTechTreeSourceNodes(age);
+  const matches = Object.values(byMajor).flat().filter((node) => node.type === tokenNode.type && node.name === tokenNode.name);
+  if (!matches.length) return [];
+  const byKey = new Map();
+  for (const node of matches) {
+    const key = techTreeNodeKey(node);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(node);
+  }
+  const reps = [...byKey.values()].map((nodes) => ({ count: nodes.length, node: chooseGreekRepresentativeNode(nodes) }));
+  reps.sort((a, b) => japaneseNodeGroupOrder(a.node) - japaneseNodeGroupOrder(b.node) || (a.node.x - b.node.x) || (a.node.y - b.node.y) || String(a.node.parent).localeCompare(String(b.node.parent)) || (b.count - a.count));
+  return reps.map((entry) => ({ ...entry.node }));
+}
+
+function japaneseMinorNodeSameBuildingKey(node, contextNodes = []) {
+  if (!node?.type || !node?.name) return "";
+  const group = japaneseResolveNodeGroupFromNodes(node, contextNodes && contextNodes.length ? contextNodes : [node]);
+  return `${node.type}|${node.name}|${group}`;
+}
+
+function japanesePriorSelectedMinorBuildingKeys(age, config) {
+  const out = new Set();
+  const order = ["ClassicalAge", "HeroicAge", "MythicAge"];
+  const index = order.indexOf(age);
+  if (index <= 0) return out;
+  for (const priorAge of order.slice(0, index)) {
+    const selected = (config.minorGods?.[priorAge] || []).map(canonicalMinorTech);
+    const priorNodes = [];
+    for (const minor of selected) {
+      for (const token of japaneseMinorBonusTokens(minor)) {
+        priorNodes.push(...japaneseFindRightSideNodesForToken(priorAge, token));
+      }
+    }
+    for (const node of priorNodes) {
+      const key = japaneseMinorNodeSameBuildingKey(node, priorNodes);
+      if (key) out.add(key);
+    }
+  }
+  return out;
+}
+
+function japaneseSelectedMinorNodesForAge(age, config) {
+  const selected = (config.minorGods?.[age] || []).map((tech) => japaneseCanonicalMinorTech(canonicalMinorTech(tech)));
+  const nodes = [];
+  const seenSameBuilding = japanesePriorSelectedMinorBuildingKeys(age, config);
+  for (const minor of selected) {
+    for (const token of japaneseMinorBonusTokens(minor)) {
+      for (const candidate of japaneseFindRightSideNodesForToken(age, token)) {
+        const key = japaneseMinorNodeSameBuildingKey(candidate, [...nodes, candidate]);
+        if (key && seenSameBuilding.has(key)) continue;
+        nodes.push(candidate);
+        if (key) seenSameBuilding.add(key);
+      }
+    }
+  }
+  return nodes;
+}
+
+function japaneseResolveNodeGroupFromNodes(node, allNodes) {
+  const byName = new Map();
+  const byUniqueIdentifier = new Map();
+  for (const candidate of allNodes || []) {
+    if (!candidate?.name) continue;
+    if (!byName.has(candidate.name)) byName.set(candidate.name, []);
+    byName.get(candidate.name).push(candidate);
+    if (candidate.uniqueIdentifier) byUniqueIdentifier.set(candidate.uniqueIdentifier, candidate);
+  }
+  const uniqueGroup = japaneseGroupFromUniqueReference(node?.uniqueParent || node?.uniqueIdentifier || "");
+  if (uniqueGroup) return uniqueGroup;
+  const ambiguousGroup = japaneseGroupFromAmbiguousParentReference(node?.parent || "", node);
+  if (ambiguousGroup) return ambiguousGroup;
+  const seen = new Set();
+  let current = node?.uniqueParent || node?.parent || node?.name || "";
+  let walkerNode = node;
+  for (let i = 0; i < 16 && current && !seen.has(current); i += 1) {
+    seen.add(current);
+    if (JAPANESE_TECHTREE_GROUP_ORDER.includes(current)) return current;
+    if (japaneseCanUseStaticParentLane(current)) return JAPANESE_TECHTREE_PARENT_LANE[current];
+    let parentNode = byUniqueIdentifier.get(current) || null;
+    if (!parentNode) parentNode = japaneseChooseParentNodeForChain(current, walkerNode, byName.get(current) || []);
+    if (parentNode?.uniqueParent || parentNode?.parent) {
+      walkerNode = parentNode;
+      current = parentNode.uniqueParent || parentNode.parent;
+      continue;
+    }
+    if (parentNode?.name && parentNode.name !== current) {
+      walkerNode = parentNode;
+      current = parentNode.name;
+      continue;
+    }
+    break;
+  }
+  if (japaneseCanUseStaticParentLane(node?.name)) return JAPANESE_TECHTREE_PARENT_LANE[node.name];
+  return japaneseNodeGroupRoot(node);
+}
+
+function japaneseCompactGroupNodes(group, groupNodes, groupStartX = 0, protectedColumnsOverride = null, age = "", lineMemberKeys = null) {
+  const nodes = (groupNodes || []).map((inputNode) => {
+    const node = { ...inputNode };
+    const [xRaw, yRaw] = String(node.position || `${node.x || 0},${node.y ?? 1}`).split(",");
+    node.x = Number.isFinite(Number(xRaw)) ? Number(xRaw) : Number(node.x || 0) || 0;
+    node.y = Number.isFinite(Number(yRaw)) ? Number(yRaw) : Number(node.y ?? 1) || 1;
+    if (node.y > 1) node.y = 1;
+    if (node.y < 0) node.y = 0;
+    return node;
+  });
+
+  const isGroupRootNode = (node) => !node?.parent && (node?.name === group || (group === "Armory" && node?.name === "DwarvenArmory") || (group === "Monument" && /^MonumentTo/.test(node?.name || "")));
+  const hasRoot = nodes.some((node) => isGroupRootNode(node));
+  const preSortDirectChildCountByName = new Map();
+  for (const child of nodes) {
+    const parentKey = techTreeNodeParentLookupKey(child);
+    if (!parentKey) continue;
+    preSortDirectChildCountByName.set(parentKey, (preSortDirectChildCountByName.get(parentKey) || 0) + 1);
+  }
+  const nodeHasPreSortDirectChildren = (node) => (preSortDirectChildCountByName.get(node?.uniqueIdentifier || node?.name) || 0) > 0;
+  const sourceOrder = (node) => (Number(node.x) || 0) * 10 + (Number(node.y) || 0);
+  const sorted = nodes.slice().sort((a, b) => {
+    const aIsRoot = isGroupRootNode(a);
+    const bIsRoot = isGroupRootNode(b);
+    if (aIsRoot !== bIsRoot) return aIsRoot ? -1 : 1;
+    if (a.name === b.parent && b.name !== a.parent) return -1;
+    if (b.name === a.parent && a.name !== b.parent) return 1;
+    const aRootChild = japaneseIsLaneRootParent(group, a.parent) && !nodeHasPreSortDirectChildren(a);
+    const bRootChild = japaneseIsLaneRootParent(group, b.parent) && !nodeHasPreSortDirectChildren(b);
+    if (aRootChild && bRootChild && a.type !== b.type) {
+      // For direct childless nodes in a building lane, place units before
+      // childless techs. This lets units claim row 0 when the parent building
+      // was introduced in an earlier age, while the techs fall to row 1.
+      // The actual X column still comes from fixed/parent placement rules.
+      if (a.type === "Unit") return -1;
+      if (b.type === "Unit") return 1;
+    }
+    const af = japaneseFixedLocalX(a, group);
+    const bf = japaneseFixedLocalX(b, group);
+    if (Number.isFinite(Number(af)) !== Number.isFinite(Number(bf))) return Number.isFinite(Number(af)) ? -1 : 1;
+    if (Number.isFinite(Number(af)) && af !== bf) return af - bf;
+    return sourceOrder(a) - sourceOrder(b) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name) || String(a.parent).localeCompare(String(b.parent));
+  });
+
+  const localOccupied = new Set();
+  const placedLocalByName = new Map();
+  const placedRowByName = new Map();
+  const placed = [];
+  const protectedLineColumns = protectedColumnsOverride instanceof Set ? protectedColumnsOverride : japaneseProtectedLineColumns(group, nodes);
+  const isLineMemberNode = (node) => lineMemberKeys instanceof Set && lineMemberKeys.has(techTreeNodeKey(node));
+  const directChildCountByName = new Map();
+  const directChildFixedLocalXByName = new Map();
+  const rootDirectChildTypeCounts = { Unit: 0, Tech: 0 };
+  const rootDirectChildlessTypeCounts = { Unit: 0, Tech: 0 };
+  const rootDirectChildWithChildrenTypeCounts = { Unit: 0, Tech: 0 };
+  const rootDirectChildlessTypesByLocalX = new Map();
+  const isLaneRootParent = (parent) => japaneseIsLaneRootParent(group, parent);
+  for (const child of nodes) {
+    const parentKey = techTreeNodeParentLookupKey(child);
+    if (!parentKey) continue;
+    directChildCountByName.set(parentKey, (directChildCountByName.get(parentKey) || 0) + 1);
+    const childFixed = japaneseFixedLocalX(child, group);
+    if (Number.isFinite(Number(childFixed))) {
+      const current = directChildFixedLocalXByName.get(parentKey);
+      const childFixedX = Number(childFixed);
+      if (!Number.isFinite(Number(current)) || childFixedX < Number(current)) {
+        directChildFixedLocalXByName.set(parentKey, childFixedX);
+      }
+    }
+  }
+  for (const child of nodes) {
+    if (!child || !isLaneRootParent(child.parent)) continue;
+    if (child.type === "Unit" || child.type === "Tech") {
+      rootDirectChildTypeCounts[child.type] += 1;
+      const childKey = child.uniqueIdentifier || child.name;
+      if (directChildCountByName.get(childKey) || 0) {
+        rootDirectChildWithChildrenTypeCounts[child.type] += 1;
+      } else {
+        rootDirectChildlessTypeCounts[child.type] += 1;
+        const fixedLocal = japaneseFixedLocalX(child, group);
+        const localX = Number.isFinite(Number(fixedLocal)) ? Number(fixedLocal) : undefined;
+        if (Number.isFinite(localX)) {
+          if (!rootDirectChildlessTypesByLocalX.has(localX)) rootDirectChildlessTypesByLocalX.set(localX, new Set());
+          rootDirectChildlessTypesByLocalX.get(localX).add(child.type);
+        }
+      }
+    }
+  }
+
+  const canUse = (x, y, allowProtectedLineColumn = true) => {
+    if (localOccupied.has(`${x},${y}`)) return false;
+    if (!allowProtectedLineColumn && protectedLineColumns.has(x)) return false;
+    return true;
+  };
+  const reserve = (node, localX, y) => {
+    localOccupied.add(`${localX},${y}`);
+    for (const placementKey of techTreeNodePlacementKeys(node)) {
+      if (!placedLocalByName.has(placementKey) || localX < placedLocalByName.get(placementKey)) {
+        placedLocalByName.set(placementKey, localX);
+        placedRowByName.set(placementKey, y);
+      }
+    }
+    const cleanNode = { ...node };
+    delete cleanNode._group;
+    placed.push({ ...cleanNode, x: groupStartX + localX, y, position: `${groupStartX + localX},${y}` });
+  };
+  const firstFree = (minX, preferredY = 0, allowProtectedLineColumn = true) => {
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      const rows = preferredY === 1 ? [1, 0] : [0, 1];
+      for (const y of rows) if (canUse(x, y, allowProtectedLineColumn)) return { x, y };
+    }
+    return { x: Math.max(0, minX || 0), y: preferredY === 1 ? 1 : 0 };
+  };
+  const firstFreeParentColumn = (minX, allowProtectedLineColumn = true) => {
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      if (canUse(x, 0, allowProtectedLineColumn) && canUse(x, 1, allowProtectedLineColumn)) return { x, y: 0 };
+    }
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      if (canUse(x, 0, allowProtectedLineColumn)) return { x, y: 0 };
+    }
+    return firstFree(minX, 0, allowProtectedLineColumn);
+  };
+
+  for (const node of techTreeParentDepthFirstOrder(sorted, isGroupRootNode)) {
+    const isRoot = isGroupRootNode(node);
+    if (isRoot) {
+      const fixed = japaneseFixedLocalX(node, group);
+      const x = Number.isFinite(Number(fixed)) ? Number(fixed) : 0;
+      const y = 0;
+      if (!canUse(x, y, true)) {
+        const alt = firstFree(x, y, true);
+        reserve(node, alt.x, alt.y);
+      } else {
+        reserve(node, x, y);
+      }
+      continue;
+    }
+
+    const fixed = japaneseFixedLocalX(node, group);
+    const parentLookupKey = techTreeNodeParentLookupKey(node);
+    const parentLocal = placedLocalByName.get(parentLookupKey);
+    const parentRow = placedRowByName.get(parentLookupKey);
+    const childFixedLocal = directChildFixedLocalXByName.get(node.uniqueIdentifier || node.name);
+    const parentFixedLocalRaw = parentLookupKey ? japaneseFixedLocalX({ type: "Unit", name: parentLookupKey, parent: group }, group) : undefined;
+    const parentFixedLocal = Number.isFinite(Number(parentFixedLocalRaw)) ? Number(parentFixedLocalRaw) : undefined;
+    let desiredX;
+    let preferredY = Number(node.y) === 0 ? 0 : 1;
+
+    if (Number.isFinite(Number(parentLocal)) && !isLaneRootParent(node.parent)) {
+      // Parent-line rule: once a parent is placed, every direct child follows
+      // the parent's actual column. Fixed local X values are only preferred
+      // before the parent is placed; they must not break the visible line if
+      // the parent had to move to a cleaner/available column.
+      desiredX = Number(parentLocal);
+      if (Number.isFinite(Number(parentRow))) preferredY = Number(parentRow) === 0 ? 1 : 0;
+    } else if (Number.isFinite(Number(parentFixedLocal)) && !isLaneRootParent(node.parent)) {
+      // Multi-age parent-line rule: if the visible parent belongs to this
+      // building lane but is placed in another age, still use the parent's
+      // canonical local column. This keeps lines such as DouJian -> Maelstrom
+      // and CaravanJapanese -> Coinage aligned even when only the child appears
+      // in the current age.
+      desiredX = Number(parentFixedLocal);
+      preferredY = node.type === "Tech" ? 1 : preferredY;
+    } else if (Number.isFinite(Number(fixed))) {
+      desiredX = Number(fixed);
+    } else if (Number.isFinite(Number(childFixedLocal))) {
+      // Generic parent-line rule: if a direct child is part of a fixed upgrade
+      // line, place the parent in that same column first. Example: Anubite
+      // inherits FeetOfTheJackal's column, so the pair forms a clean vertical
+      // parent line instead of the child occupying the protected column alone.
+      desiredX = Number(childFixedLocal);
+    } else {
+      desiredX = 1;
+    }
+
+    const hasDirectChildren = (directChildCountByName.get(node.uniqueIdentifier || node.name) || 0) > 0;
+    const directFromRootBuilding = hasRoot && isLaneRootParent(node.parent);
+    const rootHasChildlessUnitAndTech = rootDirectChildlessTypeCounts.Unit > 0 && rootDirectChildlessTypeCounts.Tech > 0;
+    const rootChildlessTypesAtDesiredX = rootDirectChildlessTypesByLocalX.get(Number(desiredX)) || new Set();
+    const rootColumnHasChildlessUnitAndTech = rootChildlessTypesAtDesiredX.has("Unit") && rootChildlessTypesAtDesiredX.has("Tech");
+    const rootHasOnlyChildlessUnits = directFromRootBuilding
+      && !hasDirectChildren
+      && node.type === "Unit"
+      && !isLineMemberNode(node)
+      && rootDirectChildlessTypeCounts.Unit > 0
+      && rootDirectChildlessTypeCounts.Tech === 0
+      && rootDirectChildWithChildrenTypeCounts.Unit === 0
+      && rootDirectChildWithChildrenTypeCounts.Tech === 0;
+    if (rootHasOnlyChildlessUnits) {
+      // When a building appears in the current age and only trains units from
+      // its root command row, keep those units together on row 1 and pack them
+      // compactly from the first available column. This avoids gaps like an
+      // empty TownCenter column 1/2 while all trained units are shifted right.
+      desiredX = 1;
+      preferredY = 1;
+    } else if (directFromRootBuilding && !hasDirectChildren) {
+      // Direct children of a building that appears in this age should keep the
+      // building row clean. Childless units prefer row 1 unless a childless tech
+      // also wants that exact column; only then use the classic unit row 0 /
+      // tech row 1 split. This keeps Longhouse units together on row 1 while
+      // still handling HillFort columns that contain both a unit and a tech.
+      if (node.type === "Unit") preferredY = rootColumnHasChildlessUnitAndTech ? 0 : 1;
+      if (node.type === "Tech") preferredY = 1;
+    } else if (node.type === "Unit") {
+      preferredY = 0;
+    }
+    if (age === "ArchaicAge" && !isRoot && node.type === "Unit" && !hasDirectChildren && !rootHasChildlessUnitAndTech && !localOccupied.has(`${desiredX},1`)) preferredY = 1;
+    if (age === "ArchaicAge" && !isRoot && node.type !== "Unit" && !localOccupied.has(`${desiredX},1`)) preferredY = 1;
+
+    if (!hasRoot && !isLaneRootParent(node.parent)) desiredX = Math.max(desiredX, 0);
+    if (hasRoot || group === "TownCenter") desiredX = Math.max(desiredX, 1);
+
+    const hasFixedLocalX = Number.isFinite(Number(fixed));
+    const isChildOfPlacedChain = Number.isFinite(Number(parentLocal)) && !isLaneRootParent(node.parent) && Number(parentLocal) === Number(desiredX);
+    const isParentOfFixedChildLine = Number.isFinite(Number(childFixedLocal)) && Number(childFixedLocal) === Number(desiredX);
+    const isGlobalLineMember = isLineMemberNode(node);
+    const isFixedLineNode = hasFixedLocalX && protectedLineColumns.has(Number(fixed)) && (isGlobalLineMember || !isLaneRootParent(node.parent) || hasDirectChildren || isParentOfFixedChildLine);
+    const isSharedColumnException = (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(node.name))
+      || (group === "Temple" && node.name === "Omniscience");
+    const allowProtectedLineColumn = rootHasOnlyChildlessUnits || isChildOfPlacedChain || isParentOfFixedChildLine || isFixedLineNode || isSharedColumnException;
+    if (!allowProtectedLineColumn && protectedLineColumns.has(desiredX)) {
+      desiredX = japaneseNextNonProtectedLocalX(group, desiredX + 1, protectedLineColumns);
+    }
+
+    let placedHere = false;
+    if (rootHasOnlyChildlessUnits) {
+      for (let x = Math.max(1, Number(desiredX) || 1); x < 64; x += 1) {
+        if (canUse(x, 1, true)) {
+          reserve(node, x, 1);
+          placedHere = true;
+          break;
+        }
+      }
+    }
+    if (!placedHere && hasDirectChildren) {
+      // If this node is itself a child in an already placed parent line, keep it
+      // in the parent column first. This handles three-step lines such as
+      // YaZi -> SonOfLoong -> RageOfSlaughter: the middle node should sit under
+      // the unit parent before its own child pushes to a later free column.
+      if (isChildOfPlacedChain && canUse(desiredX, preferredY, allowProtectedLineColumn)) {
+        reserve(node, desiredX, preferredY);
+        placedHere = true;
+      }
+      if (!placedHere) {
+        // Any visible parent line, including tech upgrade chains, should reserve
+        // a clean column first. This keeps chains such as CopperWeapons ->
+        // BronzeWeapons and Valkyrie -> Disablot in one vertical line instead
+        // of letting an unrelated node occupy the child row.
+        const cleanColumn = firstFreeParentColumn(desiredX, allowProtectedLineColumn);
+        reserve(node, cleanColumn.x, cleanColumn.y);
+        placedHere = true;
+      }
+    }
+    if (!placedHere) {
+      const rows = preferredY === 1 ? [1, 0] : [0, 1];
+      for (const y of rows) {
+        if (canUse(desiredX, y, allowProtectedLineColumn)) {
+          reserve(node, desiredX, y);
+          placedHere = true;
+          break;
+        }
+      }
+    }
+    if (!placedHere) {
+      const fallbackPreferredY = node.type === "Tech" ? 1 : preferredY;
+      const alt = firstFree(desiredX + 1, fallbackPreferredY, allowProtectedLineColumn);
+      reserve(node, alt.x, alt.y);
+    }
+  }
+
+  // Final row cleanup: if a direct childless unit and a direct childless tech
+  // from the same building lane ended up in the same column, keep the unit on
+  // row 0 and the tech on row 1. This preserves the compact column while
+  // keeping units visually prominent.
+  const childlessRootNode = (node) => isLaneRootParent(node?.parent) && !(directChildCountByName.get(node?.uniqueIdentifier || node?.name) || 0);
+  const byColumn = new Map();
+  for (const node of placed) {
+    if (!childlessRootNode(node)) continue;
+    if (!byColumn.has(node.x)) byColumn.set(node.x, []);
+    byColumn.get(node.x).push(node);
+  }
+  for (const columnNodes of byColumn.values()) {
+    const unitRow1 = columnNodes.find((node) => node.type === "Unit" && Number(node.y) === 1);
+    const techRow0 = columnNodes.find((node) => node.type === "Tech" && Number(node.y) === 0);
+    if (unitRow1 && techRow0) {
+      unitRow1.y = 0;
+      unitRow1.position = `${unitRow1.x},0`;
+      techRow0.y = 1;
+      techRow0.position = `${techRow0.x},1`;
+    }
+  }
+
+  return placed.sort((a, b) => (a.x - b.x) || (a.y - b.y) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+function japaneseNormalizeTechTreeNodes(age, nodes, forcedGroupStarts = null, protectedColumnsByGroup = null, lineMemberKeys = null) {
+  const unique = new Map();
+  for (const inputNode of nodes) {
+    if (!inputNode || !inputNode.type || !inputNode.name) continue;
+    const node = { ...inputNode };
+    const [xRaw, yRaw] = String(node.position || `${node.x || 0},${node.y ?? 1}`).split(",");
+    node.x = Number.isFinite(Number(xRaw)) ? Number(xRaw) : Number(node.x || 0) || 0;
+    node.y = Number.isFinite(Number(yRaw)) ? Number(yRaw) : Number(node.y ?? 1) || 1;
+    if (node.y > 1) node.y = 1;
+    if (node.y < 0) node.y = 0;
+    node.position = `${node.x},${node.y}`;
+    const key = techTreeNodeKey(node);
+    if (!unique.has(key)) unique.set(key, node);
+  }
+
+  const allNodes = [...unique.values()];
+  const grouped = new Map();
+  for (const node of allNodes) {
+    const group = japaneseResolveNodeGroupFromNodes(node, allNodes);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push({ ...node, _group: group });
+  }
+
+  const orderedGroups = [...grouped.entries()].sort(([groupA], [groupB]) => {
+    const ai = JAPANESE_TECHTREE_GROUP_ORDER.indexOf(groupA);
+    const bi = JAPANESE_TECHTREE_GROUP_ORDER.indexOf(groupB);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi) || String(groupA).localeCompare(String(groupB));
+  });
+
+  const placed = [];
+  let nextGroupX = 0;
+  for (const [group, groupNodes] of orderedGroups) {
+    const forcedX = forcedGroupStarts && Number.isFinite(Number(forcedGroupStarts[group])) ? Number(forcedGroupStarts[group]) : undefined;
+    const groupStartX = Number.isFinite(Number(forcedX)) ? Number(forcedX) : nextGroupX;
+    const hasProtectionMap = protectedColumnsByGroup && typeof protectedColumnsByGroup === "object";
+    const protectedColumns = hasProtectionMap ? (protectedColumnsByGroup[group] instanceof Set ? protectedColumnsByGroup[group] : new Set()) : null;
+    const groupPlaced = japaneseCompactGroupNodes(group, groupNodes, groupStartX, protectedColumns, age, lineMemberKeys);
+    placed.push(...groupPlaced);
+    const width = groupPlaced.length ? Math.max(...groupPlaced.map((node) => Number(node.x) - groupStartX)) + 1 : 0;
+    nextGroupX = groupStartX + Math.max(width, 0);
+  }
+
+  return placed.sort((a, b) => (a.x - b.x) || (a.y - b.y) || japaneseNodeGroupOrder(a) - japaneseNodeGroupOrder(b) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+function japaneseApplyThorDwarvenArmoryRightSide(nodes, config) {
+  if (!selectedHasThorDwarvenArmoryBonus(config)) return nodes || [];
+  return (nodes || []).map((inputNode) => {
+    const node = { ...inputNode };
+    if (node.type === "Unit" && node.name === "Armory") node.name = "DwarvenArmory";
+    if (node.parent === "Armory") node.parent = "DwarvenArmory";
+    return node;
+  });
+}
+
+
+function japaneseBaseArmoryRightSideNodes(age, config) {
+  const useDwarven = selectedHasThorDwarvenArmoryBonus(config);
+  const armory = useDwarven ? "DwarvenArmory" : "Armory";
+  const node = (type, name, parent, position) => {
+    const [xRaw, yRaw] = String(position).split(",");
+    return { type, name, parent: parent || "", position, x: Number(xRaw) || 0, y: Number(yRaw) || 0 };
+  };
+  if (useDwarven) {
+    if (age === "ArchaicAge") {
+      return [
+        node("Unit", armory, "", "24,0"),
+        node("Tech", "Ballistics", armory, "25,1"),
+        node("Tech", "CopperWeapons", armory, "26,0"),
+        node("Tech", "BronzeWeapons", "CopperWeapons", "26,1"),
+        node("Tech", "CopperArmor", armory, "27,0"),
+        node("Tech", "BronzeArmor", "CopperArmor", "27,1"),
+        node("Tech", "CopperShields", armory, "28,0"),
+        node("Tech", "BronzeShields", "CopperShields", "28,1"),
+      ];
+    }
+    if (age === "ClassicalAge") {
+      return [
+        node("Tech", "BurningPitch", armory, "25,1"),
+        node("Tech", "IronWeapons", "BronzeWeapons", "26,0"),
+        node("Tech", "DwarvenWeapons", "IronWeapons", "26,1"),
+        node("Tech", "IronArmor", "BronzeArmor", "27,0"),
+        node("Tech", "MeteoricIronArmor", "IronArmor", "27,1"),
+        node("Tech", "IronShields", "BronzeShields", "28,0"),
+        node("Tech", "DragonscaleShields", "IronShields", "28,1"),
+      ];
+    }
+    return [];
+  }
+  if (age === "ClassicalAge") {
+    return [
+      node("Unit", armory, "", "24,0"),
+      node("Tech", "Ballistics", armory, "25,1"),
+      node("Tech", "CopperWeapons", armory, "26,1"),
+      node("Tech", "CopperArmor", armory, "27,1"),
+      node("Tech", "CopperShields", armory, "28,1"),
+    ];
+  }
+  if (age === "HeroicAge") {
+    return [
+      node("Tech", "BronzeWeapons", "CopperWeapons", "26,0"),
+      node("Tech", "BronzeArmor", "CopperArmor", "27,0"),
+      node("Tech", "BronzeShields", "CopperShields", "28,0"),
+    ];
+  }
+  if (age === "MythicAge") {
+    return [
+      node("Tech", "BurningPitch", armory, "25,0"),
+      node("Tech", "IronWeapons", "BronzeWeapons", "26,0"),
+      node("Tech", "IronArmor", "BronzeArmor", "27,0"),
+      node("Tech", "IronShields", "BronzeShields", "28,0"),
+    ];
+  }
+  return [];
+}
+
+function japaneseThorDwarvenArmoryExtraRightSideNodes(age, config) {
+  // Kept for compatibility; Japanese Dwarven Armory right-side nodes are built
+  // by japaneseBaseArmoryRightSideNodes so the Armory/DwarvenArmory lane remains
+  // complete and age-appropriate.
+  return [];
+}
+
+
+
+function japaneseRawTechTreeNodesForAge(age, config) {
+  let nodes = [
+    ...japaneseCommonNodesForAge(age),
+    ...japaneseSelectedMinorNodesForAge(age, config),
+    ...japaneseThorDwarvenArmoryExtraRightSideNodes(age, config),
+  ].filter(Boolean);
+  if (age === "ArchaicAge") {
+    const group = selectedUniqueTechGroup(config);
+    const tech = selectedUniqueTechRightSideName(config, group);
+    if (group && tech) {
+      for (const spec of uniqueTechRightSideNodeSpecs(config, "", group)) {
+        const [xRaw, yRaw] = String(spec.position || spec.preferred?.[0] || "18,1").split(",");
+        nodes.push({
+          type: "Tech",
+          name: tech,
+          parent: spec.parent,
+          position: `${Number(xRaw) || 0},${Number(yRaw) || 1}`,
+          x: Number(xRaw) || 0,
+          y: Number(yRaw) || 1,
+        });
+      }
+    }
+  }
+  nodes = applyGenericBonusRightSideNodes("Japanese", age, config, nodes);
+  if (age === "MythicAge" && !nodes.some((node) => node?.type === "Tech" && node?.name === "Coinage")) {
+    nodes.push(rightSideNode("Tech", "Coinage", "CaravanJapanese", "1,0"));
+  }
+  return japaneseApplyThorDwarvenArmoryRightSide(nodes, config);
+}
+
+function japaneseMeasureGroupWidths(nodes, protectedColumnsByGroup = null, age = "", lineMemberKeys = null) {
+  const widths = {};
+  const grouped = new Map();
+  for (const node of nodes || []) {
+    const group = japaneseResolveNodeGroupFromNodes(node, nodes || []);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(node);
+  }
+  for (const [group, groupNodes] of grouped.entries()) {
+    const hasProtectionMap = protectedColumnsByGroup && typeof protectedColumnsByGroup === "object";
+    const protectedColumns = hasProtectionMap ? (protectedColumnsByGroup[group] instanceof Set ? protectedColumnsByGroup[group] : new Set()) : null;
+    const placed = japaneseCompactGroupNodes(group, groupNodes, 0, protectedColumns, age, lineMemberKeys);
+    widths[group] = placed.length ? Math.max(...placed.map((node) => Number(node.x) || 0)) + 1 : 0;
+  }
+  return widths;
+}
+
+
+function japaneseBuildLineMemberKeySets(rawByAge) {
+  const byAge = {};
+  const global = new Set();
+  const allNodes = Object.values(rawByAge || {}).flat().filter(Boolean);
+  const parentRefs = new Set();
+  const childKeys = new Set();
+
+  const scopedKey = (group, key) => `${group || ""}::${key || ""}`;
+
+  for (const node of allNodes) {
+    const parentKey = techTreeNodeParentLookupKey(node);
+    if (!parentKey) continue;
+    const group = japaneseResolveNodeGroupFromNodes(node, allNodes);
+    if (japaneseIsLaneRootParent(group, parentKey)) continue;
+    // Scope parent references by resolved building lane. Otherwise duplicate
+    // Japanese names such as Berserk/Hersir/MediumInfantry can falsely mark an
+    // unrelated building's node as part of a parent line.
+    parentRefs.add(scopedKey(group, parentKey));
+    childKeys.add(techTreeNodeKey(node));
+  }
+
+  for (const [age, nodes] of Object.entries(rawByAge || {})) {
+    const set = new Set();
+    for (const node of nodes || []) {
+      const key = techTreeNodeKey(node);
+      const group = japaneseResolveNodeGroupFromNodes(node, nodes || []);
+      const placementKeys = techTreeNodePlacementKeys(node);
+      const isParentInLine = placementKeys.some((placementKey) => parentRefs.has(scopedKey(group, placementKey)));
+      const isChildInLine = childKeys.has(key);
+      const isSharedColumnException = (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(node.name))
+        || (group === "Temple" && node.name === "Omniscience");
+      if (isParentInLine || isChildInLine || isSharedColumnException) {
+        set.add(key);
+        global.add(key);
+      }
+    }
+    byAge[age] = set;
+  }
+  return { byAge, global };
+}
+
+function japaneseBuildProtectedLineColumnsForNodes(nodesForAge, lineMemberKeys = null) {
+  const grouped = new Map();
+  for (const node of nodesForAge || []) {
+    if (!node || !node.name) continue;
+    const group = japaneseResolveNodeGroupFromNodes(node, nodesForAge || []);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(node);
+  }
+
+  const out = {};
+  for (const [group, groupNodes] of grouped.entries()) {
+    const activeColumns = new Set();
+    for (const node of groupNodes) {
+      const fixed = japaneseFixedLocalX(node, group);
+      if (!Number.isFinite(Number(fixed))) continue;
+      const localX = Number(fixed);
+      const isLineMember = lineMemberKeys instanceof Set && lineMemberKeys.has(techTreeNodeKey(node));
+      const isSharedColumnException = (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(node.name))
+        || (group === "Temple" && node.name === "Omniscience");
+      // Protect only actual active parent-line columns in this age. A column is
+      // protected when a node in this age is part of a parent/child line, even
+      // when the rest of that line appears in a different age. This keeps
+      // multi-age lines aligned without reserving dead columns in ages where
+      // the line has no node.
+      if (isLineMember || isSharedColumnException) activeColumns.add(localX);
+    }
+    if (activeColumns.size) out[group] = activeColumns;
+  }
+  return out;
+}
+
+function japaneseBuildGlobalProtectedLineColumns(rawByAge) {
+  const allNodes = Object.values(rawByAge || {}).flat();
+  return japaneseBuildProtectedLineColumnsForNodes(allNodes, japaneseBuildLineMemberKeySets({ All: allNodes }).byAge.All);
+}
+
+function buildJapaneseTechTreeGroupStarts(config) {
+  if (config?.baseCulture !== "Japanese") return null;
+  const rawByAge = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    rawByAge[age] = japaneseRawTechTreeNodesForAge(age, config);
+  }
+  const lineKeySets = japaneseBuildLineMemberKeySets(rawByAge);
+  config._japaneseTechTreeLineMemberKeysByAge = lineKeySets.byAge;
+  config._japaneseTechTreeLineMemberKeys = lineKeySets.global;
+
+  const protectedColumnsByAge = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    protectedColumnsByAge[age] = japaneseBuildProtectedLineColumnsForNodes(rawByAge[age], lineKeySets.byAge[age]);
+  }
+  config._japaneseTechTreeProtectedColumnsByAge = protectedColumnsByAge;
+  config._japaneseTechTreeProtectedColumns = protectedColumnsByAge.ArchaicAge || {};
+
+  const maxWidths = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    const widths = japaneseMeasureGroupWidths(rawByAge[age], protectedColumnsByAge[age], age, lineKeySets.byAge[age]);
+    for (const [group, width] of Object.entries(widths)) maxWidths[group] = Math.max(maxWidths[group] || 0, width);
+  }
+
+  const starts = {};
+  let nextX = 0;
+  for (const group of JAPANESE_TECHTREE_GROUP_ORDER) {
+    starts[group] = nextX;
+    nextX += Math.max(maxWidths[group] || 0, 0);
+  }
+  return starts;
+}
+
+function generateJapaneseDynamicTechTreeTechnologies(age, config) {
+  if (config?.baseCulture !== "Japanese") return "";
+  const nodes = japaneseRawTechTreeNodesForAge(age, config);
+  const protectedColumns = config?._japaneseTechTreeProtectedColumnsByAge?.[age] || config?._japaneseTechTreeProtectedColumns || null;
+  const lineMemberKeys = config?._japaneseTechTreeLineMemberKeysByAge?.[age] || config?._japaneseTechTreeLineMemberKeys || null;
+  const normalized = japaneseNormalizeTechTreeNodes(age, nodes, config?._japaneseTechTreeGroupStarts || null, protectedColumns, lineMemberKeys);
+  const body = normalized.map((node) => buildTechTreeNodeXml(node)).join("\n");
+  const block = `<local:TechTreeAge.Technologies>
+${body}
+            </local:TechTreeAge.Technologies>`;
+  return applyCustomTechNamesToUiBlock(block, config || {});
+}
+
+
+
+
+
+
+
+
+const AZTEC_TECHTREE_MAJOR_SOURCES = ["Huitzilopochtli", "Quetzalcoatl", "Tezcatlipoca"];
+const AZTEC_TECHTREE_MINOR_BY_AGE = {
+  ClassicalAge: ["ClassicalAgeHuehuecoyotl", "ClassicalAgeMalinalxochitl", "ClassicalAgePatecatl"],
+  HeroicAge: ["HeroicAgeCoatlicue", "HeroicAgeCoyolxauhqui", "HeroicAgeItzpapalotl"],
+  MythicAge: ["MythicAgeMictlantecutli", "MythicAgeTlaloc", "MythicAgeXolotl"],
+};
+
+const AZTEC_TECHTREE_GROUP_ORDER = [
+  "TownCenter", "Calpulli", "House", "Farm", "WallConnector", "Dock", "Temple", "SkyPassage",
+  "TzompantliTowerTechTree", "Armory", "Market", "WarHut", "SmokeTrap", "SpikeTrap", "NoblesHut", "GreatTemple", "Wonder",
+];
+
+const AZTEC_TECHTREE_PARENT_LANE = {
+  TownCenter: "TownCenter",
+  VillagerAztec: "TownCenter", QuimichinSpy: "TownCenter", Masons: "TownCenter", Architects: "TownCenter", FortifiedTownCenter: "TownCenter", SerpentSkirt: "TownCenter", CoatepecShrines: "TownCenter",
+  SecretsOfTheTitans: "TownCenter", TitanGate: "TownCenter",
+
+  Calpulli: "Calpulli", CalpulliToLivestockPen: "Calpulli", CalpulliToLumberOutpost: "Calpulli", CalpulliToCraftWorkshop: "Calpulli",
+  Husbandry: "Calpulli", HuntingEquipment: "Calpulli", MagueyCultivation: "Calpulli", Plow: "Calpulli", Chinampas: "Calpulli",
+  HandAxe: "Calpulli", BowSaw: "Calpulli", Carpenters: "Calpulli", Pickaxe: "Calpulli", ShaftMine: "Calpulli", Quarry: "Calpulli", Tlaloques: "Calpulli", Tonacatepetl: "Calpulli",
+  Farm: "Farm", House: "House",
+
+  WallConnector: "WallConnector", StoneWall: "WallConnector", FortifiedWall: "WallConnector", BronzeWall: "WallConnector", IronWall: "WallConnector",
+
+  Dock: "Dock", FishingShipAztec: "Dock", PurseSeine: "Dock", FishBasket: "Dock", SaltAmphora: "Dock",
+  ArrowCanoe: "Dock", TepoztliCanoe: "Dock", AtlatlSiegeCanoe: "Dock", TransportShipAztec: "Dock", EnclosedDeck: "Dock", HeroicFleet: "Dock",
+  Axolotl: "Dock", AxolotlMutant: "Dock", HeavyWarShips: "Dock", ChampionWarShips: "Dock", ConscriptSailors: "Dock", ShardsOfItztli: "Dock", CipactlisScales: "Dock", Metzliapan: "Dock",
+
+  Temple: "Temple", WarriorPriest: "Temple", TeixiptlaHuitz: "Temple", TeixiptlaQuetz: "Temple", TeixiptlaTezca: "Temple",
+  Chaneque: "Temple", OldCoyotesSpirit: "Temple", CentzonTotochtin: "Temple", OmetochtlisRevelry: "Temple", Maquizcoatl: "Temple", OmenOfMalinalco: "Temple", TeponaztliDrums: "Temple",
+  Ayotochtli: "Temple", TecciztecatlsPenance: "Temple", Tzitzimitl: "Temple", CentzonHuitznahua: "Temple", ObsidianButterfly: "Temple", WingsOfItzpapalotl: "Temple", FloweryWars: "Temple",
+  SoulGuide: "Temple", TorchOfMisfortune: "Temple", Ahuizotl: "Temple", Tunkuluchu: "Temple", NecklaceOfEyeballs: "Temple", OmenOfDeath: "Temple", Omniscience: "Temple", FeastOfTlaxochimaco: "Temple", NezhaChild: "Temple", NezhaYouth: "Temple", Nezha: "Temple",
+
+  SkyPassage: "SkyPassage",
+
+  TzompantliTowerTechTree: "TzompantliTowerTechTree", SignalFires: "TzompantliTowerTechTree", TzompantliWatchTower: "TzompantliTowerTechTree", CrenellationsAztec: "TzompantliTowerTechTree", CarrierPigeons: "TzompantliTowerTechTree", TemiminaloyanTrials: "TzompantliTowerTechTree", BurntWater: "TzompantliTowerTechTree",
+
+  Armory: "Armory", DwarvenArmory: "Armory", Ballistics: "Armory", BurningPitch: "Armory", FlintWeapons: "Armory", JadeWeapons: "Armory", ObsidianWeapons: "Armory",
+  FeatheredArmor: "Armory", CeremonialArmor: "Armory", SacredArmor: "Armory", FeatheredShields: "Armory", CeremonialShields: "Armory", SacredShields: "Armory", StringOfHearts: "Armory",
+  CopperWeapons: "Armory", BronzeWeapons: "Armory", IronWeapons: "Armory", DwarvenWeapons: "Armory", CopperArmor: "Armory", BronzeArmor: "Armory", IronArmor: "Armory", MeteoricIronArmor: "Armory", CopperShields: "Armory", BronzeShields: "Armory", IronShields: "Armory", DragonscaleShields: "Armory",
+
+  Market: "Market", CaravanAztec: "Market", TaxCollectors: "Market", Coinage: "Market", Ambassadors: "Market",
+
+  WarHut: "WarHut", WingsOfTheSouth: "WarHut", Nahuallatolli: "WarHut", ToloacheTrance: "WarHut", StingOfYappan: "WarHut", TlamanihSpearman: "WarHut", TequihuaArcher: "WarHut", MediumWarHutSoldiers: "WarHut", LevyWarHutSoldiers: "WarHut", HeavyWarHutSoldiers: "WarHut", ConscriptWarHutSoldiers: "WarHut", ChampionWarHutSoldiers: "WarHut", AdvancedTraps: "WarHut", PreciousBones: "WarHut", OcpatliInfusions: "WarHut",
+  SmokeTrap: "SmokeTrap", SpikeTrap: "SpikeTrap",
+
+  NoblesHut: "NoblesHut", CoyoteWarrior: "NoblesHut", OcelotlWarrior: "NoblesHut", EagleWarrior: "NoblesHut", TepeyollotlsReach: "NoblesHut", CuicacalliTraining: "NoblesHut", ObsidianKnapping: "NoblesHut", MediumNoblesHutSoldiers: "NoblesHut", LevyNoblesHutSoldiers: "NoblesHut", HeavyNoblesHutSoldiers: "NoblesHut", ConscriptNoblesHutSoldiers: "NoblesHut", ChampionNoblesHutSoldiers: "NoblesHut", TwistedLimbs: "NoblesHut",
+
+  GreatTemple: "GreatTemple", GreatTempleNewFireCeremony: "GreatTemple", GreatTempleCosmicGuard: "GreatTemple", GreatTempleArrivalOfTheGodsQuetzalcoatl: "GreatTemple", GreatTempleArrivalOfTheGodsHuitzilopochtli: "GreatTemple", GreatTempleArrivalOfTheGodsTezcatlipoca: "GreatTemple",
+  AdvancedFortifications: "GreatTemple", CoyolxauhquiStone: "GreatTemple", Otontin: "GreatTemple", ShornOne: "GreatTemple", JaguarRider: "GreatTemple", Quinametzin: "GreatTemple", StoneskinQuinametzin: "GreatTemple", Mictecah: "GreatTemple", EveningStar: "GreatTemple", FourJars: "GreatTemple", LevyGreatTempleSoldiers: "GreatTemple", HeavyGreatTempleSoldiers: "GreatTemple", ConscriptGreatTempleSoldiers: "GreatTemple", ChampionGreatTempleSoldiers: "GreatTemple",
+
+  Wonder: "Wonder",
+};
+
+const AZTEC_TECHTREE_AMBIGUOUS_PARENT_NAMES = new Set([
+  "ToloacheTrance", "OcpatliInfusions", "MediumWarHutSoldiers", "HeavyWarHutSoldiers", "LevyWarHutSoldiers", "ConscriptWarHutSoldiers", "ChampionWarHutSoldiers",
+  "MediumNoblesHutSoldiers", "HeavyNoblesHutSoldiers", "LevyNoblesHutSoldiers", "ConscriptNoblesHutSoldiers", "ChampionNoblesHutSoldiers",
+  "CoyolxauhquiStone", "PreciousBones", "TepeyollotlsReach",
+]);
+
+function aztecCanUseStaticParentLane(name) {
+  return !!name && !AZTEC_TECHTREE_AMBIGUOUS_PARENT_NAMES.has(name) && !!AZTEC_TECHTREE_PARENT_LANE[name];
+}
+
+function aztecGroupFromUniqueReference(ref) {
+  const value = String(ref || "");
+  if (!value) return "";
+  return AZTEC_TECHTREE_GROUP_ORDER.find((group) => value.startsWith(group)) || "";
+}
+
+function aztecGroupFromAmbiguousParentReference(parent, node) {
+  if (!parent || node?.uniqueParent || !AZTEC_TECHTREE_AMBIGUOUS_PARENT_NAMES.has(parent)) return "";
+  const marker = String(node?.uniqueParent || node?.uniqueIdentifier || "");
+  if (["MediumWarHutSoldiers", "HeavyWarHutSoldiers", "LevyWarHutSoldiers", "ConscriptWarHutSoldiers", "ChampionWarHutSoldiers"].includes(parent)) return "WarHut";
+  if (["MediumNoblesHutSoldiers", "HeavyNoblesHutSoldiers", "LevyNoblesHutSoldiers", "ConscriptNoblesHutSoldiers", "ChampionNoblesHutSoldiers"].includes(parent)) return "NoblesHut";
+  if (parent === "ToloacheTrance" || parent === "OcpatliInfusions") {
+    if (node?.parent === "GreatTemple" || marker.startsWith("GreatTemple")) return "GreatTemple";
+    if (node?.parent === "NoblesHut" || marker.startsWith("NoblesHut")) return "NoblesHut";
+    return "WarHut";
+  }
+  if (parent === "CoyolxauhquiStone") return node?.parent === "GreatTemple" ? "GreatTemple" : "Temple";
+  if (parent === "PreciousBones") return node?.parent === "NoblesHut" ? "NoblesHut" : "WarHut";
+  if (parent === "TepeyollotlsReach") return node?.parent === "GreatTemple" ? "GreatTemple" : "NoblesHut";
+  return "";
+}
+
+function aztecChooseParentNodeForChain(current, node, candidates) {
+  const list = (candidates || []).filter(Boolean);
+  if (!list.length) return null;
+  if (node?.uniqueParent) {
+    const exact = list.find((candidate) => candidate?.uniqueIdentifier === node.uniqueParent);
+    if (exact) return exact;
+  }
+  const nodeX = Number(node?.x);
+  return list.slice().sort((a, b) => {
+    const ax = Number(a.x) || 0;
+    const bx = Number(b.x) || 0;
+    const aDistance = Number.isFinite(nodeX) ? Math.abs(ax - nodeX) : ax;
+    const bDistance = Number.isFinite(nodeX) ? Math.abs(bx - nodeX) : bx;
+    const aAfterPenalty = Number.isFinite(nodeX) && ax > nodeX ? 1000 : 0;
+    const bAfterPenalty = Number.isFinite(nodeX) && bx > nodeX ? 1000 : 0;
+    return (aDistance + aAfterPenalty) - (bDistance + bAfterPenalty) || ax - bx || (Number(a.y) || 0) - (Number(b.y) || 0);
+  })[0];
+}
+
+function aztecNodeGroupRoot(node) {
+  const parent = node?.parent || "";
+  const name = node?.name || "";
+  const uniqueGroup = aztecGroupFromUniqueReference(node?.uniqueParent || node?.uniqueIdentifier || "");
+  if (uniqueGroup) return uniqueGroup;
+  const ambiguousGroup = aztecGroupFromAmbiguousParentReference(parent, node);
+  if (ambiguousGroup) return ambiguousGroup;
+  if (AZTEC_TECHTREE_GROUP_ORDER.includes(parent)) return parent;
+  if (aztecCanUseStaticParentLane(parent)) return AZTEC_TECHTREE_PARENT_LANE[parent];
+  if (!parent && AZTEC_TECHTREE_GROUP_ORDER.includes(name)) return name;
+  if (aztecCanUseStaticParentLane(name)) return AZTEC_TECHTREE_PARENT_LANE[name];
+  return parent || name;
+}
+
+function aztecNodeGroupOrder(node) {
+  const root = aztecNodeGroupRoot(node);
+  const idx = AZTEC_TECHTREE_GROUP_ORDER.indexOf(root);
+  return idx >= 0 ? idx : 99;
+}
+
+const AZTEC_TECHTREE_FIXED_LOCAL_X = {
+  VillagerAztec: 1, QuimichinSpy: 2, Masons: 1, Architects: 1, FortifiedTownCenter: 1, SerpentSkirt: 1, CoatepecShrines: 1, SecretsOfTheTitans: 1, TitanGate: 1,
+  CalpulliToLivestockPen: 1, Husbandry: 1, HuntingEquipment: 1, MagueyCultivation: 1, Plow: 1, Chinampas: 1,
+  CalpulliToLumberOutpost: 2, HandAxe: 2, BowSaw: 2, Carpenters: 2,
+  CalpulliToCraftWorkshop: 3, Pickaxe: 3, ShaftMine: 3, Quarry: 3, Tlaloques: 1, Tonacatepetl: 2,
+  StoneWall: 0, FortifiedWall: 0, BronzeWall: 0, IronWall: 0,
+  HeroicFleet: 1, Axolotl: 1, AxolotlMutant: 1, ArrowCanoe: 2, ShardsOfItztli: 2, TepoztliCanoe: 3, AtlatlSiegeCanoe: 4, CipactlisScales: 4, TransportShipAztec: 5, EnclosedDeck: 5, FishingShipAztec: 6, PurseSeine: 6, FishBasket: 6, SaltAmphora: 6, HeavyWarShips: 7, ChampionWarShips: 7, ConscriptSailors: 8, Metzliapan: 3,
+  Omniscience: 0, WarriorPriest: 1, TeixiptlaHuitz: 1, TeixiptlaQuetz: 1, TeixiptlaTezca: 1, Chaneque: 2, OldCoyotesSpirit: 2, CentzonTotochtin: 3, OmetochtlisRevelry: 3, Maquizcoatl: 4, OmenOfMalinalco: 4, TeponaztliDrums: 5, Ayotochtli: 1, TecciztecatlsPenance: 1, FloweryWars: 1, Tzitzimitl: 2, CentzonHuitznahua: 2, ObsidianButterfly: 3, WingsOfItzpapalotl: 3, SoulGuide: 1, TorchOfMisfortune: 1, Ahuizotl: 2, Tunkuluchu: 3, NecklaceOfEyeballs: 1, OmenOfDeath: 2, FeastOfTlaxochimaco: 1, NezhaChild: 4, NezhaYouth: 4, Nezha: 4,
+  SignalFires: 1, CarrierPigeons: 1, TzompantliWatchTower: 2, CrenellationsAztec: 2, TemiminaloyanTrials: 2, BurntWater: 3,
+  Ballistics: 1, BurningPitch: 1, FlintWeapons: 2, JadeWeapons: 2, ObsidianWeapons: 2, CopperWeapons: 2, BronzeWeapons: 2, IronWeapons: 2, DwarvenWeapons: 2, FeatheredArmor: 3, CeremonialArmor: 3, SacredArmor: 3, CopperArmor: 3, BronzeArmor: 3, IronArmor: 3, MeteoricIronArmor: 3, FeatheredShields: 4, CeremonialShields: 4, SacredShields: 4, CopperShields: 4, BronzeShields: 4, IronShields: 4, DragonscaleShields: 4, StringOfHearts: 1,
+  CaravanAztec: 1, Coinage: 1, TaxCollectors: 2, Ambassadors: 2,
+  WingsOfTheSouth: 1, Nahuallatolli: 1, ToloacheTrance: 1, StingOfYappan: 2, TlamanihSpearman: 2, OcpatliInfusions: 3, TequihuaArcher: 3, MediumWarHutSoldiers: 4, LevyWarHutSoldiers: 4, HeavyWarHutSoldiers: 4, ConscriptWarHutSoldiers: 4, ChampionWarHutSoldiers: 4, AdvancedTraps: 2, PreciousBones: 1,
+  CoyoteWarrior: 1, OcelotlWarrior: 2, EagleWarrior: 3, TepeyollotlsReach: 2, CuicacalliTraining: 2, ObsidianKnapping: 1, MediumNoblesHutSoldiers: 4, LevyNoblesHutSoldiers: 4, HeavyNoblesHutSoldiers: 4, ConscriptNoblesHutSoldiers: 4, ChampionNoblesHutSoldiers: 4, TwistedLimbs: 2,
+  GreatTempleNewFireCeremony: 1, GreatTempleCosmicGuard: 1, AdvancedFortifications: 2, GreatTempleArrivalOfTheGodsQuetzalcoatl: 2, GreatTempleArrivalOfTheGodsHuitzilopochtli: 2, GreatTempleArrivalOfTheGodsTezcatlipoca: 2, CoyolxauhquiStone: 3, Otontin: 3, ShornOne: 4, Mictecah: 4, JaguarRider: 5, EveningStar: 5, Quinametzin: 6, StoneskinQuinametzin: 6, FourJars: 7, TepeyollotlsReach: 5, ToloacheTrance: 1, LevyGreatTempleSoldiers: 8, HeavyGreatTempleSoldiers: 8, ConscriptGreatTempleSoldiers: 8, ChampionGreatTempleSoldiers: 8,
+};
+
+function aztecFixedLocalX(node, group) {
+  if (Number.isFinite(Number(node?._fixedLocalX))) return Number(node._fixedLocalX);
+  const name = node?.name || "";
+  if (group === "TownCenter" && /^SkinOfTheRhino/.test(name)) return 2;
+  if (group === "SkyPassage" && name === "SkyPassage") return 0;
+  if (group === "Armory") {
+    const map = { Armory: 0, DwarvenArmory: 0, Ballistics: 1, BurningPitch: 1, FlintWeapons: 2, JadeWeapons: 2, ObsidianWeapons: 2, CopperWeapons: 2, BronzeWeapons: 2, IronWeapons: 2, DwarvenWeapons: 2, FeatheredArmor: 3, CeremonialArmor: 3, SacredArmor: 3, CopperArmor: 3, BronzeArmor: 3, IronArmor: 3, MeteoricIronArmor: 3, FeatheredShields: 4, CeremonialShields: 4, SacredShields: 4, CopperShields: 4, BronzeShields: 4, IronShields: 4, DragonscaleShields: 4, StringOfHearts: 1 };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "TzompantliTowerTechTree") {
+    const map = { TzompantliTowerTechTree: 0, SignalFires: 1, CarrierPigeons: 1, TzompantliWatchTower: 2, CrenellationsAztec: 2, TemiminaloyanTrials: 2, BurntWater: 3 };
+    if (Object.prototype.hasOwnProperty.call(map, name)) return map[name];
+  }
+  if (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(name)) return 0;
+  if (group === "Temple" && name === "Omniscience") return 0;
+  if (group === "Temple" && ["NezhaChild", "NezhaYouth", "Nezha"].includes(name)) return 4;
+  if (Object.prototype.hasOwnProperty.call(AZTEC_TECHTREE_FIXED_LOCAL_X, name)) return AZTEC_TECHTREE_FIXED_LOCAL_X[name];
+  return undefined;
+}
+
+const AZTEC_TECHTREE_PROTECTED_LINE_LOCAL_X = {
+  TownCenter: [1, 2],
+  Calpulli: [1, 2, 3],
+  WallConnector: [0],
+  Dock: [1, 2, 3, 4, 5, 6, 7, 8],
+  Temple: [0, 1, 2, 3, 4],
+  TzompantliTowerTechTree: [1],
+  Armory: [1, 2, 3, 4],
+  Market: [1, 2],
+  WarHut: [1, 2, 3, 4],
+  NoblesHut: [1, 2, 3, 4],
+  GreatTemple: [1, 2, 3, 4, 5, 6, 7, 8],
+};
+
+function aztecProtectedLineColumns(group, groupNodes = null) {
+  const candidateColumns = new Set(AZTEC_TECHTREE_PROTECTED_LINE_LOCAL_X[group] || []);
+  if (!Array.isArray(groupNodes)) return candidateColumns;
+  const activeColumns = new Set();
+  for (const node of groupNodes) {
+    const fixed = aztecFixedLocalX(node, group);
+    if (!Number.isFinite(Number(fixed))) continue;
+    const localX = Number(fixed);
+    if (candidateColumns.has(localX)) activeColumns.add(localX);
+  }
+  return activeColumns;
+}
+
+function aztecIsLaneRootParent(group, parent) {
+  return parent === group
+    || (group === "Armory" && parent === "DwarvenArmory")
+    || (group === "TownCenter" && parent === "TownCenter")
+    || (group === "Monument" && /^MonumentTo/.test(parent || ""));
+}
+
+function aztecNextNonProtectedLocalX(group, minX, protectedColumns = null) {
+  const columns = protectedColumns instanceof Set ? protectedColumns : aztecProtectedLineColumns(group);
+  for (let x = Math.max(0, Number(minX) || 0); x < 64; x += 1) {
+    if (!columns.has(x)) return x;
+  }
+  return Math.max(0, Number(minX) || 0);
+}
+
+function aztecTechTreeSourceNodes(age) {
+  const templates = window.AOM_TECHTREE || {};
+  const byMajor = {};
+  for (const major of AZTEC_TECHTREE_MAJOR_SOURCES) {
+    const block = age === "ArchaicAge"
+      ? extractXmlPropertyBlock(lookupTemplateBlock(templates.archaicByMajor, major) || "", "Technologies")
+      : templates.ageTechnologiesByMajorAge?.[`${major}|${age}`] || "";
+    byMajor[major] = parseTechTreeNodesFromBlock(block);
+  }
+  return byMajor;
+}
+
+function aztecCanonicalMinorTech(tech) {
+  return tech;
+}
+
+function aztecMinorBonusTokens(minorTech) {
+  const canonical = aztecCanonicalMinorTech(canonicalMinorTech(minorTech));
+  const block = window.AOM_TECHTREE?.bonusTrackByGod?.[canonical] || "";
+  return parseTechTreeNodesFromBlock(block).filter((node) => node.type === "Unit" || node.type === "Tech");
+}
+
+function aztecAllConditionalNodeNames() {
+  const names = new Set();
+  (UNIQUE_TECH_GROUPS || []).forEach((group) => {
+    names.add(group.id);
+    (group.techs || []).forEach((tech) => names.add(tech));
+  });
+  Object.values(AZTEC_TECHTREE_MINOR_BY_AGE).flat().forEach((minor) => {
+    aztecMinorBonusTokens(minor).forEach((node) => names.add(node.name));
+  });
+  return names;
+}
+
+function aztecCommonNodesForAge(age) {
+  const byMajor = aztecTechTreeSourceNodes(age);
+  const excluded = aztecAllConditionalNodeNames();
+  const keySets = Object.fromEntries(Object.entries(byMajor).map(([major, nodes]) => [major, new Set(nodes.map(techTreeNodeKey))]));
+  const baseSource = AZTEC_TECHTREE_MAJOR_SOURCES[0];
+  const allKeys = [...(keySets[baseSource] || new Set())];
+  const commonKeys = allKeys.filter((key) => AZTEC_TECHTREE_MAJOR_SOURCES.every((major) => keySets[major]?.has(key)));
+  const sourceNodes = Object.values(byMajor).flat();
+  const result = [];
+  for (const key of commonKeys) {
+    const matches = sourceNodes.filter((node) => techTreeNodeKey(node) === key);
+    const rep = chooseGreekRepresentativeNode(matches);
+    if (!rep || excluded.has(rep.name)) continue;
+    result.push({ ...rep });
+  }
+  return result;
+}
+
+function aztecFindRightSideNodesForToken(age, tokenNode) {
+  const byMajor = aztecTechTreeSourceNodes(age);
+  const matches = Object.values(byMajor).flat().filter((node) => node.type === tokenNode.type && node.name === tokenNode.name);
+  if (!matches.length) return [];
+  const byKey = new Map();
+  for (const node of matches) {
+    const key = techTreeNodeKey(node);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(node);
+  }
+  const reps = [...byKey.values()].map((nodes) => ({ count: nodes.length, node: chooseGreekRepresentativeNode(nodes) }));
+  reps.sort((a, b) => aztecNodeGroupOrder(a.node) - aztecNodeGroupOrder(b.node) || (a.node.x - b.node.x) || (a.node.y - b.node.y) || String(a.node.parent).localeCompare(String(b.node.parent)) || (b.count - a.count));
+  return reps.map((entry) => ({ ...entry.node }));
+}
+
+function aztecMinorNodeSameBuildingKey(node, contextNodes = []) {
+  if (!node?.type || !node?.name) return "";
+  const group = aztecResolveNodeGroupFromNodes(node, contextNodes && contextNodes.length ? contextNodes : [node]);
+  return `${node.type}|${node.name}|${group}`;
+}
+
+function aztecPriorSelectedMinorBuildingKeys(age, config) {
+  const out = new Set();
+  const order = ["ClassicalAge", "HeroicAge", "MythicAge"];
+  const index = order.indexOf(age);
+  if (index <= 0) return out;
+  for (const priorAge of order.slice(0, index)) {
+    const selected = (config.minorGods?.[priorAge] || []).map(canonicalMinorTech);
+    const priorNodes = [];
+    for (const minor of selected) {
+      for (const token of aztecMinorBonusTokens(minor)) {
+        priorNodes.push(...aztecFindRightSideNodesForToken(priorAge, token));
+      }
+    }
+    for (const node of priorNodes) {
+      const key = aztecMinorNodeSameBuildingKey(node, priorNodes);
+      if (key) out.add(key);
+    }
+  }
+  return out;
+}
+
+function aztecSelectedMinorNodesForAge(age, config) {
+  const selected = (config.minorGods?.[age] || []).map((tech) => aztecCanonicalMinorTech(canonicalMinorTech(tech)));
+  const nodes = [];
+  const seenSameBuilding = aztecPriorSelectedMinorBuildingKeys(age, config);
+  for (const minor of selected) {
+    for (const token of aztecMinorBonusTokens(minor)) {
+      for (const candidate of aztecFindRightSideNodesForToken(age, token)) {
+        const key = aztecMinorNodeSameBuildingKey(candidate, [...nodes, candidate]);
+        if (key && seenSameBuilding.has(key)) continue;
+        nodes.push(candidate);
+        if (key) seenSameBuilding.add(key);
+      }
+    }
+  }
+  return nodes;
+}
+
+function aztecResolveNodeGroupFromNodes(node, allNodes) {
+  const byName = new Map();
+  const byUniqueIdentifier = new Map();
+  for (const candidate of allNodes || []) {
+    if (!candidate?.name) continue;
+    if (!byName.has(candidate.name)) byName.set(candidate.name, []);
+    byName.get(candidate.name).push(candidate);
+    if (candidate.uniqueIdentifier) byUniqueIdentifier.set(candidate.uniqueIdentifier, candidate);
+  }
+  const uniqueGroup = aztecGroupFromUniqueReference(node?.uniqueParent || node?.uniqueIdentifier || "");
+  if (uniqueGroup) return uniqueGroup;
+  const ambiguousGroup = aztecGroupFromAmbiguousParentReference(node?.parent || "", node);
+  if (ambiguousGroup) return ambiguousGroup;
+  const seen = new Set();
+  let current = node?.uniqueParent || node?.parent || node?.name || "";
+  let walkerNode = node;
+  for (let i = 0; i < 16 && current && !seen.has(current); i += 1) {
+    seen.add(current);
+    if (AZTEC_TECHTREE_GROUP_ORDER.includes(current)) return current;
+    if (aztecCanUseStaticParentLane(current)) return AZTEC_TECHTREE_PARENT_LANE[current];
+    let parentNode = byUniqueIdentifier.get(current) || null;
+    if (!parentNode) parentNode = aztecChooseParentNodeForChain(current, walkerNode, byName.get(current) || []);
+    if (parentNode?.uniqueParent || parentNode?.parent) {
+      walkerNode = parentNode;
+      current = parentNode.uniqueParent || parentNode.parent;
+      continue;
+    }
+    if (parentNode?.name && parentNode.name !== current) {
+      walkerNode = parentNode;
+      current = parentNode.name;
+      continue;
+    }
+    break;
+  }
+  if (aztecCanUseStaticParentLane(node?.name)) return AZTEC_TECHTREE_PARENT_LANE[node.name];
+  return aztecNodeGroupRoot(node);
+}
+
+function aztecCompactGroupNodes(group, groupNodes, groupStartX = 0, protectedColumnsOverride = null, age = "", lineMemberKeys = null) {
+  const nodes = (groupNodes || []).map((inputNode) => {
+    const node = { ...inputNode };
+    const [xRaw, yRaw] = String(node.position || `${node.x || 0},${node.y ?? 1}`).split(",");
+    node.x = Number.isFinite(Number(xRaw)) ? Number(xRaw) : Number(node.x || 0) || 0;
+    node.y = Number.isFinite(Number(yRaw)) ? Number(yRaw) : Number(node.y ?? 1) || 1;
+    if (node.y > 1) node.y = 1;
+    if (node.y < 0) node.y = 0;
+    return node;
+  });
+
+  const isGroupRootNode = (node) => !node?.parent && (node?.name === group || (group === "Armory" && node?.name === "DwarvenArmory") || (group === "Monument" && /^MonumentTo/.test(node?.name || "")));
+  const hasRoot = nodes.some((node) => isGroupRootNode(node));
+  const preSortDirectChildCountByName = new Map();
+  for (const child of nodes) {
+    const parentKey = techTreeNodeParentLookupKey(child);
+    if (!parentKey) continue;
+    preSortDirectChildCountByName.set(parentKey, (preSortDirectChildCountByName.get(parentKey) || 0) + 1);
+  }
+  const nodeHasPreSortDirectChildren = (node) => (preSortDirectChildCountByName.get(node?.uniqueIdentifier || node?.name) || 0) > 0;
+  const sourceOrder = (node) => (Number(node.x) || 0) * 10 + (Number(node.y) || 0);
+  const sorted = nodes.slice().sort((a, b) => {
+    const aIsRoot = isGroupRootNode(a);
+    const bIsRoot = isGroupRootNode(b);
+    if (aIsRoot !== bIsRoot) return aIsRoot ? -1 : 1;
+    if (a.name === b.parent && b.name !== a.parent) return -1;
+    if (b.name === a.parent && a.name !== b.parent) return 1;
+    const aRootChild = aztecIsLaneRootParent(group, a.parent) && !nodeHasPreSortDirectChildren(a);
+    const bRootChild = aztecIsLaneRootParent(group, b.parent) && !nodeHasPreSortDirectChildren(b);
+    if (aRootChild && bRootChild && a.type !== b.type) {
+      // For direct childless nodes in a building lane, place units before
+      // childless techs. This lets units claim row 0 when the parent building
+      // was introduced in an earlier age, while the techs fall to row 1.
+      // The actual X column still comes from fixed/parent placement rules.
+      if (a.type === "Unit") return -1;
+      if (b.type === "Unit") return 1;
+    }
+    const af = aztecFixedLocalX(a, group);
+    const bf = aztecFixedLocalX(b, group);
+    if (Number.isFinite(Number(af)) !== Number.isFinite(Number(bf))) return Number.isFinite(Number(af)) ? -1 : 1;
+    if (Number.isFinite(Number(af)) && af !== bf) return af - bf;
+    return sourceOrder(a) - sourceOrder(b) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name) || String(a.parent).localeCompare(String(b.parent));
+  });
+
+  const localOccupied = new Set();
+  const placedLocalByName = new Map();
+  const placedRowByName = new Map();
+  const placed = [];
+  const protectedLineColumns = protectedColumnsOverride instanceof Set ? protectedColumnsOverride : aztecProtectedLineColumns(group, nodes);
+  const isLineMemberNode = (node) => lineMemberKeys instanceof Set && lineMemberKeys.has(techTreeNodeKey(node));
+  const directChildCountByName = new Map();
+  const directChildFixedLocalXByName = new Map();
+  const rootDirectChildTypeCounts = { Unit: 0, Tech: 0 };
+  const rootDirectChildlessTypeCounts = { Unit: 0, Tech: 0 };
+  const rootDirectChildWithChildrenTypeCounts = { Unit: 0, Tech: 0 };
+  const rootDirectChildlessTypesByLocalX = new Map();
+  const isLaneRootParent = (parent) => aztecIsLaneRootParent(group, parent);
+  for (const child of nodes) {
+    const parentKey = techTreeNodeParentLookupKey(child);
+    if (!parentKey) continue;
+    directChildCountByName.set(parentKey, (directChildCountByName.get(parentKey) || 0) + 1);
+    const childFixed = aztecFixedLocalX(child, group);
+    if (Number.isFinite(Number(childFixed))) {
+      const current = directChildFixedLocalXByName.get(parentKey);
+      const childFixedX = Number(childFixed);
+      if (!Number.isFinite(Number(current)) || childFixedX < Number(current)) {
+        directChildFixedLocalXByName.set(parentKey, childFixedX);
+      }
+    }
+  }
+  for (const child of nodes) {
+    if (!child || !isLaneRootParent(child.parent)) continue;
+    if (child.type === "Unit" || child.type === "Tech") {
+      rootDirectChildTypeCounts[child.type] += 1;
+      const childKey = child.uniqueIdentifier || child.name;
+      if (directChildCountByName.get(childKey) || 0) {
+        rootDirectChildWithChildrenTypeCounts[child.type] += 1;
+      } else {
+        rootDirectChildlessTypeCounts[child.type] += 1;
+        const fixedLocal = aztecFixedLocalX(child, group);
+        const localX = Number.isFinite(Number(fixedLocal)) ? Number(fixedLocal) : undefined;
+        if (Number.isFinite(localX)) {
+          if (!rootDirectChildlessTypesByLocalX.has(localX)) rootDirectChildlessTypesByLocalX.set(localX, new Set());
+          rootDirectChildlessTypesByLocalX.get(localX).add(child.type);
+        }
+      }
+    }
+  }
+
+  const canUse = (x, y, allowProtectedLineColumn = true) => {
+    if (localOccupied.has(`${x},${y}`)) return false;
+    if (!allowProtectedLineColumn && protectedLineColumns.has(x)) return false;
+    return true;
+  };
+  const reserve = (node, localX, y) => {
+    localOccupied.add(`${localX},${y}`);
+    for (const placementKey of techTreeNodePlacementKeys(node)) {
+      if (!placedLocalByName.has(placementKey) || localX < placedLocalByName.get(placementKey)) {
+        placedLocalByName.set(placementKey, localX);
+        placedRowByName.set(placementKey, y);
+      }
+    }
+    const cleanNode = { ...node };
+    delete cleanNode._group;
+    placed.push({ ...cleanNode, x: groupStartX + localX, y, position: `${groupStartX + localX},${y}` });
+  };
+  const firstFree = (minX, preferredY = 0, allowProtectedLineColumn = true) => {
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      const rows = preferredY === 1 ? [1, 0] : [0, 1];
+      for (const y of rows) if (canUse(x, y, allowProtectedLineColumn)) return { x, y };
+    }
+    return { x: Math.max(0, minX || 0), y: preferredY === 1 ? 1 : 0 };
+  };
+  const firstFreeParentColumn = (minX, allowProtectedLineColumn = true) => {
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      if (canUse(x, 0, allowProtectedLineColumn) && canUse(x, 1, allowProtectedLineColumn)) return { x, y: 0 };
+    }
+    for (let x = Math.max(0, minX || 0); x < 64; x += 1) {
+      if (!allowProtectedLineColumn && protectedLineColumns.has(x)) continue;
+      if (canUse(x, 0, allowProtectedLineColumn)) return { x, y: 0 };
+    }
+    return firstFree(minX, 0, allowProtectedLineColumn);
+  };
+
+  for (const node of techTreeParentDepthFirstOrder(sorted, isGroupRootNode)) {
+    const isRoot = isGroupRootNode(node);
+    if (isRoot) {
+      const fixed = aztecFixedLocalX(node, group);
+      const x = Number.isFinite(Number(fixed)) ? Number(fixed) : 0;
+      const y = 0;
+      if (!canUse(x, y, true)) {
+        const alt = firstFree(x, y, true);
+        reserve(node, alt.x, alt.y);
+      } else {
+        reserve(node, x, y);
+      }
+      continue;
+    }
+
+    const fixed = aztecFixedLocalX(node, group);
+    const parentLookupKey = techTreeNodeParentLookupKey(node);
+    const parentLocal = placedLocalByName.get(parentLookupKey);
+    const parentRow = placedRowByName.get(parentLookupKey);
+    const childFixedLocal = directChildFixedLocalXByName.get(node.uniqueIdentifier || node.name);
+    const parentLineOverrideRaw = parentLookupKey && node?._lineColumnByPlacementKey ? node._lineColumnByPlacementKey[`${group}::${parentLookupKey}`] : undefined;
+    const parentFixedLocalRaw = Number.isFinite(Number(parentLineOverrideRaw))
+      ? parentLineOverrideRaw
+      : (parentLookupKey ? aztecFixedLocalX({ type: "Unit", name: parentLookupKey, parent: group }, group) : undefined);
+    const parentFixedLocal = Number.isFinite(Number(parentFixedLocalRaw)) ? Number(parentFixedLocalRaw) : undefined;
+    let desiredX;
+    let preferredY = Number(node.y) === 0 ? 0 : 1;
+
+    if (Number.isFinite(Number(parentLocal)) && !isLaneRootParent(node.parent)) {
+      // Parent-line rule: once a parent is placed, every direct child follows
+      // the parent's actual column. Fixed local X values are only preferred
+      // before the parent is placed; they must not break the visible line if
+      // the parent had to move to a cleaner/available column.
+      desiredX = Number(parentLocal);
+      if (Number.isFinite(Number(parentRow))) preferredY = Number(parentRow) === 0 ? 1 : 0;
+    } else if (Number.isFinite(Number(parentFixedLocal)) && !isLaneRootParent(node.parent)) {
+      // Multi-age parent-line rule: if the visible parent belongs to this
+      // building lane but is placed in another age, still use the parent's
+      // canonical local column. This keeps lines such as DouJian -> Maelstrom
+      // and CaravanAztec -> Coinage aligned even when only the child appears
+      // in the current age.
+      desiredX = Number(parentFixedLocal);
+      preferredY = node.type === "Tech" ? 1 : preferredY;
+    } else if (Number.isFinite(Number(fixed))) {
+      desiredX = Number(fixed);
+    } else if (Number.isFinite(Number(childFixedLocal))) {
+      // Generic parent-line rule: if a direct child is part of a fixed upgrade
+      // line, place the parent in that same column first. Example: Anubite
+      // inherits FeetOfTheJackal's column, so the pair forms a clean vertical
+      // parent line instead of the child occupying the protected column alone.
+      desiredX = Number(childFixedLocal);
+    } else {
+      desiredX = 1;
+    }
+
+    const hasDirectChildren = (directChildCountByName.get(node.uniqueIdentifier || node.name) || 0) > 0;
+    const directFromRootBuilding = hasRoot && isLaneRootParent(node.parent);
+    const rootHasChildlessUnitAndTech = rootDirectChildlessTypeCounts.Unit > 0 && rootDirectChildlessTypeCounts.Tech > 0;
+    const rootChildlessTypesAtDesiredX = rootDirectChildlessTypesByLocalX.get(Number(desiredX)) || new Set();
+    const rootColumnHasChildlessUnitAndTech = rootChildlessTypesAtDesiredX.has("Unit") && rootChildlessTypesAtDesiredX.has("Tech");
+    const rootHasOnlyChildlessUnits = directFromRootBuilding
+      && !hasDirectChildren
+      && node.type === "Unit"
+      && !isLineMemberNode(node)
+      && rootDirectChildlessTypeCounts.Unit > 0
+      && rootDirectChildlessTypeCounts.Tech === 0
+      && rootDirectChildWithChildrenTypeCounts.Unit === 0
+      && rootDirectChildWithChildrenTypeCounts.Tech === 0;
+    if (rootHasOnlyChildlessUnits) {
+      // When a building appears in the current age and only trains units from
+      // its root command row, keep those units together on row 1 and pack them
+      // compactly from the first available column. This avoids gaps like an
+      // empty TownCenter column 1/2 while all trained units are shifted right.
+      desiredX = 1;
+      preferredY = 1;
+    } else if (directFromRootBuilding && !hasDirectChildren) {
+      // Direct children of a building that appears in this age should keep the
+      // building row clean. Childless units prefer row 1 unless a childless tech
+      // also wants that exact column; only then use the classic unit row 0 /
+      // tech row 1 split. This keeps Longhouse units together on row 1 while
+      // still handling HillFort columns that contain both a unit and a tech.
+      if (node.type === "Unit") preferredY = rootColumnHasChildlessUnitAndTech ? 0 : 1;
+      if (node.type === "Tech") preferredY = 1;
+    } else if (node.type === "Unit") {
+      preferredY = 0;
+    }
+    if (age === "ArchaicAge" && !isRoot && node.type === "Unit" && !hasDirectChildren && !rootHasChildlessUnitAndTech && !localOccupied.has(`${desiredX},1`)) preferredY = 1;
+    if (age === "ArchaicAge" && !isRoot && node.type !== "Unit" && !localOccupied.has(`${desiredX},1`)) preferredY = 1;
+
+    if (!hasRoot && !isLaneRootParent(node.parent)) desiredX = Math.max(desiredX, 0);
+    if (hasRoot || group === "TownCenter") desiredX = Math.max(desiredX, 1);
+
+    const hasFixedLocalX = Number.isFinite(Number(fixed));
+    const isChildOfPlacedChain = Number.isFinite(Number(parentLocal)) && !isLaneRootParent(node.parent) && Number(parentLocal) === Number(desiredX);
+    const isParentOfFixedChildLine = Number.isFinite(Number(childFixedLocal)) && Number(childFixedLocal) === Number(desiredX);
+    const isGlobalLineMember = isLineMemberNode(node);
+    const isFixedLineNode = hasFixedLocalX && protectedLineColumns.has(Number(fixed)) && (isGlobalLineMember || !isLaneRootParent(node.parent) || hasDirectChildren || isParentOfFixedChildLine);
+    const isSharedColumnException = (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(node.name))
+      || (group === "Temple" && node.name === "Omniscience");
+    const allowProtectedLineColumn = rootHasOnlyChildlessUnits || isChildOfPlacedChain || isParentOfFixedChildLine || isFixedLineNode || isSharedColumnException;
+    if (!allowProtectedLineColumn && protectedLineColumns.has(desiredX)) {
+      desiredX = aztecNextNonProtectedLocalX(group, desiredX + 1, protectedLineColumns);
+    }
+
+    let placedHere = false;
+    if (rootHasOnlyChildlessUnits) {
+      for (let x = Math.max(1, Number(desiredX) || 1); x < 64; x += 1) {
+        if (canUse(x, 1, true)) {
+          reserve(node, x, 1);
+          placedHere = true;
+          break;
+        }
+      }
+    }
+    if (!placedHere && hasDirectChildren) {
+      // If this node is itself a child in an already placed parent line, keep it
+      // in the parent column first. This handles three-step lines such as
+      // YaZi -> SonOfLoong -> RageOfSlaughter: the middle node should sit under
+      // the unit parent before its own child pushes to a later free column.
+      if (isChildOfPlacedChain && canUse(desiredX, preferredY, allowProtectedLineColumn)) {
+        reserve(node, desiredX, preferredY);
+        placedHere = true;
+      }
+      if (!placedHere) {
+        // Any visible parent line, including tech upgrade chains, should reserve
+        // a clean column first. This keeps chains such as CopperWeapons ->
+        // BronzeWeapons and Valkyrie -> Disablot in one vertical line instead
+        // of letting an unrelated node occupy the child row.
+        const cleanColumn = firstFreeParentColumn(desiredX, allowProtectedLineColumn);
+        reserve(node, cleanColumn.x, cleanColumn.y);
+        placedHere = true;
+      }
+    }
+    if (!placedHere) {
+      const rows = preferredY === 1 ? [1, 0] : [0, 1];
+      for (const y of rows) {
+        if (canUse(desiredX, y, allowProtectedLineColumn)) {
+          reserve(node, desiredX, y);
+          placedHere = true;
+          break;
+        }
+      }
+    }
+    if (!placedHere) {
+      const fallbackPreferredY = node.type === "Tech" ? 1 : preferredY;
+      const alt = firstFree(desiredX + 1, fallbackPreferredY, allowProtectedLineColumn);
+      reserve(node, alt.x, alt.y);
+    }
+  }
+
+  // Final row cleanup: if a direct childless unit and a direct childless tech
+  // from the same building lane ended up in the same column, keep the unit on
+  // row 0 and the tech on row 1. This preserves the compact column while
+  // keeping units visually prominent.
+  const childlessRootNode = (node) => isLaneRootParent(node?.parent) && !(directChildCountByName.get(node?.uniqueIdentifier || node?.name) || 0);
+  const byColumn = new Map();
+  for (const node of placed) {
+    if (!childlessRootNode(node)) continue;
+    if (!byColumn.has(node.x)) byColumn.set(node.x, []);
+    byColumn.get(node.x).push(node);
+  }
+  for (const columnNodes of byColumn.values()) {
+    const unitRow1 = columnNodes.find((node) => node.type === "Unit" && Number(node.y) === 1);
+    const techRow0 = columnNodes.find((node) => node.type === "Tech" && Number(node.y) === 0);
+    if (unitRow1 && techRow0) {
+      unitRow1.y = 0;
+      unitRow1.position = `${unitRow1.x},0`;
+      techRow0.y = 1;
+      techRow0.position = `${techRow0.x},1`;
+    }
+  }
+
+  return placed.sort((a, b) => (a.x - b.x) || (a.y - b.y) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+function aztecNormalizeTechTreeNodes(age, nodes, forcedGroupStarts = null, protectedColumnsByGroup = null, lineMemberKeys = null) {
+  const unique = new Map();
+  for (const inputNode of nodes) {
+    if (!inputNode || !inputNode.type || !inputNode.name) continue;
+    const node = { ...inputNode };
+    const [xRaw, yRaw] = String(node.position || `${node.x || 0},${node.y ?? 1}`).split(",");
+    node.x = Number.isFinite(Number(xRaw)) ? Number(xRaw) : Number(node.x || 0) || 0;
+    node.y = Number.isFinite(Number(yRaw)) ? Number(yRaw) : Number(node.y ?? 1) || 1;
+    if (node.y > 1) node.y = 1;
+    if (node.y < 0) node.y = 0;
+    node.position = `${node.x},${node.y}`;
+    const key = techTreeNodeKey(node);
+    if (!unique.has(key)) unique.set(key, node);
+  }
+
+  const allNodes = [...unique.values()];
+  const grouped = new Map();
+  for (const node of allNodes) {
+    const group = aztecResolveNodeGroupFromNodes(node, allNodes);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push({ ...node, _group: group });
+  }
+
+  const orderedGroups = [...grouped.entries()].sort(([groupA], [groupB]) => {
+    const ai = AZTEC_TECHTREE_GROUP_ORDER.indexOf(groupA);
+    const bi = AZTEC_TECHTREE_GROUP_ORDER.indexOf(groupB);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi) || String(groupA).localeCompare(String(groupB));
+  });
+
+  const placed = [];
+  let nextGroupX = 0;
+  for (const [group, groupNodes] of orderedGroups) {
+    const forcedX = forcedGroupStarts && Number.isFinite(Number(forcedGroupStarts[group])) ? Number(forcedGroupStarts[group]) : undefined;
+    const groupStartX = Number.isFinite(Number(forcedX)) ? Number(forcedX) : nextGroupX;
+    const hasProtectionMap = protectedColumnsByGroup && typeof protectedColumnsByGroup === "object";
+    const protectedColumns = hasProtectionMap ? (protectedColumnsByGroup[group] instanceof Set ? protectedColumnsByGroup[group] : new Set()) : null;
+    const groupPlaced = aztecCompactGroupNodes(group, groupNodes, groupStartX, protectedColumns, age, lineMemberKeys);
+    placed.push(...groupPlaced);
+    const width = groupPlaced.length ? Math.max(...groupPlaced.map((node) => Number(node.x) - groupStartX)) + 1 : 0;
+    nextGroupX = groupStartX + Math.max(width, 0);
+  }
+
+  return placed.sort((a, b) => (a.x - b.x) || (a.y - b.y) || aztecNodeGroupOrder(a) - aztecNodeGroupOrder(b) || a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+}
+
+const AZTEC_STANDARD_ARMORY_TECHTREE_NAMES = new Set([
+  "Armory", "FlintWeapons", "JadeWeapons", "ObsidianWeapons",
+  "FeatheredArmor", "CeremonialArmor", "SacredArmor",
+  "FeatheredShields", "CeremonialShields", "SacredShields",
+  "StringOfHearts"
+]);
+
+function aztecApplyThorDwarvenArmoryRightSide(nodes, config) {
+  if (!selectedHasThorDwarvenArmoryBonus(config)) return nodes || [];
+  return (nodes || [])
+    .filter((node) => !(AZTEC_STANDARD_ARMORY_TECHTREE_NAMES.has(node.name) || AZTEC_STANDARD_ARMORY_TECHTREE_NAMES.has(node.parent)))
+    .map((inputNode) => {
+      const node = { ...inputNode };
+      if (node.type === "Unit" && node.name === "Armory") node.name = "DwarvenArmory";
+      if (node.parent === "Armory") node.parent = "DwarvenArmory";
+      return node;
+    });
+}
+
+
+function aztecBaseArmoryRightSideNodes(age, config) {
+  const useDwarven = selectedHasThorDwarvenArmoryBonus(config);
+  const armory = useDwarven ? "DwarvenArmory" : "Armory";
+  const node = (type, name, parent, position) => {
+    const [xRaw, yRaw] = String(position).split(",");
+    return { type, name, parent: parent || "", position, x: Number(xRaw) || 0, y: Number(yRaw) || 0 };
+  };
+  if (useDwarven) {
+    if (age === "ArchaicAge") {
+      return [
+        node("Unit", armory, "", "24,0"),
+        node("Tech", "Ballistics", armory, "25,1"),
+        node("Tech", "CopperWeapons", armory, "26,0"),
+        node("Tech", "BronzeWeapons", "CopperWeapons", "26,1"),
+        node("Tech", "CopperArmor", armory, "27,0"),
+        node("Tech", "BronzeArmor", "CopperArmor", "27,1"),
+        node("Tech", "CopperShields", armory, "28,0"),
+        node("Tech", "BronzeShields", "CopperShields", "28,1"),
+      ];
+    }
+    if (age === "ClassicalAge") {
+      return [
+        node("Tech", "BurningPitch", armory, "25,1"),
+        node("Tech", "IronWeapons", "BronzeWeapons", "26,0"),
+        node("Tech", "DwarvenWeapons", "IronWeapons", "26,1"),
+        node("Tech", "IronArmor", "BronzeArmor", "27,0"),
+        node("Tech", "MeteoricIronArmor", "IronArmor", "27,1"),
+        node("Tech", "IronShields", "BronzeShields", "28,0"),
+        node("Tech", "DragonscaleShields", "IronShields", "28,1"),
+      ];
+    }
+    return [];
+  }
+  if (age === "ClassicalAge") {
+    return [
+      node("Unit", armory, "", "24,0"),
+      node("Tech", "Ballistics", armory, "25,1"),
+      node("Tech", "CopperWeapons", armory, "26,1"),
+      node("Tech", "CopperArmor", armory, "27,1"),
+      node("Tech", "CopperShields", armory, "28,1"),
+    ];
+  }
+  if (age === "HeroicAge") {
+    return [
+      node("Tech", "BronzeWeapons", "CopperWeapons", "26,0"),
+      node("Tech", "BronzeArmor", "CopperArmor", "27,0"),
+      node("Tech", "BronzeShields", "CopperShields", "28,0"),
+    ];
+  }
+  if (age === "MythicAge") {
+    return [
+      node("Tech", "BurningPitch", armory, "25,0"),
+      node("Tech", "IronWeapons", "BronzeWeapons", "26,0"),
+      node("Tech", "IronArmor", "BronzeArmor", "27,0"),
+      node("Tech", "IronShields", "BronzeShields", "28,0"),
+    ];
+  }
+  return [];
+}
+
+function aztecThorDwarvenArmoryExtraRightSideNodes(age, config) {
+  // Kept for compatibility; Aztec Dwarven Armory right-side nodes are built
+  // by aztecBaseArmoryRightSideNodes so the Armory/DwarvenArmory lane remains
+  // complete and age-appropriate.
+  return [];
+}
+
+
+
+function aztecRawTechTreeNodesForAge(age, config) {
+  let nodes = [
+    ...aztecCommonNodesForAge(age),
+    ...aztecSelectedMinorNodesForAge(age, config),
+    ...aztecThorDwarvenArmoryExtraRightSideNodes(age, config),
+  ].filter(Boolean);
+  if (age === "ArchaicAge") {
+    const group = selectedUniqueTechGroup(config);
+    const tech = selectedUniqueTechRightSideName(config, group);
+    if (group && tech) {
+      for (const spec of uniqueTechRightSideNodeSpecs(config, "", group)) {
+        const [xRaw, yRaw] = String(spec.position || spec.preferred?.[0] || "18,1").split(",");
+        nodes.push({
+          type: "Tech",
+          name: tech,
+          parent: spec.parent,
+          position: `${Number(xRaw) || 0},${Number(yRaw) || 1}`,
+          x: Number(xRaw) || 0,
+          y: Number(yRaw) || 1,
+        });
+      }
+    }
+  }
+  nodes = applyGenericBonusRightSideNodes("Aztec", age, config, nodes);
+  nodes = aztecApplyFarmBaselineRightSide(age, config, nodes);
+  nodes = aztecApplyGreatTempleSelectionRightSide(age, config, nodes);
+  return aztecApplyThorDwarvenArmoryRightSide(nodes, config);
+}
+
+function aztecApplyFarmBaselineRightSide(age, config, nodes) {
+  let out = nodes || [];
+  // Aztec vanilla trees show Farm in ClassicalAge unless the Shennong bonus
+  // explicitly moves Farm to ArchaicAge. Shennong handling is applied by the
+  // generic bonus rule before this helper, so only add the normal Classical
+  // Farm when that bonus is not selected.
+  if (selectedHasShennongFarmArchaicBonus(config)) return out;
+  out = out.filter((node) => !(node.type === "Unit" && node.name === "Farm"));
+  if (age === "ClassicalAge") out.push(rightSideNode("Unit", "Farm", "", "1,0"));
+  return out;
+}
+
+function aztecApplyGreatTempleSelectionRightSide(age, config, nodes) {
+  let out = (nodes || []).filter((node) => {
+    if (node.type === "Tech" && /^GreatTempleArrivalOfTheGods/.test(node.name)) return false;
+    if (node.type === "Unit" && node.name === "JaguarRider" && node.parent === "GreatTemple") return false;
+    return true;
+  });
+  const arrival = Object.values(AZTEC_MYTHIC_ARRIVALS).includes(config?.aztecMythicArrival)
+    ? config.aztecMythicArrival
+    : AZTEC_MYTHIC_ARRIVALS.Quetzalcoatl;
+  const jaguarHeroic = selectedHasBonusId(config, "bonus_93") || selectedHasBonusLabel(config, TEZCAT_JAGUAR_RIDER_BONUS_LABEL);
+  if (age === "MythicAge") {
+    out.push(rightSideNode("Tech", arrival, "GreatTemple", "2,1"));
+    if (!jaguarHeroic) out.push(rightSideNode("Unit", "JaguarRider", "GreatTemple", "5,0"));
+  }
+  if (jaguarHeroic && age === "HeroicAge") out.push(rightSideNode("Unit", "JaguarRider", "GreatTemple", "5,0"));
+  return out;
+}
+
+function aztecApplyJaguarRiderHeroicRightSide(age, config, nodes) {
+  // Compatibility wrapper. The selected Great Temple arrival and the
+  // Tezcatlipoca heroic-Jaguar bonus are handled together so the unit is never
+  // dropped from the right-side techtree.
+  return aztecApplyGreatTempleSelectionRightSide(age, config, nodes);
+}
+
+function aztecMeasureGroupWidths(nodes, protectedColumnsByGroup = null, age = "", lineMemberKeys = null) {
+  const widths = {};
+  const grouped = new Map();
+  for (const node of nodes || []) {
+    const group = aztecResolveNodeGroupFromNodes(node, nodes || []);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(node);
+  }
+  for (const [group, groupNodes] of grouped.entries()) {
+    const hasProtectionMap = protectedColumnsByGroup && typeof protectedColumnsByGroup === "object";
+    const protectedColumns = hasProtectionMap ? (protectedColumnsByGroup[group] instanceof Set ? protectedColumnsByGroup[group] : new Set()) : null;
+    const placed = aztecCompactGroupNodes(group, groupNodes, 0, protectedColumns, age, lineMemberKeys);
+    widths[group] = placed.length ? Math.max(...placed.map((node) => Number(node.x) || 0)) + 1 : 0;
+  }
+  return widths;
+}
+
+
+
+function aztecScopedLineColumnKey(group, key) {
+  return `${group || ""}::${key || ""}`;
+}
+
+function aztecBuildDynamicLineColumnOverrides(rawByAge) {
+  const byNodeKey = {};
+  const byPlacementKey = {};
+  const allNodes = [];
+  for (const [age, nodes] of Object.entries(rawByAge || {})) {
+    for (const node of nodes || []) allNodes.push({ ...node, _age: age });
+  }
+
+  const grouped = new Map();
+  for (const node of allNodes) {
+    if (!node || !node.name) continue;
+    const group = aztecResolveNodeGroupFromNodes(node, allNodes);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(node);
+  }
+
+  const agesOverlap = (a, b) => {
+    for (const age of a || []) if ((b || new Set()).has(age)) return true;
+    return false;
+  };
+
+  for (const [group, groupNodes] of grouped.entries()) {
+    const childrenByParent = new Map();
+    const parentRefs = new Set();
+    const nodesByPlacementKey = new Map();
+
+    for (const node of groupNodes) {
+      for (const placementKey of techTreeNodePlacementKeys(node)) {
+        if (!nodesByPlacementKey.has(placementKey)) nodesByPlacementKey.set(placementKey, []);
+        nodesByPlacementKey.get(placementKey).push(node);
+      }
+    }
+
+    for (const node of groupNodes) {
+      const parentKey = techTreeNodeParentLookupKey(node);
+      if (!parentKey || aztecIsLaneRootParent(group, parentKey)) continue;
+      if (!childrenByParent.has(parentKey)) childrenByParent.set(parentKey, []);
+      childrenByParent.get(parentKey).push(node);
+      parentRefs.add(parentKey);
+    }
+
+    const lineRoots = [];
+    for (const node of groupNodes) {
+      const placementKeys = techTreeNodePlacementKeys(node);
+      const hasChildren = placementKeys.some((placementKey) => childrenByParent.has(placementKey));
+      if (!hasChildren) continue;
+      const parentKey = techTreeNodeParentLookupKey(node);
+      const parentIsNonRootLine = parentKey && !aztecIsLaneRootParent(group, parentKey) && parentRefs.has(parentKey);
+      if (!parentIsNonRootLine) lineRoots.push(node);
+    }
+
+    const seenRootKeys = new Set();
+    const lines = [];
+    for (const root of lineRoots) {
+      const rootKey = techTreeNodeKey(root);
+      if (seenRootKeys.has(rootKey)) continue;
+      seenRootKeys.add(rootKey);
+      const members = [];
+      const seen = new Set();
+      const walk = (node) => {
+        const key = techTreeNodeKey(node);
+        if (seen.has(key)) return;
+        seen.add(key);
+        members.push(node);
+        for (const placementKey of techTreeNodePlacementKeys(node)) {
+          for (const child of childrenByParent.get(placementKey) || []) walk(child);
+        }
+      };
+      walk(root);
+      if (members.length < 2) continue;
+      const activeAges = new Set(members.map((node) => node._age).filter(Boolean));
+      const rootFixed = aztecFixedLocalX(root, group);
+      let baseX = Number.isFinite(Number(rootFixed)) ? Number(rootFixed) : undefined;
+      if (!Number.isFinite(Number(baseX))) {
+        const fixedValues = members.map((node) => Number(aztecFixedLocalX(node, group))).filter(Number.isFinite);
+        baseX = fixedValues.length ? Math.min(...fixedValues) : 1;
+      }
+      lines.push({ root, members, activeAges, baseX: Number(baseX) || 0 });
+    }
+
+    lines.sort((a, b) => a.baseX - b.baseX
+      || (Number(a.root.x) || 0) - (Number(b.root.x) || 0)
+      || (Number(a.root.y) || 0) - (Number(b.root.y) || 0)
+      || String(a.root.name).localeCompare(String(b.root.name))
+      || String(a.root.parent || a.root.uniqueParent || "").localeCompare(String(b.root.parent || b.root.uniqueParent || "")));
+
+    const assigned = [];
+    for (const line of lines) {
+      let x = Math.max(0, Number(line.baseX) || 0);
+      while (assigned.some((entry) => entry.x === x && agesOverlap(entry.activeAges, line.activeAges))) x += 1;
+      assigned.push({ x, activeAges: line.activeAges });
+      for (const member of line.members) {
+        byNodeKey[aztecScopedLineColumnKey(group, techTreeNodeKey(member))] = x;
+        for (const placementKey of techTreeNodePlacementKeys(member)) {
+          const scoped = aztecScopedLineColumnKey(group, placementKey);
+          const existing = byPlacementKey[scoped];
+          if (!Number.isFinite(Number(existing)) || x < Number(existing)) byPlacementKey[scoped] = x;
+        }
+      }
+    }
+  }
+
+  return { byNodeKey, byPlacementKey };
+}
+
+function aztecApplyLineColumnOverridesToNodes(age, config, nodes) {
+  const overrides = config?._aztecTechTreeLineColumnOverrides;
+  if (!overrides || typeof overrides !== "object") return nodes || [];
+  const byNodeKey = overrides.byNodeKey || {};
+  const byPlacementKey = overrides.byPlacementKey || {};
+  const sourceNodes = nodes || [];
+  return sourceNodes.map((node) => {
+    if (!node || !node.name) return node;
+    const group = aztecResolveNodeGroupFromNodes(node, sourceNodes);
+    const override = byNodeKey[aztecScopedLineColumnKey(group, techTreeNodeKey(node))];
+    const next = { ...node, _lineColumnByPlacementKey: byPlacementKey };
+    if (Number.isFinite(Number(override))) next._fixedLocalX = Number(override);
+    return next;
+  });
+}
+
+function aztecBuildLineMemberKeySets(rawByAge) {
+  const byAge = {};
+  const global = new Set();
+  const allNodes = Object.values(rawByAge || {}).flat().filter(Boolean);
+  const parentRefs = new Set();
+  const childKeys = new Set();
+
+  const scopedKey = (group, key) => `${group || ""}::${key || ""}`;
+
+  for (const node of allNodes) {
+    const parentKey = techTreeNodeParentLookupKey(node);
+    if (!parentKey) continue;
+    const group = aztecResolveNodeGroupFromNodes(node, allNodes);
+    if (aztecIsLaneRootParent(group, parentKey)) continue;
+    // Scope parent references by resolved building lane. Otherwise duplicate
+    // Aztec names such as Berserk/Hersir/MediumInfantry can falsely mark an
+    // unrelated building's node as part of a parent line.
+    parentRefs.add(scopedKey(group, parentKey));
+    childKeys.add(techTreeNodeKey(node));
+  }
+
+  for (const [age, nodes] of Object.entries(rawByAge || {})) {
+    const set = new Set();
+    for (const node of nodes || []) {
+      const key = techTreeNodeKey(node);
+      const group = aztecResolveNodeGroupFromNodes(node, nodes || []);
+      const placementKeys = techTreeNodePlacementKeys(node);
+      const isParentInLine = placementKeys.some((placementKey) => parentRefs.has(scopedKey(group, placementKey)));
+      const isChildInLine = childKeys.has(key);
+      const isSharedColumnException = (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(node.name))
+        || (group === "Temple" && node.name === "Omniscience");
+      if (isParentInLine || isChildInLine || isSharedColumnException) {
+        set.add(key);
+        global.add(key);
+      }
+    }
+    byAge[age] = set;
+  }
+  return { byAge, global };
+}
+
+function aztecBuildProtectedLineColumnsForNodes(nodesForAge, lineMemberKeys = null) {
+  const grouped = new Map();
+  for (const node of nodesForAge || []) {
+    if (!node || !node.name) continue;
+    const group = aztecResolveNodeGroupFromNodes(node, nodesForAge || []);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(node);
+  }
+
+  const out = {};
+  for (const [group, groupNodes] of grouped.entries()) {
+    const activeColumns = new Set();
+    for (const node of groupNodes) {
+      const fixed = aztecFixedLocalX(node, group);
+      if (!Number.isFinite(Number(fixed))) continue;
+      const localX = Number(fixed);
+      const isLineMember = lineMemberKeys instanceof Set && lineMemberKeys.has(techTreeNodeKey(node));
+      const isSharedColumnException = (group === "WallConnector" && ["StoneWall", "FortifiedWall", "BronzeWall", "IronWall"].includes(node.name))
+        || (group === "Temple" && node.name === "Omniscience");
+      // Protect only actual active parent-line columns in this age. A column is
+      // protected when a node in this age is part of a parent/child line, even
+      // when the rest of that line appears in a different age. This keeps
+      // multi-age lines aligned without reserving dead columns in ages where
+      // the line has no node.
+      if (isLineMember || isSharedColumnException) activeColumns.add(localX);
+    }
+    if (activeColumns.size) out[group] = activeColumns;
+  }
+  return out;
+}
+
+function aztecBuildGlobalProtectedLineColumns(rawByAge) {
+  const allNodes = Object.values(rawByAge || {}).flat();
+  return aztecBuildProtectedLineColumnsForNodes(allNodes, aztecBuildLineMemberKeySets({ All: allNodes }).byAge.All);
+}
+
+function buildAztecTechTreeGroupStarts(config) {
+  if (config?.baseCulture !== "Aztec") return null;
+  const rawByAge = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    rawByAge[age] = aztecRawTechTreeNodesForAge(age, config);
+  }
+  const lineColumnOverrides = aztecBuildDynamicLineColumnOverrides(rawByAge);
+  config._aztecTechTreeLineColumnOverrides = lineColumnOverrides;
+  for (const age of ["ArchaicAge", ...AGES]) {
+    rawByAge[age] = aztecApplyLineColumnOverridesToNodes(age, config, rawByAge[age]);
+  }
+
+  const lineKeySets = aztecBuildLineMemberKeySets(rawByAge);
+  config._aztecTechTreeLineMemberKeysByAge = lineKeySets.byAge;
+  config._aztecTechTreeLineMemberKeys = lineKeySets.global;
+
+  const protectedColumnsByAge = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    protectedColumnsByAge[age] = aztecBuildProtectedLineColumnsForNodes(rawByAge[age], lineKeySets.byAge[age]);
+  }
+  config._aztecTechTreeProtectedColumnsByAge = protectedColumnsByAge;
+  config._aztecTechTreeProtectedColumns = protectedColumnsByAge.ArchaicAge || {};
+
+  const maxWidths = {};
+  for (const age of ["ArchaicAge", ...AGES]) {
+    const widths = aztecMeasureGroupWidths(rawByAge[age], protectedColumnsByAge[age], age, lineKeySets.byAge[age]);
+    for (const [group, width] of Object.entries(widths)) maxWidths[group] = Math.max(maxWidths[group] || 0, width);
+  }
+
+  const starts = {};
+  let nextX = 0;
+  for (const group of AZTEC_TECHTREE_GROUP_ORDER) {
+    starts[group] = nextX;
+    nextX += Math.max(maxWidths[group] || 0, 0);
+  }
+  return starts;
+}
+
+function generateAztecDynamicTechTreeTechnologies(age, config) {
+  if (config?.baseCulture !== "Aztec") return "";
+  const nodes = aztecApplyLineColumnOverridesToNodes(age, config, aztecRawTechTreeNodesForAge(age, config));
+  const protectedColumns = config?._aztecTechTreeProtectedColumnsByAge?.[age] || config?._aztecTechTreeProtectedColumns || null;
+  const lineMemberKeys = config?._aztecTechTreeLineMemberKeysByAge?.[age] || config?._aztecTechTreeLineMemberKeys || null;
+  const normalized = aztecNormalizeTechTreeNodes(age, nodes, config?._aztecTechTreeGroupStarts || null, protectedColumns, lineMemberKeys);
+  const body = normalized.map((node) => buildTechTreeNodeXml(node)).join("\n");
+  const block = `<local:TechTreeAge.Technologies>
+${body}
+            </local:TechTreeAge.Technologies>`;
+  return applyCustomTechNamesToUiBlock(block, config || {});
+}
+
+
+
+
+
+
+
+
+
+
+function applyTechTreeRightSideSelectionFixes(block, age, config) {
+  let out = String(block || "");
+  out = replaceTechTreeUnitNodeUnits(out, greekHeroReplacementMap(config));
+  if (age === "ArchaicAge") {
+    out = addSelectedUniqueTechRightSideNodes(out, config);
+  }
+  return out;
+}
+
+function adjustTechTreeAgeTechnologiesForSelections(block, age, config) {
+  if (!block) return block;
+  let out = block;
+  const bestMajor = bestTechTreeMajorForSelectedAge(age, config);
+  if (bestMajor && bestMajor !== config.uiTemplateMajor) {
+    const alternate = window.AOM_TECHTREE?.ageTechnologiesByMajorAge?.[`${bestMajor}|${age}`];
+    if (alternate) out = alternate;
+  }
+  return applyTechTreeRightSideSelectionFixes(out, age, config);
+}
+
+function techTreeBonusTrack(tech, config) {
   const templates = window.AOM_TECHTREE || {};
   const canonical = canonicalMinorTech(tech);
   const block = lookupTemplateBlock(templates.bonusTrackByGod, canonical);
-  if (block) return block;
+  if (block) return applyCustomTechNamesToUiBlock(block, config);
   return `<local:TechTreeBonusTrack God="${escapeXml(canonical)}">
     <local:TechTreeBonusTrack.Technologies>
     </local:TechTreeBonusTrack.Technologies>
@@ -4707,11 +12919,11 @@ function techTreeBonusTrack(tech) {
 function generateTechTreeAge(age, config) {
   const techs = config.minorGods[age] || [];
   const sourceMajor = config.uiTemplateMajor;
-  const technologies = techTreeAgeTechnologiesBlock(sourceMajor, age);
+  const technologies = techTreeAgeTechnologiesBlock(sourceMajor, age, config);
   return `        <local:TechTreeAge AgeName="${age}">
 
             <local:TechTreeAge.Bonuses>
-${techs.map((tech) => indentBlock(techTreeBonusTrack(tech), 4)).join("\n\n")}
+${techs.map((tech) => indentBlock(techTreeBonusTrack(tech, config), 4)).join("\n\n")}
             </local:TechTreeAge.Bonuses>
 ${technologies ? "\n" + indentBlock(technologies, 3) + "\n" : ""}
         </local:TechTreeAge>`;
