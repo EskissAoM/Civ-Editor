@@ -37,9 +37,5 @@ The project is usable, but still open to balance, display, and edge-case improve
 
 ## Community
 
-Join the **Discord**: https://discord.gg/NYxUT5MYaW  
+Join the **Discord** - link in the website 
 Contact: eskissaom@gmail.com
-
-## License
-
-No license has been defined yet. Until one is added, all rights are reserved by the project owner.
