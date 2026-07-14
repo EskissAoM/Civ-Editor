@@ -1,7 +1,8 @@
-/* AoM Retold Major God Creator - static GitHub Pages draft
+/* AoM:R Major God Builder
    This is intentionally backend-free. All files are generated locally in the browser. */
 
 const AGES = ["ClassicalAge", "HeroicAge", "MythicAge"];
+const PREVIEW_AGES = ["ArchaicAge", ...AGES];
 const MAX_BONUS_CHOICES = 4;
 const EXCLUDED_MINOR_GOD_NAMES = new Set(["malinalxochitldummy"]);
 
@@ -275,8 +276,8 @@ const els = {
   sameCultureOnly: $("sameCultureOnly"),
   minorPickers: $("minorPickers"),
   downloadZip: $("downloadZip"),
-  savePreset: $("savePreset"),
   loadPreset: $("loadPreset"),
+  presetFile: $("presetFile"),
   exportPreset: $("exportPreset"),
   messages: $("messages"),
   layoutPreview: $("layoutPreview"),
@@ -346,7 +347,7 @@ function displayGodName(name) {
 }
 
 function minorLabel(god) {
-  return `${displayGodName(god.name)} (${god.culture})`;
+  return displayGodName(god.name);
 }
 
 function isExcludedMinorGod(god) {
@@ -379,10 +380,9 @@ function initMajorSelect() {
   const cultures = Array.from(new Set(window.AOM_DATA.majors.map((m) => m.culture))).sort();
   els.baseMajor.innerHTML = "";
   for (const culture of cultures) {
-    const majorCount = window.AOM_DATA.majors.filter((m) => m.culture === culture).length;
     const opt = document.createElement("option");
     opt.value = culture;
-    opt.textContent = `${culture} pantheon (${majorCount} major gods)`;
+    opt.textContent = culture;
     els.baseMajor.appendChild(opt);
   }
   if (cultures.includes("Greek")) els.baseMajor.value = "Greek";
@@ -474,17 +474,12 @@ function initGodPowerSelect(keep = true) {
   const options = archaicGodPowerOptions();
   els.godPower.innerHTML = "";
 
-  for (const culture of Array.from(new Set(options.map((entry) => entry.culture)))) {
-    const group = document.createElement("optgroup");
-    group.label = culture;
-    for (const entry of options.filter((item) => item.culture === culture)) {
-      const opt = document.createElement("option");
-      opt.value = entry.power;
-      opt.dataset.pantheon = entry.culture;
-      opt.textContent = entry.power;
-      group.appendChild(opt);
-    }
-    els.godPower.appendChild(group);
+  for (const entry of options) {
+    const opt = document.createElement("option");
+    opt.value = entry.power;
+    opt.dataset.pantheon = entry.culture;
+    opt.textContent = `${entry.culture} - ${displayTechName(entry.power)}`;
+    els.godPower.appendChild(opt);
   }
 
   if (previous && options.some((entry) => entry.power === previous)) {
@@ -1095,7 +1090,7 @@ function availableBonuses() {
   const pantheon = selectedPantheon();
   return (window.AOM_BONUS_DATA || [])
     .filter((entry) => bonusAllowedForPantheon(entry, pantheon))
-    .sort((a, b) => a.sourcePantheon.localeCompare(b.sourcePantheon) || a.sourceMajor.localeCompare(b.sourceMajor) || a.label.localeCompare(b.label));
+    .sort((a, b) => a.sourcePantheon.localeCompare(b.sourcePantheon) || dynamicBonusLabel(a, pantheon).localeCompare(dynamicBonusLabel(b, pantheon)));
 }
 
 function selectedBonusIds() {
@@ -1188,7 +1183,8 @@ function selectedBonusEntries(configOrIds) {
 }
 
 function bonusComboLabel(entry, pantheon = selectedPantheon()) {
-  return `${entry.sourcePantheon} — ${entry.sourceMajor}: ${dynamicBonusLabel(entry, pantheon)}`;
+  if (!entry) return "None";
+  return `${entry.sourcePantheon} - ${dynamicBonusLabel(entry, pantheon)}`;
 }
 
 function initBonusSelects(keep = true) {
@@ -1216,7 +1212,7 @@ function initBonusSelects(keep = true) {
       for (const entry of options.filter((item) => item.sourcePantheon === sourcePantheon)) {
         const opt = document.createElement("option");
         opt.value = entry.id;
-        opt.textContent = `${entry.sourceMajor}: ${dynamicBonusLabel(entry, pantheon)}`;
+        opt.textContent = dynamicBonusLabel(entry, pantheon);
         if (current && entry.id === current && query && !searchMatchesText(bonusSearchText(entry, pantheon), query)) {
           opt.textContent += " (selected; outside filter)";
         }
@@ -3083,7 +3079,7 @@ function refreshMinorOptions(keep = true) {
     const options = window.AOM_DATA.minors.filter((g) => {
       if (isExcludedMinorGod(g)) return false;
       if (g.age !== age) return false;
-      return !els.sameCultureOnly.checked || g.culture === base.culture;
+      return g.culture === base.culture;
     });
     for (const slot of [1, 2]) {
       const select = $(`${age}_${slot}`);
@@ -3266,9 +3262,9 @@ function validateConfig(config) {
   }
   const icon = els.iconFile.files[0];
   if (icon) {
-    const allowedIconExts = new Set(["png", "jpg", "jpeg", "tga", "dds"]);
+    const allowedIconExts = new Set(["png", "jpg", "jpeg"]);
     const ext = icon.name.split(".").pop().toLowerCase();
-    if (!allowedIconExts.has(ext)) errors.push("Icon must be PNG, JPEG, TGA, or DDS.");
+    if (!allowedIconExts.has(ext)) errors.push("Icon must be PNG or JPEG.");
     if (icon.size > 5 * 1024 * 1024) errors.push("Icon must be 5 MB or smaller.");
   }
   return errors;
@@ -12930,31 +12926,34 @@ ${technologies ? "\n" + indentBlock(technologies, 3) + "\n" : ""}
 }
 
 function generateReadme(config) {
-  return `AoM Retold Major God Creator draft export
+  const presetFileName = `${config.internalName}-preset.json`;
+  const bonusLines = selectedBonusEntries(config).map((entry) => `- ${entry.sourcePantheon} - ${dynamicBonusLabel(entry, config)}`);
+  return `AoM:R Major God Builder export
 
 Major god: ${config.displayName}
-Internal name: ${config.internalName}
+Title: ${config.majorTitle}
 Pantheon: ${config.baseCulture}
-major_gods pantheon template: ${config.templateSource}
 Starting god power: ${config.godPower}${config.godPowerPantheon ? ` (${config.godPowerPantheon})` : ""}
-Unique technologies: ${uniqueTechNames(config).map(displayTechName).join(", ") || "None"}
-God bonuses: ${selectedBonusEntries(config).map((entry) => `${entry.sourceMajor}: ${dynamicBonusLabel(entry, config)}`).join("; ") || "None"}
-GodPicker Archaic block generated from the selected god power and unique technology.
-TechTree Archaic block generated from the selected god power and unique technology.
-TechTree age technology layout fallback: ${config.uiTemplateMajor} pregame layout
+Unique technology: ${uniqueTechNames(config).map(displayTechName).join(", ") || "None"}
+God bonuses:
+${bonusLines.length ? bonusLines.join("\n") : "- None"}
 
-Generated files follow this mod shape:
+How to install:
+1. Unzip the generated mod folder.
+2. Go to C:\Users\UserName\Games\Age of Mythology Retold\SteamID\mods\local
+3. Drop the unzipped mod folder there.
+4. Start the game and enjoy!
+
+Generated files:
+${config.internalName}/${presetFileName}
 ${config.internalName}/game/data/gameplay/major_gods_mods.xml
 ${config.internalName}/game/data/gameplay/minor_gods_mods.xml
 ${config.internalName}/game/data/gameplay/techtree_mods.xml
+${config.internalName}/game/data/gameplay/proto_mods.xml
+${config.internalName}/game/data/gameplay/powers_mods.xml
 ${config.internalName}/game/data/strings/English/stringmods.txt
 ${config.internalName}/game/ui_myth/content/pregame/godpicker/GodPicker_${config.baseCulture}_${config.internalName}.xaml
 ${config.internalName}/game/ui_myth/content/pregame/techtree/TechTree_${config.baseCulture}_${config.internalName}.xaml
-
-Install by extracting the folder into your AoM Retold local mods folder.
-
-Known draft limitation:
-major_gods_mods.xml is generated from the clean pantheon template file, not from a vanilla major god clone. GodPicker and TechTree XAML use compact generated ArchaicAge blocks for the selected god power and unique technology, plus full vanilla bonus tracks for the selected minor gods. stringmods.txt intentionally contains only the mandatory General strings referenced by major_gods_mods.xml. The remaining likely test points are age-tech effects and whether any selected minor god requires additional gameplay files.
 `;
 }
 
@@ -12973,6 +12972,7 @@ async function generateFiles(config) {
   const root = `${config.internalName}/`;
   const files = [];
   files.push(textFile(`${root}README_INSTALL.txt`, generateReadme(config)));
+  files.push(textFile(`${root}${config.internalName}-preset.json`, JSON.stringify(presetFromConfig(config), null, 2)));
   files.push(textFile(`${root}game/data/gameplay/major_gods_mods.xml`, generateMajorGodXmlFromPantheonTemplate(config, iconPath)));
   files.push(textFile(`${root}game/data/gameplay/minor_gods_mods.xml`, generateMinorGodsMods(config)));
   files.push(textFile(`${root}game/data/gameplay/techtree_mods.xml`, generateTechTreeMods(config)));
@@ -13074,26 +13074,36 @@ async function handleDownload() {
   }
 }
 
-function presetFromForm() {
-  const config = getConfig();
-  return {
+function presetFromConfig(config) {
+  const preset = {
     displayName: config.displayName,
     majorTitle: config.majorTitle,
-    majorFocus: config.majorFocus,
     baseCulture: config.baseCulture,
     godPower: config.godPower,
-    greekHeroes: config.greekHeroes,
-    greekUniqueUnit: config.greekUniqueUnit,
-    chineseMythicHero: config.chineseMythicHero,
-    aztecClassicalForm: config.aztecClassicalForm,
-    aztecMythicArrival: config.aztecMythicArrival,
-    godPowerPantheon: config.godPowerPantheon,
-    uniqueTechs: config.uniqueTechs,
-    bonuses: config.bonuses,
-    sameCultureOnly: els.sameCultureOnly.checked,
-    minorGods: config.minorGods,
+    uniqueTechs: config.uniqueTechs || [],
+    bonuses: config.bonuses || [],
+    minorGods: config.minorGods || {},
   };
+
+  if (config.majorFocus) preset.majorFocus = config.majorFocus;
+
+  if (config.baseCulture === "Greek") {
+    preset.greekHeroes = config.greekHeroes;
+    preset.greekUniqueUnit = config.greekUniqueUnit;
+  } else if (config.baseCulture === "Chinese") {
+    preset.chineseMythicHero = config.chineseMythicHero;
+  } else if (config.baseCulture === "Aztec") {
+    preset.aztecClassicalForm = config.aztecClassicalForm;
+    preset.aztecMythicArrival = config.aztecMythicArrival;
+  }
+
+  return preset;
 }
+
+function presetFromForm() {
+  return presetFromConfig(getConfig());
+}
+
 function applyPreset(preset) {
   if (!preset) return;
   els.displayName.value = preset.displayName || "My Custom Major God";
@@ -13159,7 +13169,7 @@ function applyPreset(preset) {
     }
     enforceBonusDifference();
   }
-  els.sameCultureOnly.checked = preset.sameCultureOnly !== false;
+  if (els.sameCultureOnly) els.sameCultureOnly.checked = true;
   refreshMinorOptions(false);
   if (preset.minorGods) {
     for (const age of AGES) {
@@ -13174,55 +13184,681 @@ function applyPreset(preset) {
   updatePreview();
 }
 
+function previewElement(tag, className, text) {
+  const el = document.createElement(tag);
+  if (className) el.className = className;
+  if (text !== undefined && text !== null) el.textContent = String(text);
+  return el;
+}
+
+function previewCard(title) {
+  const card = previewElement("section", "preview-card");
+  if (title) card.appendChild(previewElement("h3", "", title));
+  return card;
+}
+
+function previewRow(label, value) {
+  const row = previewElement("div", "preview-row");
+  row.appendChild(previewElement("span", "preview-label", label));
+  row.appendChild(previewElement("span", "preview-value", value || "—"));
+  return row;
+}
+
+function previewList(items, emptyText = "None selected") {
+  const ul = previewElement("ul", "preview-list");
+  const values = (items || []).filter(Boolean);
+  if (!values.length) {
+    const li = previewElement("li", "preview-pill");
+    li.appendChild(previewElement("span", "preview-value", emptyText));
+    ul.appendChild(li);
+    return ul;
+  }
+  for (const item of values) {
+    const li = previewElement("li", "preview-pill");
+    li.appendChild(previewElement("span", "preview-value", item));
+    ul.appendChild(li);
+  }
+  return ul;
+}
+
+function previewValueLine(label, value) {
+  const line = previewElement("div", "preview-value-line");
+  line.appendChild(previewElement("span", "preview-label", label));
+  line.appendChild(previewElement("span", "preview-value", value || "—"));
+  return line;
+}
+
+const PREVIEW_AGE_ICONS = {
+  ArchaicAge: "icons/archaic_age_icon_48x48_round.png",
+  ClassicalAge: "icons/classical_age_icon_48x48_round.png",
+  HeroicAge: "icons/heroic_age_icon_48x48_round.png",
+  MythicAge: "icons/mythic_age_icon_48x48_round.png",
+};
+
+const PREVIEW_MINOR_GOD_ICON_FILES = {
+  amenouzume: "ame_no_uzume_icon_48x48_round.png",
+  inariokami: "inari_okami_icon_48x48_round.png",
+  minakatatomi: "minakatatomi_icon_48x48_round.png",
+
+  huehuecoyotl: "Huehuecoyotl_icon_48x48_round.png",
+  malinalxochitl: "Malinalxochitl_icon_48x48_round.png",
+  patecatl: "Patecatl_icon_48x48_round.png",
+  coatlicue: "Coatlicue_icon_48x48_round.png",
+  coyolxauhqui: "Coyolxauhqui_icon_48x48_round.png",
+  itzpapalotl: "Itzpapalotl_icon_48x48_round.png",
+  mictlantecutli: "Mictlantecutli_icon_48x48_round.png",
+  tlaloc: "Tlaloc_icon_48x48_round.png",
+  xolotl: "Xolotl_icon_48x48_round.png",
+};
+
+function previewImage(src, alt, className) {
+  const img = document.createElement("img");
+  img.className = className || "preview-icon";
+  img.src = src;
+  img.alt = alt || "";
+  img.width = 48;
+  img.height = 48;
+  img.loading = "lazy";
+  return img;
+}
+
+let previewMajorGodIconFile = null;
+let previewMajorGodIconUrl = "";
+
+function isBrowserPreviewableIconFile(file) {
+  if (!file) return false;
+  const type = String(file.type || "").toLowerCase();
+  const ext = String(file.name || "").split(".").pop().toLowerCase();
+  return type === "image/png" || type === "image/jpeg" || ["png", "jpg", "jpeg"].includes(ext);
+}
+
+function currentMajorGodIconPreviewUrl() {
+  const file = els.iconFile?.files?.[0];
+  if (!file || !isBrowserPreviewableIconFile(file)) {
+    if (previewMajorGodIconUrl) URL.revokeObjectURL(previewMajorGodIconUrl);
+    previewMajorGodIconFile = null;
+    previewMajorGodIconUrl = "";
+    return "";
+  }
+  if (previewMajorGodIconFile !== file) {
+    if (previewMajorGodIconUrl) URL.revokeObjectURL(previewMajorGodIconUrl);
+    previewMajorGodIconFile = file;
+    previewMajorGodIconUrl = URL.createObjectURL(file);
+  }
+  return previewMajorGodIconUrl;
+}
+
+function makePreviewMajorGodIcon(src, alt) {
+  const frame = previewElement("div", "preview-major-god-icon-frame");
+  const img = previewImage(src, alt || "Major god icon", "preview-major-god-icon");
+  frame.appendChild(img);
+  return frame;
+}
+
+async function selectedMajorGodIconDataUrl() {
+  const file = els.iconFile?.files?.[0];
+  if (!file || !isBrowserPreviewableIconFile(file)) return "";
+  try {
+    return await blobToDataUrl(file);
+  } catch (err) {
+    console.warn("Could not read selected major god icon for preview export:", err);
+    return "";
+  }
+}
+
+function previewMinorGodIconPath(god) {
+  const rawName = String(god?.name || "");
+  const key = rawName.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const file = PREVIEW_MINOR_GOD_ICON_FILES[key] || `${key}_icon_48x48_round.png`;
+  return `icons/${file}`;
+}
+
+function previewMinorGodData(tech) {
+  const god = getMinorByTech(tech);
+  if (god) {
+    return {
+      name: displayGodName(god.name),
+      icon: previewMinorGodIconPath(god),
+    };
+  }
+  return {
+    name: displayTechName(canonicalMinorTech(tech)),
+    icon: "",
+  };
+}
+
+function previewMinorGodTile(minor) {
+  const tile = previewElement("div", "preview-minor-god-tile");
+  if (minor?.icon) tile.appendChild(previewImage(minor.icon, minor.name, "preview-minor-god-icon"));
+  tile.appendChild(previewElement("span", "preview-minor-god-name", minor?.name || "—"));
+  return tile;
+}
+
+function previewAgeHeader(age) {
+  const header = previewElement("div", "preview-age-heading");
+  const iconPath = PREVIEW_AGE_ICONS[age];
+  if (iconPath) header.appendChild(previewImage(iconPath, ageDisplayName(age), "preview-age-icon"));
+  header.appendChild(previewElement("h3", "", ageDisplayName(age)));
+  return header;
+}
+
+function previewAgeRow(age, minors, extras) {
+  const row = previewElement("section", "preview-age-row");
+  row.appendChild(previewAgeHeader(age));
+  const body = previewElement("div", "preview-age-row-body");
+
+  const ageMinors = (minors || []).filter((minor) => minor?.name);
+  const ageExtras = (extras || []).filter(Boolean);
+  if (ageMinors.length) {
+    const minorTiles = previewElement("div", "preview-minor-god-row");
+    for (const minor of ageMinors) minorTiles.appendChild(previewMinorGodTile(minor));
+    body.appendChild(minorTiles);
+  } else if (!ageExtras.length) {
+    const minorTiles = previewElement("div", "preview-minor-god-row");
+    const empty = previewElement("div", "preview-minor-god-empty", age === "ArchaicAge" ? "No minor god" : "No minor god selected");
+    minorTiles.appendChild(empty);
+    body.appendChild(minorTiles);
+  }
+
+  if (ageExtras.length) {
+    const extrasWrap = previewElement("div", "preview-age-extras");
+    for (const item of ageExtras) {
+      const [rawLabel, ...rest] = String(item).split(":");
+      const label = rest.length ? rawLabel : "Choice";
+      const value = rest.length ? rest.join(":").trim() : item;
+      extrasWrap.appendChild(previewValueLine(label, value));
+    }
+    body.appendChild(extrasWrap);
+  }
+
+  row.appendChild(body);
+  return row;
+}
+
+function ageDisplayName(age) {
+  return String(age || "").replace("ArchaicAge", "Archaic Age").replace("ClassicalAge", "Classical Age").replace("HeroicAge", "Heroic Age").replace("MythicAge", "Mythic Age");
+}
+
+function selectedGodPowerDisplay(config) {
+  return displayTechName(config.godPower);
+}
+
+function previewMinorGodName(tech) {
+  const god = getMinorByTech(tech);
+  return god ? displayGodName(god.name) : displayTechName(canonicalMinorTech(tech));
+}
+
+function previewGreekHeroForAge(config, age) {
+  if (config.baseCulture !== "Greek") return [];
+  const map = {
+    ArchaicAge: config.greekHeroes?.archaic,
+    ClassicalAge: config.greekHeroes?.classical,
+    HeroicAge: config.greekHeroes?.heroic,
+    MythicAge: config.greekHeroes?.mythic,
+  };
+  const extras = [];
+  if (map[age]) extras.push(`Hero: ${displayGodName(map[age])}`);
+  if (age === "MythicAge" && config.greekUniqueUnit) extras.push(`Unique unit: ${displayTechName(config.greekUniqueUnit)}`);
+  return extras;
+}
+
+function previewChineseSpecialForAge(config, age) {
+  if (config.baseCulture !== "Chinese" || age !== "MythicAge") return [];
+  return config.chineseMythicHero ? [`Special hero: ${displayTechName(config.chineseMythicHero)}`] : [];
+}
+
+function aztecClassicalFormPreviewName(tech) {
+  const found = Object.entries(AZTEC_CLASSICAL_FORMS).find(([, data]) => data.tech === tech);
+  return found ? found[0] : displayTechName(tech);
+}
+
+function aztecMythicArrivalPreviewName(tech) {
+  const found = Object.entries(AZTEC_MYTHIC_ARRIVALS).find(([, value]) => value === tech);
+  return found ? found[0] : displayTechName(tech);
+}
+
+function previewAztecSpecialForAge(config, age) {
+  if (config.baseCulture !== "Aztec") return [];
+  if (age === "ClassicalAge" && config.aztecClassicalForm) return [`Teixiptla Form: ${aztecClassicalFormPreviewName(config.aztecClassicalForm)}`];
+  if (age === "MythicAge" && config.aztecMythicArrival) return [`Incarnate: ${aztecMythicArrivalPreviewName(config.aztecMythicArrival)}`];
+  return [];
+}
+
+
+function makePreviewExportButton() {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "secondary preview-export-button";
+  button.textContent = "Export picture";
+  button.addEventListener("click", async () => {
+    await exportGodPreviewImage();
+  });
+  return button;
+}
+
+function collectDocumentCssText() {
+  let css = "";
+  for (const sheet of Array.from(document.styleSheets || [])) {
+    try {
+      css += Array.from(sheet.cssRules || []).map((rule) => rule.cssText).join("\n") + "\n";
+    } catch (err) {
+      // Cross-origin stylesheets cannot be read. This app uses local styles, so
+      // this is only a fallback for unusual hosting setups.
+    }
+  }
+  return css;
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error("Could not read image data."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function inlinePreviewImages(root) {
+  const images = Array.from(root.querySelectorAll("img"));
+  await Promise.all(images.map(async (img) => {
+    const src = img.getAttribute("src");
+    if (!src || /^data:/i.test(src)) return;
+    try {
+      const response = await fetch(new URL(src, document.baseURI).href);
+      if (!response.ok) throw new Error(`Could not load ${src}`);
+      img.setAttribute("src", await blobToDataUrl(await response.blob()));
+    } catch (err) {
+      console.warn("Preview export could not embed image:", src, err);
+    }
+  }));
+}
+
+function previewIconDataUrlForCanvas(src) {
+  const map = window.AOM_PREVIEW_ICON_DATA_URLS || {};
+  const raw = String(src || "");
+  if (!raw) return "";
+  const clean = raw.replace(/^\.\//, "").replace(/\\/g, "/");
+  const file = clean.split("/").pop();
+  return map[raw] || map[clean] || map[file] || "";
+}
+
+function waitForCanvasImage(src) {
+  if (!src) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const rawSrc = String(src || "");
+    const dataUrl = /^data:/i.test(rawSrc) ? rawSrc : previewIconDataUrlForCanvas(rawSrc);
+    // When index.html is opened directly with file://, drawing file:// images to
+    // canvas can taint it and block toBlob(). Use embedded data URLs for the
+    // bundled preview icons and for the user-selected major-god icon, and skip
+    // unknown local images rather than tainting the export canvas.
+    if (!dataUrl && window.location?.protocol === "file:") return resolve(null);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    if (!dataUrl) img.crossOrigin = "anonymous";
+    img.src = dataUrl || new URL(rawSrc, document.baseURI).href;
+  });
+}
+
+function canvasFont(size, weight = 700) {
+  return `${weight} ${size}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial, sans-serif`;
+}
+
+function roundRectPath(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function fillRoundRect(ctx, x, y, width, height, radius, fill, stroke) {
+  roundRectPath(ctx, x, y, width, height, radius);
+  if (fill) {
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+
+function drawCenteredText(ctx, text, x, y, maxWidth, font, fillStyle, baseline = "middle") {
+  ctx.font = font;
+  ctx.fillStyle = fillStyle;
+  ctx.textAlign = "center";
+  ctx.textBaseline = baseline;
+  ctx.fillText(String(text || ""), x, y, maxWidth);
+}
+
+function drawLeftText(ctx, text, x, y, maxWidth, font, fillStyle, baseline = "middle") {
+  ctx.font = font;
+  ctx.fillStyle = fillStyle;
+  ctx.textAlign = "left";
+  ctx.textBaseline = baseline;
+  ctx.fillText(String(text || ""), x, y, maxWidth);
+}
+
+function wrapCanvasText(ctx, text, maxWidth) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(test).width > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.length ? lines : [""];
+}
+
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, font, fillStyle) {
+  ctx.font = font;
+  ctx.fillStyle = fillStyle;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  const lines = wrapCanvasText(ctx, text, maxWidth);
+  lines.forEach((line, index) => ctx.fillText(line, x, y + index * lineHeight, maxWidth));
+  return lines.length * lineHeight;
+}
+
+function drawCircleImage(ctx, img, cx, cy, size) {
+  if (!img) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
+  ctx.restore();
+}
+
+function previewExportRowsForConfig(config) {
+  const rows = [];
+  rows.push({ label: "Pantheon", value: config.baseCulture || "—" });
+  rows.push({ label: "God power", value: selectedGodPowerDisplay(config) || "—" });
+  const uniqueNames = uniqueTechEntries(config).map((group) => displayTechName(group.label || group.id));
+  rows.push({ label: "Unique tech", value: uniqueNames.join(", ") || "None" });
+  return rows;
+}
+
+function previewExportAgesForConfig(config) {
+  return PREVIEW_AGES.map((age) => {
+    const minors = age === "ArchaicAge" ? [] : (config.minorGods[age] || []).map(previewMinorGodData).filter((minor) => minor?.name);
+    const extras = [
+      ...previewGreekHeroForAge(config, age),
+      ...previewChineseSpecialForAge(config, age),
+      ...previewAztecSpecialForAge(config, age),
+    ].filter(Boolean);
+    if (age === "ArchaicAge" && !minors.length && !extras.length) return null;
+    return { age, minors, extras };
+  }).filter(Boolean);
+}
+
+function previewExportSplitExtra(item) {
+  const [rawLabel, ...rest] = String(item).split(":");
+  return {
+    label: rest.length ? rawLabel : "Choice",
+    value: rest.length ? rest.join(":").trim() : String(item),
+  };
+}
+
+async function exportGodPreviewImage() {
+  const config = getConfig();
+  const target = els.configPreview;
+  if (!target) return setMessage("God preview is unavailable.", true);
+  try {
+    if (document.fonts?.ready) await document.fonts.ready;
+
+    const width = Math.max(900, Math.ceil(target.getBoundingClientRect().width || 900));
+    const pad = 28;
+    const gap = 18;
+    const innerWidth = width - pad * 2;
+    const colors = {
+      page: "#120f0b",
+      card: "#1d1913",
+      cardAlt: "#2a2117",
+      row: "#15120f",
+      stroke: "rgba(214,169,94,.35)",
+      softStroke: "rgba(255,255,255,.12)",
+      gold: "#ffd993",
+      text: "#fff9ef",
+      muted: "#d7c7ae",
+      label: "#bba98e",
+    };
+
+    const rows = previewExportRowsForConfig(config);
+    const bonuses = selectedBonusEntries(config).map((entry) => dynamicBonusLabel(entry, config));
+    const ages = previewExportAgesForConfig(config);
+    const ageIcons = Object.fromEntries(await Promise.all(Object.entries(PREVIEW_AGE_ICONS).map(async ([age, src]) => [age, await waitForCanvasImage(src)])));
+    const minorIconEntries = [];
+    for (const age of ages) for (const minor of age.minors || []) if (minor.icon) minorIconEntries.push([minor.icon, await waitForCanvasImage(minor.icon)]);
+    const minorIcons = new Map(minorIconEntries);
+    const majorIconDataUrl = await selectedMajorGodIconDataUrl();
+    const majorIcon = majorIconDataUrl ? await waitForCanvasImage(majorIconDataUrl) : null;
+
+    const measure = document.createElement("canvas").getContext("2d");
+    const bonusesHeight = bonuses.length
+      ? bonuses.reduce((sum, bonus) => {
+          measure.font = canvasFont(18, 750);
+          return sum + Math.max(32, wrapCanvasText(measure, bonus, innerWidth - 78).length * 24 + 10);
+        }, 62)
+      : 98;
+    const ageRowHeights = ages.map((entry) => {
+      const extras = entry.extras || [];
+      const extraHeight = extras.length ? (extras.length * 44 + 10) : 0;
+      return Math.max(132, 116 + extraHeight);
+    });
+    const agesHeight = ages.length ? 58 + ageRowHeights.reduce((a, b) => a + b, 0) + Math.max(0, ages.length - 1) * 12 + 18 : 0;
+    const headerHeight = config.majorFocus ? 198 : 176;
+    const overviewHeight = 180;
+    const height = pad + headerHeight + gap + overviewHeight + gap + bonusesHeight + (agesHeight ? gap + agesHeight : 0) + pad;
+
+    const scale = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(width * scale);
+    canvas.height = Math.ceil(height * scale);
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.fillStyle = colors.page;
+    ctx.fillRect(0, 0, width, height);
+
+    let y = pad;
+    fillRoundRect(ctx, pad, y, innerWidth, headerHeight, 18, colors.cardAlt, colors.stroke);
+    const nameText = config.displayName || "My Custom Major God";
+    const titleText = config.majorTitle || "";
+    const nameFont = canvasFont(56, 900);
+    const titleFont = canvasFont(28, 800);
+    const focusLabelFont = canvasFont(18, 900);
+    const focusValueFont = canvasFont(18, 750);
+    if (majorIcon) {
+      const iconSize = 96;
+      const iconGap = 24;
+      const maxTextW = innerWidth - iconSize - iconGap - 120;
+      measure.font = nameFont;
+      const textW = Math.min(maxTextW, Math.max(measure.measureText(nameText).width, measure.measureText(titleText).width, 220));
+      const groupW = iconSize + iconGap + textW;
+      const startX = width / 2 - groupW / 2;
+      const iconCx = startX + iconSize / 2;
+      const textX = startX + iconSize + iconGap;
+      drawCircleImage(ctx, majorIcon, iconCx, y + 78, iconSize);
+      drawLeftText(ctx, nameText, textX, y + 62, maxTextW, nameFont, colors.gold);
+      drawLeftText(ctx, titleText, textX, y + 108, maxTextW, titleFont, colors.muted);
+      if (config.majorFocus) {
+        ctx.font = focusLabelFont;
+        const label = "Focus:";
+        const labelWidth = ctx.measureText(label).width;
+        drawLeftText(ctx, label, textX, y + 146, labelWidth + 4, focusLabelFont, colors.text);
+        drawLeftText(ctx, ` ${config.majorFocus}`, textX + labelWidth, y + 146, maxTextW - labelWidth, focusValueFont, colors.text);
+      }
+    } else {
+      drawCenteredText(ctx, nameText, width / 2, y + 66, innerWidth - 80, nameFont, colors.gold);
+      drawCenteredText(ctx, titleText, width / 2, y + 112, innerWidth - 90, titleFont, colors.muted);
+      if (config.majorFocus) {
+        ctx.font = focusLabelFont;
+        const label = "Focus:";
+        const labelWidth = ctx.measureText(label).width;
+        ctx.font = focusValueFont;
+        const value = ` ${config.majorFocus}`;
+        const total = labelWidth + ctx.measureText(value).width;
+        const start = width / 2 - total / 2;
+        drawLeftText(ctx, label, start, y + 150, labelWidth + 4, focusLabelFont, colors.text);
+        drawLeftText(ctx, value, start + labelWidth, y + 150, innerWidth - 80, focusValueFont, colors.text);
+      }
+    }
+    y += headerHeight + gap;
+
+    fillRoundRect(ctx, pad, y, innerWidth, overviewHeight, 18, colors.card, colors.stroke);
+    drawCenteredText(ctx, "Overview", width / 2, y + 30, innerWidth, canvasFont(18, 850), colors.gold);
+    let rowY = y + 58;
+    for (const row of rows) {
+      const rowX = pad + 86;
+      const rowW = innerWidth - 172;
+      fillRoundRect(ctx, rowX, rowY, rowW, 42, 12, colors.row, colors.softStroke);
+      drawLeftText(ctx, row.label.toUpperCase(), rowX + 18, rowY + 21, 150, canvasFont(14, 900), colors.label);
+      drawLeftText(ctx, row.value, rowX + 188, rowY + 21, rowW - 206, canvasFont(18, 800), colors.text);
+      rowY += 52;
+    }
+    y += overviewHeight + gap;
+
+    fillRoundRect(ctx, pad, y, innerWidth, bonusesHeight, 18, colors.card, colors.stroke);
+    drawCenteredText(ctx, "God bonuses", width / 2, y + 30, innerWidth, canvasFont(18, 850), colors.gold);
+    let bonusY = y + 58;
+    if (!bonuses.length) {
+      fillRoundRect(ctx, pad + 24, bonusY, innerWidth - 48, 42, 12, colors.row, colors.softStroke);
+      drawCenteredText(ctx, "No bonuses selected", width / 2, bonusY + 21, innerWidth - 80, canvasFont(17, 750), colors.label);
+    } else {
+      for (const bonus of bonuses) {
+        measure.font = canvasFont(18, 750);
+        const lines = wrapCanvasText(measure, bonus, innerWidth - 86);
+        const boxH = Math.max(34, lines.length * 24 + 10);
+        fillRoundRect(ctx, pad + 24, bonusY, innerWidth - 48, boxH, 12, colors.row, colors.softStroke);
+        drawWrappedText(ctx, `• ${bonus}`, pad + 42, bonusY + 8, innerWidth - 86, 24, canvasFont(18, 750), colors.text);
+        bonusY += boxH + 8;
+      }
+    }
+    y += bonusesHeight + gap;
+
+    if (ages.length) {
+      fillRoundRect(ctx, pad, y, innerWidth, agesHeight, 18, colors.card, colors.stroke);
+      drawCenteredText(ctx, "Minor gods and age choices", width / 2, y + 30, innerWidth, canvasFont(18, 850), colors.gold);
+      let ageY = y + 62;
+      ages.forEach((entry, index) => {
+        const rowH = ageRowHeights[index];
+        fillRoundRect(ctx, pad + 20, ageY, innerWidth - 40, rowH, 14, "#211d17", colors.softStroke);
+        const leftW = 150;
+        const leftX = pad + 20;
+        const bodyX = leftX + leftW + 18;
+        drawCircleImage(ctx, ageIcons[entry.age], leftX + leftW / 2, ageY + 48, 54);
+        drawCenteredText(ctx, ageDisplayName(entry.age), leftX + leftW / 2, ageY + 92, leftW - 12, canvasFont(18, 850), colors.gold);
+
+        const minors = entry.minors || [];
+        const tileGap = 18;
+        const bodyW = innerWidth - 40 - leftW - 30;
+        if (minors.length) {
+          const tileW = (bodyW - tileGap) / 2;
+          minors.slice(0, 2).forEach((minor, i) => {
+            const tx = bodyX + i * (tileW + tileGap);
+            fillRoundRect(ctx, tx, ageY + 16, tileW, 82, 14, colors.row, colors.softStroke);
+            drawCircleImage(ctx, minorIcons.get(minor.icon), tx + tileW / 2, ageY + 42, 48);
+            drawCenteredText(ctx, minor.name, tx + tileW / 2, ageY + 76, tileW - 14, canvasFont(18, 850), colors.text);
+          });
+        }
+        let extraY = minors.length ? ageY + 110 : ageY + 24;
+        for (const extra of entry.extras || []) {
+          const parts = previewExportSplitExtra(extra);
+          fillRoundRect(ctx, bodyX, extraY, bodyW, 42, 12, colors.row, colors.softStroke);
+          drawLeftText(ctx, parts.label.toUpperCase(), bodyX + 16, extraY + 21, 150, canvasFont(14, 900), colors.label);
+          drawLeftText(ctx, parts.value, bodyX + 176, extraY + 21, bodyW - 196, canvasFont(22, 800), colors.text);
+          extraY += 48;
+        }
+        ageY += rowH + 12;
+      });
+    }
+
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob((result) => result ? resolve(result) : reject(new Error("Could not create PNG image.")), "image/png");
+    });
+    downloadBlob(blob, `${config.internalName}-preview.png`);
+    setMessage("God preview picture exported.");
+  } catch (err) {
+    console.error(err);
+    setMessage(`Could not export god preview picture: ${err.message}`, true);
+  }
+}
+
 function updatePreview() {
   const config = getConfig();
-  els.layoutPreview.textContent = `${config.internalName}/
-  README_INSTALL.txt
-  game/
-    data/
-      gameplay/
-        major_gods_mods.xml
-        minor_gods_mods.xml
-        techtree_mods.xml
-        proto_mods.xml
-        powers_mods.xml
-      strings/
-        English/
-          stringmods.txt
-    ui_myth/
-      content/pregame/godpicker/
-        GodPicker_${config.baseCulture}_${config.internalName}.xaml
-      content/pregame/techtree/
-        TechTree_${config.baseCulture}_${config.internalName}.xaml
-      resources/${config.lowerName}/
-        ${els.iconFile.files[0] ? "<uploaded icon>" : "(none; pantheon template icon path reused)"}`;
-  const friendly = {
-    displayName: config.displayName,
-    majorTitle: config.majorTitle,
-    majorFocus: config.majorFocus || undefined,
-    pantheon: config.baseCulture,
-    majorGodTemplate: config.templateSource,
-    pregameUiLayoutFallback: config.uiTemplateMajor,
-    startingGodPower: config.godPower,
-    godPowerPantheon: config.godPowerPantheon,
-    greekChoices: config.baseCulture === "Greek" ? { heroes: config.greekHeroes, mythicUniqueUnit: config.greekUniqueUnit } : undefined,
-    chineseChoices: config.baseCulture === "Chinese" ? { mythicSpecialHero: config.chineseMythicHero } : undefined,
-    aztecChoices: config.baseCulture === "Aztec" ? { classicalFormTech: config.aztecClassicalForm, mythicArrivalTech: config.aztecMythicArrival } : undefined,
-    uniqueTechs: uniqueTechEntries(config).map((group) => ({ choice: displayTechName(group.label || group.id), grants: group.techs.map(displayTechName), internal: group.techs })),
-    godBonuses: selectedBonusEntries(config).map((entry) => ({ source: `${entry.sourcePantheon} / ${entry.sourceMajor}`, bonus: dynamicBonusLabel(entry, config), internalBonusLabel: entry.label, files: entry.files })),
-    requiredBonusWarnings: requiredAutoBonusIssues(config).map(formatRequiredAutoBonusIssue),
-    minorGods: Object.fromEntries(AGES.map((age) => [age, config.minorGods[age].map((t) => {
-      const g = getMinorByTech(t);
-      return g ? `${canonicalMinorTech(g)} — ${displayGodName(g.name)} (${g.culture})` : canonicalMinorTech(t);
-    })])),
-  };
-  els.configPreview.textContent = JSON.stringify(friendly, null, 2);
+  const root = els.configPreview;
+  if (!root) return;
+  root.replaceChildren();
+
+  const header = previewElement("section", "preview-card preview-god-header");
+  header.appendChild(makePreviewExportButton());
+  const iconUrl = currentMajorGodIconPreviewUrl();
+  const identityWrap = previewElement("div", iconUrl ? "preview-god-identity" : "preview-god-identity no-major-icon");
+  if (iconUrl) identityWrap.appendChild(makePreviewMajorGodIcon(iconUrl, config.displayName));
+  const textWrap = previewElement("div", "preview-god-text");
+  textWrap.appendChild(previewElement("h3", "preview-god-name", config.displayName));
+  textWrap.appendChild(previewElement("p", "preview-god-title", config.majorTitle));
+  if (config.majorFocus) {
+    const focus = previewElement("p", "preview-note preview-focus");
+    const focusLabel = previewElement("strong", "", "Focus:");
+    focus.appendChild(focusLabel);
+    focus.appendChild(document.createTextNode(` ${config.majorFocus}`));
+    textWrap.appendChild(focus);
+  }
+  identityWrap.appendChild(textWrap);
+  header.appendChild(identityWrap);
+  root.appendChild(header);
+
+  const identity = previewCard("Overview");
+  identity.classList.add("preview-overview-card");
+  identity.appendChild(previewRow("Pantheon", config.baseCulture));
+  identity.appendChild(previewRow("God power", selectedGodPowerDisplay(config)));
+  const uniqueNames = uniqueTechEntries(config).map((group) => displayTechName(group.label || group.id));
+  identity.appendChild(previewRow("Unique tech", uniqueNames.join(", ") || "None"));
+  root.appendChild(identity);
+
+  const bonuses = previewCard("God bonuses");
+  bonuses.appendChild(previewList(selectedBonusEntries(config).map((entry) => dynamicBonusLabel(entry, config)), "No bonuses selected"));
+  root.appendChild(bonuses);
+
+  const agesCard = previewCard("Minor gods and age choices");
+  const ageGrid = previewElement("div", "preview-age-grid preview-age-rows");
+  for (const age of PREVIEW_AGES) {
+    const minors = age === "ArchaicAge" ? [] : (config.minorGods[age] || []).map(previewMinorGodData).filter((minor) => minor?.name);
+    const extras = [
+      ...previewGreekHeroForAge(config, age),
+      ...previewChineseSpecialForAge(config, age),
+      ...previewAztecSpecialForAge(config, age),
+    ];
+    if (age === "ArchaicAge" && !minors.length && !extras.length) continue;
+    ageGrid.appendChild(previewAgeRow(age, minors, extras));
+  }
+  agesCard.appendChild(ageGrid);
+  root.appendChild(agesCard);
 }
+
 
 function wireEvents() {
   els.baseMajor.addEventListener("change", () => { initGreekSpecificSelects(true); initChineseSpecificSelects(true); initAztecSpecificSelects(true); initGodPowerSelect(true); initUniqueTechSelects(true); initBonusSelects(true); refreshMinorOptions(true); });
-  els.sameCultureOnly.addEventListener("change", () => refreshMinorOptions(true));
+  if (els.sameCultureOnly) els.sameCultureOnly.addEventListener("change", () => refreshMinorOptions(true));
   els.displayName.addEventListener("input", updatePreview);
+  if (els.majorTitle) els.majorTitle.addEventListener("input", updatePreview);
+  if (els.majorFocus) {
+    els.majorFocus.addEventListener("input", updatePreview);
+    els.majorFocus.addEventListener("change", updatePreview);
+    els.majorFocus.addEventListener("blur", updatePreview);
+  }
   els.iconFile.addEventListener("change", updatePreview);
   els.godPower.addEventListener("change", () => { initUniqueTechSelects(true); updatePreview(); });
   for (const select of [els.greekHeroArchaic, els.greekHeroClassical, els.greekHeroHeroic, els.greekHeroMythic, els.greekUniqueUnit, els.chineseMythicHero, els.aztecClassicalForm, els.aztecMythicArrival]) {
@@ -13232,11 +13868,29 @@ function wireEvents() {
   if (els.bonusPickers) els.bonusPickers.addEventListener("change", (event) => { enforceBonusDifference(event.target); enforceChannelsGaiaLushBonusLock(); updatePreview(); });
   els.minorPickers.addEventListener("change", (event) => { enforceMinorDifference(event.target); updatePreview(); });
   els.downloadZip.addEventListener("click", handleDownload);
-  els.savePreset.addEventListener("click", () => { localStorage.setItem("aomCivCreatorPreset", JSON.stringify(presetFromForm())); setMessage("Preset saved in this browser."); });
-  els.loadPreset.addEventListener("click", () => { const raw = localStorage.getItem("aomCivCreatorPreset"); if (!raw) return setMessage("No local preset found.", true); applyPreset(JSON.parse(raw)); setMessage("Preset loaded."); });
+  els.loadPreset.addEventListener("click", () => {
+    if (!els.presetFile) return setMessage("Preset file input is unavailable.", true);
+    els.presetFile.value = "";
+    els.presetFile.click();
+  });
+  if (els.presetFile) {
+    els.presetFile.addEventListener("change", async () => {
+      const file = els.presetFile.files && els.presetFile.files[0];
+      if (!file) return;
+      try {
+        const raw = await file.text();
+        applyPreset(JSON.parse(raw));
+        setMessage(`Preset loaded from ${file.name}.`);
+      } catch (err) {
+        console.error(err);
+        setMessage(`Could not load preset JSON: ${err.message}`, true);
+      }
+    });
+  }
   els.exportPreset.addEventListener("click", () => {
     const blob = new Blob([JSON.stringify(presetFromForm(), null, 2)], { type: "application/json" });
     downloadBlob(blob, `${getConfig().internalName}-preset.json`);
+    setMessage("Preset JSON exported.");
   });
 }
 

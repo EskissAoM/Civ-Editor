@@ -3,20 +3,25 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AoM Retold Major God Creator Draft</title>
+  <title>AoM:R Major God Builder</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png" />
+  <link rel="shortcut icon" type="image/png" href="favicon.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main class="shell">
+    <div class="top-meta" aria-label="Project information">
+      <span>Made by Eskiss</span>
+      <span>Version 0.9</span>
+      <a href="#contact">Contact / Social</a>
+    </div>
     <header class="hero">
-      <p class="eyebrow">Static GitHub Pages prototype</p>
-      <h1>AoM Retold Major God Creator</h1>
-      <p>This draft lets you choose a pantheon, any existing Archaic Age god power, and two existing minor gods per age, then generates a mod ZIP for a custom major god.</p>
+      <div class="hero-title-wrap">
+        <img class="hero-title-icon" src="title_icon.png" alt="" aria-hidden="true" />
+        <h1>AoM:R Major God Builder</h1>
+      </div>
+      <p>Create a custom major god by choosing a pantheon, god power, unique technology, bonuses, and minor gods, then export a ready-to-install mod ZIP.</p>
     </header>
-
-    <section class="panel warning">
-      <strong>Draft status:</strong> this outputs <code>major_gods_mods.xml</code>, <code>techtree_mods.xml</code>, <code>stringmods.txt</code>, and GodPicker/TechTree XAML files. The pregame GodPicker and TechTree files use compact generated Archaic Age power blocks and real vanilla blocks for the selected minor gods. It is still a test generator: major-god bonuses can now be selected from the implementation map, but some complex mixed-file bonuses may still need in-game iteration.
-    </section>
 
     <section class="grid">
       <form id="godForm" class="panel form-panel">
@@ -28,22 +33,18 @@
         <label>
           Major god title
           <input id="majorTitle" value="My Custom Major God followers" required maxlength="80" />
-          <small>This is written to <code>STR_CIV_&lt;NAME&gt;_T</code>, for example “Poseidon followers”.</small>
         </label>
         <label>
           Major god focus <span class="muted">(optional)</span>
           <input id="majorFocus" placeholder="Example: Creator’s Auspice" maxlength="120" />
-          <small>If filled, this appears first in <code>STR_CIV_&lt;NAME&gt;_LR</code> as <code>Focus: ...</code>.</small>
         </label>
-        <p class="muted">Internal name/folder is generated automatically from the display name.</p>
         <label>
           Pantheon
           <select id="baseMajor"></select>
-          <small>Choose the pantheon/culture. The draft uses a hidden default template for that pantheon only for basic starting units/resources until we define custom rules.</small>
         </label>
         <label>
-          Optional major god icon PNG/JPEG/TGA/DDS
-          <input id="iconFile" type="file" accept=".png,.jpg,.jpeg,.tga,.dds,image/png,image/jpeg" />
+          Optional major god icon PNG/JPEG
+          <input id="iconFile" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" />
           <small>Stored inside the generated ZIP under <code>game/ui_myth/resources/&lt;major-god&gt;/</code>.</small>
         </label>
         <div id="greekOptions" class="subpanel" hidden>
@@ -99,7 +100,6 @@
         <label>
           Archaic Age god power
           <select id="godPower"></select>
-          <small>Choose any existing Archaic Age god power. Powers are grouped by pantheon for easier recognition; only the power name is written into the generated mod.</small>
         </label>
 
         <h2>2. Unique technologies</h2>
@@ -134,26 +134,38 @@
         </div>
 
         <h2>4. Minor gods</h2>
-        <p class="muted">Choose exactly two existing minor gods for each age. By default the list is filtered to the selected pantheon, but you can unlock all pantheons for testing.</p>
-        <label class="inline"><input id="sameCultureOnly" type="checkbox" checked /> Show only minor gods from the selected pantheon</label>
+        <p class="muted">Choose exactly two minor gods for each age.</p>
         <div id="minorPickers" class="minor-grid"></div>
 
         <h2>5. Export</h2>
+        <div class="install-box">
+          <h3>How to install your mod</h3>
+          <ol>
+            <li>Generate the mod ZIP.</li>
+            <li>Unzip the folder.</li>
+            <li>Go to <code>C:\Users\UserName\Games\Age of Mythology Retold\SteamID\mods\local</code>.</li>
+            <li>Drop the unzipped mod folder there.</li>
+            <li>Start the game and enjoy!</li>
+          </ol>
+        </div>
         <div class="buttons">
           <button type="button" id="downloadZip">Generate mod ZIP</button>
-          <button type="button" id="savePreset" class="secondary">Save preset locally</button>
-          <button type="button" id="loadPreset" class="secondary">Load preset</button>
           <button type="button" id="exportPreset" class="secondary">Export preset JSON</button>
+          <button type="button" id="loadPreset" class="secondary">Load preset JSON</button>
+          <input type="file" id="presetFile" accept="application/json,.json" hidden>
         </div>
         <div id="messages" class="messages" aria-live="polite"></div>
       </form>
 
       <aside class="panel preview-panel">
-        <h2>Generated layout</h2>
-        <pre id="layoutPreview"></pre>
-        <h2>Current choices</h2>
-        <pre id="configPreview"></pre>
+        <div id="configPreview" class="god-preview" aria-live="polite"></div>
       </aside>
+    </section>
+
+    <section id="contact" class="panel contact-panel">
+      <h2>Join us / Contact</h2>
+      <p>Join us on <a href="https://discord.gg/NYxUT5MYaW" target="_blank" rel="noopener noreferrer">Discord</a>.</p>
+      <p>Contact us for any issue <a href="mailto:eskissaom@gmail.com">here</a>.</p>
     </section>
   </main>
   <script src="aomData.js"></script>
@@ -162,6 +174,7 @@
   <script src="godPickerTemplates.js"></script>
   <script src="techTreeTemplates.js"></script>
   <script src="minorGodMythUnits.js"></script>
+  <script src="previewIconData.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
