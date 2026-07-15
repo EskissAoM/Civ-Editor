@@ -920,9 +920,13 @@ function renderComboSuggestions(select) {
     } else {
       item.textContent = suggestion.label;
     }
-    item.title = suggestion.disabled
-      ? (suggestion.disabledReason || "Already selected")
-      : (suggestion.title || suggestion.label);
+    if (suggestion.disabled) {
+      item.title = suggestion.disabledReason || "Already selected";
+    } else if (!suggestion.noTooltip) {
+      item.title = suggestion.title || suggestion.label;
+    } else {
+      item.removeAttribute("title");
+    }
     item.dataset.value = suggestion.value;
     item.dataset.label = suggestion.label;
     if (suggestion.disabled) {
@@ -1045,8 +1049,6 @@ function initUniqueTechSelects(keep = true) {
         const opt = document.createElement("option");
         opt.value = group.id;
         opt.textContent = displayTechName(group.label || group.id);
-        const allowedText = group.pantheon === "All" ? "All pantheons" : `${group.pantheon} only`;
-        opt.title = `Source: ${sourcePantheon} | Allowed: ${allowedText} | Grants: ${group.techs.map(displayTechName).join(", ")}`;
         if (group.requiresGodPower) opt.textContent += ` (requires ${group.requiresGodPower})`;
         if (current && group.id === current && query && !searchMatchesText(uniqueTechSearchText(group), query)) {
           opt.textContent += " (selected; outside filter)";
@@ -1057,7 +1059,7 @@ function initUniqueTechSelects(keep = true) {
           value: group.id,
           label: uniqueTechComboLabel(group),
           description: uniqueTechUiDescription(group),
-          title: `${opt.title} | ${uniqueTechUiDescription(group)}`,
+          noTooltip: true,
           disabled: otherUniqueSelected,
           disabledReason: otherUniqueSelected ? "Already selected in another unique technology slot" : "",
         });
@@ -1217,13 +1219,12 @@ function initBonusSelects(keep = true) {
         if (current && entry.id === current && query && !searchMatchesText(bonusSearchText(entry, pantheon), query)) {
           opt.textContent += " (selected; outside filter)";
         }
-        opt.title = `Allowed: ${(entry.allowedPantheons || []).join(", ")} | Files: ${entry.files}`;
         group.appendChild(opt);
         const otherBonusSelected = previous.some((selectedId, selectedIndex) => selectedIndex !== index && selectedId === entry.id);
         suggestions.push({
           value: entry.id,
           label: bonusComboLabel(entry, pantheon),
-          title: opt.title,
+          noTooltip: true,
           disabled: otherBonusSelected,
           disabledReason: otherBonusSelected ? "Already selected in another bonus slot" : "",
         });
@@ -1255,41 +1256,41 @@ function enforceBonusDifference(changedSelect) {
   }
 }
 
-const GAIA_ECON_GUILD_BONUS_LABEL = "Economic Guild and upgrades are cheaper and available earlier.";
+const GAIA_ECON_GUILD_BONUS_LABEL = "Economic Guild and upgrades are 35% cheaper and available earlier.";
 const KRONOS_EXTRA_MYTH_UNITS_BONUS_LABEL = "Receives 2 free Temple myth units instead of 1 on age-up.";
 const KRONOS_TIMESHIFT_BONUS_LABEL = "Can Time-Shift buildings. Most are free, except Towers and Fortress-type buildings costing half their price.";
-const KRONOS_TEMPORAL_SCAFFOLDING_BONUS_LABEL = "Buildings construct faster near Manors.";
+const KRONOS_TEMPORAL_SCAFFOLDING_BONUS_LABEL = "Buildings construct 25% faster near Manors.";
 
 const ORANOS_SKY_PASSAGE_BONUS_LABEL = "Villagers/Infantry(Norse)/Priest(Egyptian) can build a new Sky Passage each age, enabling instant travel between them.";
 const LOKI_SPAWN_MYTH_UNITS_BONUS_LABEL = "Damaging enemies can spawn myth units.";
-const LOKI_MILITARY_BUILD_BONUS_LABEL = "Military-built buildings are constructed faster";
-const LOKI_COUNTER_DAMAGE_BONUS_LABEL = "Human soldiers and heroes get bonus counter damage.";
-const POSEIDON_SPEED_BY_AGE_BONUS_LABEL = "Cavalry, Caravans, and myth units gain speed by age.";
+const LOKI_MILITARY_BUILD_BONUS_LABEL = "Military-built buildings are constructed 10% faster";
+const LOKI_COUNTER_DAMAGE_BONUS_LABEL = "Human soldiers and heroes get 10% bonus counter damage.";
+const POSEIDON_SPEED_BY_AGE_BONUS_LABEL = "Cavalry, Caravans, and myth units gain +0.1 speed by age.";
 const POSEIDON_STABLE_MARKET_DISCOUNT_BONUS_LABEL = "Stables and Markets are 30% cheaper.";
 const POSEIDON_MILITIA_BONUS_LABEL = "Militia spawn from razed buildings.";
-const HUITZ_TONALLI_RESOURCES_BONUS_LABEL = "Collecting Tonalli grants resources in addition to favor.";
-const HUITZ_CONSTRUCTION_REFUND_BONUS_LABEL = "Temples, Fortress-type building, Village Centers, and Town Centers refund part of their wood/gold cost on completion.";
+const HUITZ_TONALLI_RESOURCES_BONUS_LABEL = "Collecting Tonalli grants 5% resources in addition to favor.";
+const HUITZ_CONSTRUCTION_REFUND_BONUS_LABEL = "Temples, Fortress-type building, Village Centers, and Town Centers refund 25% of their wood/gold cost on completion.";
 const ZEUS_STARTING_FAVOR_BONUS_LABEL = "Starts with 10 favor.";
 const ZEUS_COUNTER_CAV_INFANTRY_SPEED_BONUS_LABEL = "Hoplite and other counter-cavalry infantry move 15% faster.";
-const HUITZ_SHORN_TONALLI_BONUS_LABEL = "Shorn Ones have more hit points and generate extra Tonalli in combat.";
+const HUITZ_SHORN_TONALLI_BONUS_LABEL = "Shorn Ones have 10% more hit points and generate 100% more Tonalli in combat.";
 const QUETZ_DROPSITE_DISCOUNT_BONUS_LABEL = "Dropsite and their additions cost 33% less.";
 const QUETZ_EAGLE_RANGE_LOS_BONUS_LABEL = "Eagle Warriors gain +1 range and +1 line of sight in the Heroic and Mythic Ages.";
-const TEZCAT_DEVOTE_FAVOR_BONUS_LABEL = "Devoting Settlers gives higher immediate favor by age.";
+const TEZCAT_DEVOTE_FAVOR_BONUS_LABEL = "Devoting Settlers gives +10% immediate favor by age.";
 const TEZCAT_JAGUAR_RIDER_BONUS_LABEL = "Jaguar Riders are available from the Heroic Age.";
 const TEZCAT_OBSIDIAN_SHARD_BONUS_LABEL = "Every 2 lost trainable myth units can create an Obsidian Shard that may summons a free myth unit.";
 const FUXI_NEZHA_BONUS_LABEL = "Gains access to Nezha in the Classical Age.";
-const NUWA_CREATORS_AUSPICE_BONUS_LABEL = "Creator’s Auspice improves as favor is earned, reducing standard Villager cost and increasing building hit points.";
+const NUWA_CREATORS_AUSPICE_BONUS_LABEL = "Creator’s Auspice improves as favor is earned, reducing standard Villager cost and increasing building hit points by 10%.";
 const NUWA_FAVORED_LAND_FARTHER_BONUS_LABEL = "Buildings spread Favored Land farther.";
-const SHENNONG_MYTH_REGEN_FAVORED_LAND_BONUS_LABEL = "Myth units regenerate hit points on Favored Land. Regeneration scales by age.";
+const SHENNONG_MYTH_REGEN_FAVORED_LAND_BONUS_LABEL = "Myth units regenerate +1.5 hit points on Favored Land by age.";
 const SHENNONG_GIFT_OF_BEASTS_BONUS_LABEL = "Gift of Beasts summons myth units from the next age as favor is earned.";
 const SHENNONG_FARM_LINE_UPGRADES_BONUS_LABEL = "Farm Line Upgrades are researched for free and instantly in their respective ages.";
 const SET_ANIMALS_BONUS_LABEL = "Starts with a Baboon of Set and gets Animals of Set on age-up.Pharaohs can summon Animals of Set and Priests can convert wild animals.";
-const DEMETER_HERDABLES_TEMPLE_FAVOR_BONUS_LABEL = "Herdables near Temples improve favor-gathering.";
-const DEMETER_HERDABLES_FATTEN_BONUS_LABEL = "Herdables fatten faster and hold more food.";
+const DEMETER_HERDABLES_TEMPLE_FAVOR_BONUS_LABEL = "Herdables near Temples improve favor-gathering by 3% (max 30%).";
+const DEMETER_HERDABLES_FATTEN_BONUS_LABEL = "Herdables fatten 40% faster and hold 20% more food.";
 const DEMETER_HERDABLES_SPAWN_ON_AGE_UP_BONUS_LABEL = "Town Centers and Village Centers spawn herdables on age-up.";
-const DEMETER_TRAIN_FASTER_BY_AGE_BONUS_LABEL = "Human soldiers and myth units train faster by age.";
-const HADES_MYTH_HP_BY_AGE_BONUS_LABEL = "Myth units gain bonus hit points by age.";
-const HADES_RANGED_TECH_DISCOUNT_BONUS_LABEL = "Ranged-soldier technologies are cheaper.";
+const DEMETER_TRAIN_FASTER_BY_AGE_BONUS_LABEL = "Human soldiers and myth units train 10% faster by age.";
+const HADES_MYTH_HP_BY_AGE_BONUS_LABEL = "Myth units gain 4% bonus hit points by age.";
+const HADES_RANGED_TECH_DISCOUNT_BONUS_LABEL = "Ranged-soldier technologies are 33% cheaper.";
 const FREYR_FORTRESS_DAMAGE_BONUS_LABEL = "Fortress-type building units deal +10% damage.";
 const RA_FORTRESS_HP_BONUS_LABEL = "Fortress-type building units get +15% hit points.";
 const SET_MILITARY_BUILDING_DISCOUNT_BONUS_LABEL = "Military production buildings including Fortress-type cost 25% less resources excluding favor.";
@@ -1301,8 +1302,8 @@ function dynamicBonusLabel(entry, pantheonOrConfig) {
     : (pantheonOrConfig?.baseCulture || selectedPantheon());
   if (entry.id === "bonus_45" || entry.label === LOKI_MILITARY_BUILD_BONUS_LABEL) {
     return pantheon === "Norse"
-      ? "Infantry units construct buildings faster."
-      : "Villagers construct buildings faster.";
+      ? "Infantry units construct buildings 10% faster."
+      : "Villagers construct buildings 10% faster.";
   }
   if (entry.id === "bonus_56" || entry.label === ORANOS_SKY_PASSAGE_BONUS_LABEL) {
     if (pantheon === "Norse") return "Infantry units can build a new Sky Passage each age, enabling instant travel between them.";
@@ -1316,13 +1317,13 @@ function dynamicBonusLabel(entry, pantheonOrConfig) {
   }
   if (entry.id === "bonus_53") {
     return pantheon === "Atlantean"
-      ? "Buildings construct faster near Manors."
-      : "Buildings construct slighlty faster near Houses.";
+      ? "Buildings construct 25% faster near Manors."
+      : "Buildings construct 12.5% faster near Houses.";
   }
   if (entry.id === "bonus_62") {
     return pantheon === "Atlantean"
-      ? "Economic Guild and upgrades are cheaper and available earlier."
-      : "Standard economic upgrades are cheaper and available earlier.";
+      ? "Economic Guild and upgrades are 35% cheaper and available earlier."
+      : "Standard economic upgrades are 35 % cheaper and available earlier.";
   }
   if (entry.id === "bonus_66" || entry.label === FUXI_NEZHA_BONUS_LABEL) {
     return "Gains access to Nezha in the Classical Age.";
@@ -1334,8 +1335,8 @@ function dynamicBonusLabel(entry, pantheonOrConfig) {
   }
   if (entry.id === "bonus_91") {
     return pantheon === "Aztec"
-      ? "Sentry Towers, Spike Traps, and Smoke Traps build faster and deal more damage."
-      : "Sentry Towers build faster and deal more damage.";
+      ? "Sentry Towers, Spike Traps, and Smoke Traps build 25% faster and deal 25% more damage."
+      : "Sentry Towers build 25% faster and deal 25% more damage.";
   }
   return entry.label;
 }
@@ -5991,7 +5992,7 @@ function rightSideNode(type, name, parent = "", position = "1,1") {
 }
 
 function selectedHasGaiaEconomicEarlierBonus(config) {
-  return selectedHasBonusId(config, "bonus_62") || selectedHasBonusLabel(config, "Economic Guild and upgrades are cheaper and available earlier.");
+  return selectedHasBonusId(config, "bonus_62") || selectedHasBonusLabel(config, "Economic Guild and upgrades are 35% cheaper and available earlier.");
 }
 
 function selectedHasOranosSkyPassageBonus(config) {
@@ -13198,10 +13199,13 @@ function previewCard(title) {
   return card;
 }
 
-function previewRow(label, value) {
+function previewRow(label, value, iconSrc = "", iconClassName = "preview-row-icon") {
   const row = previewElement("div", "preview-row");
   row.appendChild(previewElement("span", "preview-label", label));
-  row.appendChild(previewElement("span", "preview-value", value || "—"));
+  const valueEl = previewElement("span", "preview-value");
+  if (iconSrc) valueEl.appendChild(previewImage(iconSrc, value || label, iconClassName));
+  valueEl.appendChild(previewElement("span", "preview-value-text", value || "—"));
+  row.appendChild(valueEl);
   return row;
 }
 
@@ -13222,10 +13226,13 @@ function previewList(items, emptyText = "None selected") {
   return ul;
 }
 
-function previewValueLine(label, value) {
+function previewValueLine(label, value, iconSrc = "") {
   const line = previewElement("div", "preview-value-line");
   line.appendChild(previewElement("span", "preview-label", label));
-  line.appendChild(previewElement("span", "preview-value", value || "—"));
+  const valueEl = previewElement("span", "preview-value");
+  if (iconSrc) valueEl.appendChild(previewImage(iconSrc, value || label, "preview-extra-icon"));
+  valueEl.appendChild(previewElement("span", "preview-value-text", value || "—"));
+  line.appendChild(valueEl);
   return line;
 }
 
@@ -13307,6 +13314,268 @@ async function selectedMajorGodIconDataUrl() {
   }
 }
 
+
+const PREVIEW_GOD_POWER_ICON_FILES = {
+  'agave_bloom': 'icons/godpowers/agave_bloom_icon_48x48_round.png',
+  'agavebloom': 'icons/godpowers/agave_bloom_icon_48x48_round.png',
+  'ancestors': 'icons/godpowers/ancestors_icon_48x48_round.png',
+  'arcadian_meadow': 'icons/godpowers/arcadian_meadow_icon_48x48_round.png',
+  'arcadianmeadow': 'icons/godpowers/arcadian_meadow_icon_48x48_round.png',
+  'asgardian_bastion': 'icons/godpowers/asgardian_bastion_icon_48x48_round.png',
+  'asgardianbastion': 'icons/godpowers/asgardian_bastion_icon_48x48_round.png',
+  'blazing_prairie': 'icons/godpowers/blazing_prairie_48x48_round.png',
+  'blazingprairie': 'icons/godpowers/blazing_prairie_48x48_round.png',
+  'blood_pact': 'icons/godpowers/blood_pact_icon_48x48_round.png',
+  'bloodpact': 'icons/godpowers/blood_pact_icon_48x48_round.png',
+  'bolt': 'icons/godpowers/bolt_icon_48x48_round.png',
+  'bronze': 'icons/godpowers/bronze_icon_48x48_round.png',
+  'ceasefire': 'icons/godpowers/ceasefire_icon_48x48_round.png',
+  'citadel': 'icons/godpowers/citadel_icon_48x48_round.png',
+  'communal_hearth': 'icons/godpowers/communal_hearth_icon_48x48_round.png',
+  'communalhearth': 'icons/godpowers/communal_hearth_icon_48x48_round.png',
+  'corrupted_ground': 'icons/godpowers/corrupted_ground_icon_48x48_round.png',
+  'corruptedground': 'icons/godpowers/corrupted_ground_icon_48x48_round.png',
+  'creation': 'icons/godpowers/creation_icon_48x48_round.png',
+  'curse': 'icons/godpowers/curse_icon_48x48_round.png',
+  'deconstruction': 'icons/godpowers/deconstruction_icon_48x48_round.png',
+  'divine_slash': 'icons/godpowers/divine_slash_icon_48x48_round.png',
+  'divineslash': 'icons/godpowers/divine_slash_icon_48x48_round.png',
+  'dragon_typhoon': 'icons/godpowers/dragon_typhoon_icon_48x48_round.png',
+  'dragontyphoon': 'icons/godpowers/dragon_typhoon_icon_48x48_round.png',
+  'drought_land': 'icons/godpowers/drought_land_icon_48x48_round.png',
+  'droughtland': 'icons/godpowers/drought_land_icon_48x48_round.png',
+  'dwarven_mine': 'icons/godpowers/dwarven_mine_icon_48x48_round.png',
+  'dwarvenmine': 'icons/godpowers/dwarven_mine_icon_48x48_round.png',
+  'earth_monster': 'icons/godpowers/earth_monster_icon_48x48_round.png',
+  'earth_wall': 'icons/godpowers/earth_wall_power_icon_48x48_round.png',
+  'earth_wall_power': 'icons/godpowers/earth_wall_power_icon_48x48_round.png',
+  'earthmonster': 'icons/godpowers/earth_monster_icon_48x48_round.png',
+  'earthquake': 'icons/godpowers/earthquake_icon_48x48_round.png',
+  'earthwall': 'icons/godpowers/earth_wall_power_icon_48x48_round.png',
+  'earthwallpower': 'icons/godpowers/earth_wall_power_icon_48x48_round.png',
+  'eclipse': 'icons/godpowers/eclipse_icon_48x48_round.png',
+  'fimbulwinter': 'icons/godpowers/fimbulwinter_icon_48x48_round.png',
+  'flaming_weapons': 'icons/godpowers/flaming_weapons_icon_48x48_round.png',
+  'flamingweapons': 'icons/godpowers/flaming_weapons_icon_48x48_round.png',
+  'forest_fire': 'icons/godpowers/forest_fire_icon_48x48_round.png',
+  'forest_protection': 'icons/godpowers/forest_protection_icon_48x48_round.png',
+  'forestfire': 'icons/godpowers/forest_fire_icon_48x48_round.png',
+  'forestprotection': 'icons/godpowers/forest_protection_icon_48x48_round.png',
+  'frost': 'icons/godpowers/frost_icon_48x48_round.png',
+  'gaia_forest': 'icons/godpowers/gaia_forest_icon_48x48_round.png',
+  'gaiaforest': 'icons/godpowers/gaia_forest_icon_48x48_round.png',
+  'goshinboku': 'icons/godpowers/goshinboku_icon_48x48_round.png',
+  'great_flood': 'icons/godpowers/great_flood_icon_48x48_round.png',
+  'great_hunt': 'icons/godpowers/great_hunt_icon_48x48_round.png',
+  'greatflood': 'icons/godpowers/great_flood_icon_48x48_round.png',
+  'greathunt': 'icons/godpowers/great_hunt_icon_48x48_round.png',
+  'gullinbursti': 'icons/godpowers/gullinbursti_icon_48x48_round.png',
+  'hachimans_blessing': 'icons/godpowers/hachimans_blessing_icon_48x48_round.png',
+  'hachimansblessing': 'icons/godpowers/hachimans_blessing_icon_48x48_round.png',
+  'healing_spring': 'icons/godpowers/healing_spring_icon_48x48_round.png',
+  'healingspring': 'icons/godpowers/healing_spring_icon_48x48_round.png',
+  'inferno': 'icons/godpowers/inferno_icon_48x48_round.png',
+  'infestation': 'icons/godpowers/infestation_icon_48x48_round.png',
+  'infested_den': 'icons/godpowers/infested_den_icon_48x48_round.png',
+  'infestedden': 'icons/godpowers/infested_den_icon_48x48_round.png',
+  'kusanagi': 'icons/godpowers/kusanagi_icon_48x48_round.png',
+  'lightning_storm': 'icons/godpowers/lightning_storm_icon_48x48_round.png',
+  'lightning_weapons': 'icons/godpowers/lightning_weapons_icon_48x48_round.png',
+  'lightningstorm': 'icons/godpowers/lightning_storm_icon_48x48_round.png',
+  'lightningweapons': 'icons/godpowers/lightning_weapons_icon_48x48_round.png',
+  'locust_swarm': 'icons/godpowers/locust_swarm_icon_48x48_round.png',
+  'locustswarm': 'icons/godpowers/locust_swarm_icon_48x48_round.png',
+  'lullaby': 'icons/godpowers/lullaby_icon_48x48_round.png',
+  'lure': 'icons/godpowers/lure_icon_48x48_round.png',
+  'meteor': 'icons/godpowers/meteor_icon_48x48_round.png',
+  'new_moon': 'icons/godpowers/new_moon_icon_48x48_round.png',
+  'newmoon': 'icons/godpowers/new_moon_icon_48x48_round.png',
+  'nidhogg': 'icons/godpowers/nidhogg_icon_48x48_round.png',
+  'obsidian_mirror': 'icons/godpowers/obsidian_mirror_icon_48x48_round.png',
+  'obsidianmirror': 'icons/godpowers/obsidian_mirror_icon_48x48_round.png',
+  'pestilence': 'icons/godpowers/pestilence_icon_48x48_round.png',
+  'pillar_of_tlalocan': 'icons/godpowers/pillar_of_tlalocan_icon_48x48_round.png',
+  'pillaroftlalocan': 'icons/godpowers/pillar_of_tlalocan_icon_48x48_round.png',
+  'plague_of_serpents': 'icons/godpowers/plague_of_serpents_icon_48x48_round.png',
+  'plagueofserpents': 'icons/godpowers/plague_of_serpents_icon_48x48_round.png',
+  'plenty_vault': 'icons/godpowers/plenty_vault_icon_48x48_round.png',
+  'plentyvault': 'icons/godpowers/plenty_vault_icon_48x48_round.png',
+  'prosperity': 'icons/godpowers/prosperity_icon_48x48_round.png',
+  'prosperous_seeds': 'icons/godpowers/prosperous_seeds_icon_48x48_round.png',
+  'prosperousseeds': 'icons/godpowers/prosperous_seeds_icon_48x48_round.png',
+  'purge': 'icons/godpowers/purge_icon_48x48_round.png',
+  'ragnarok': 'icons/godpowers/ragnarok_icon_48x48_round.png',
+  'rain': 'icons/godpowers/rain_icon_48x48_round.png',
+  'restoration': 'icons/godpowers/restoration_icon_48x48_round.png',
+  'sacred_gate': 'icons/godpowers/sacred_gate_icon_48x48_round.png',
+  'sacredgate': 'icons/godpowers/sacred_gate_icon_48x48_round.png',
+  'sentinel': 'icons/godpowers/sentinel_icon_48x48_round.png',
+  'shifting_sands': 'icons/godpowers/shifting_sands_icon_48x48_round.png',
+  'shiftingsands': 'icons/godpowers/shifting_sands_icon_48x48_round.png',
+  'shockwave': 'icons/godpowers/shockwave_icon_48x48_round.png',
+  'shogun': 'icons/godpowers/shogun_icon_48x48_round.png',
+  'shrine_of_the_hunt': 'icons/godpowers/shrine_of_the_hunt_icon_48x48_round.png',
+  'shrineofthehunt': 'icons/godpowers/shrine_of_the_hunt_icon_48x48_round.png',
+  'smiting_gust': 'icons/godpowers/smiting_gust_icon_48x48_round.png',
+  'smitinggust': 'icons/godpowers/smiting_gust_icon_48x48_round.png',
+  'solar_shield': 'icons/godpowers/solar_shield_icon_48x48_round.png',
+  'solarshield': 'icons/godpowers/solar_shield_icon_48x48_round.png',
+  'son_of_osiris': 'icons/godpowers/son_of_osiris_icon_48x48_round.png',
+  'sonofosiris': 'icons/godpowers/son_of_osiris_icon_48x48_round.png',
+  'spy': 'icons/godpowers/spy_icon_48x48_round.png',
+  'starfall': 'icons/godpowers/starfall_icon_48x48_round.png',
+  'swampland': 'icons/godpowers/swampland_icon_48x48_round.png',
+  'sword_of_divinity': 'icons/godpowers/sword_of_divinity_icon_48x48_round.png',
+  'swordofdivinity': 'icons/godpowers/sword_of_divinity_icon_48x48_round.png',
+  'tailwind': 'icons/godpowers/tailwind_icon_48x48_round.png',
+  'tempest': 'icons/godpowers/tempest_icon_48x48_round.png',
+  'the_peach_blossom_spring': 'icons/godpowers/the_peach_blossom_spring_power_icon_48x48_round.png',
+  'the_peach_blossom_spring_power': 'icons/godpowers/the_peach_blossom_spring_power_icon_48x48_round.png',
+  'thepeachblossomspring': 'icons/godpowers/the_peach_blossom_spring_power_icon_48x48_round.png',
+  'thepeachblossomspringpower': 'icons/godpowers/the_peach_blossom_spring_power_icon_48x48_round.png',
+  'thunder_burst': 'icons/godpowers/thunder_burst_icon_48x48_round.png',
+  'thunderburst': 'icons/godpowers/thunder_burst_icon_48x48_round.png',
+  'tornado': 'icons/godpowers/tornado_icon_48x48_round.png',
+  'undermine': 'icons/godpowers/undermine_icon_48x48_round.png',
+  'underworld_invasion': 'icons/godpowers/underworld_invasion_icon_48x48_round.png',
+  'underworld_passage': 'icons/godpowers/underworld_passage_icon_48x48_round.png',
+  'underworldinvasion': 'icons/godpowers/underworld_invasion_icon_48x48_round.png',
+  'underworldpassage': 'icons/godpowers/underworld_passage_icon_48x48_round.png',
+  'vanish': 'icons/godpowers/vanish_icon_48x48_round.png',
+  'venom_beast': 'icons/godpowers/venom_beast_icon_48x48_round.png',
+  'venombeast': 'icons/godpowers/venom_beast_icon_48x48_round.png',
+  'vision': 'icons/godpowers/vision_icon_48x48_round.png',
+  'volcano': 'icons/godpowers/volcano_icon_48x48_round.png',
+  'walking_woods': 'icons/godpowers/walking_woods_icon_48x48_round.png',
+  'walkingwoods': 'icons/godpowers/walking_woods_icon_48x48_round.png',
+  'wither': 'icons/godpowers/wither_icon_48x48_round.png',
+  'yinglongs_wrath': 'icons/godpowers/yinglongs_wrath_icon_48x48_round.png',
+  'yinglongswrath': 'icons/godpowers/yinglongs_wrath_icon_48x48_round.png'
+};
+
+const PREVIEW_TECH_ICON_FILES = {
+  'celestial_weapons': 'icons/technologies/celestial_weapons_icon_48x48_round.png',
+  'celestialweapons': 'icons/technologies/celestial_weapons_icon_48x48_round.png',
+  'channels': 'icons/technologies/channels_icon_48x48_round.png',
+  'clairvoyance': 'icons/technologies/clairvoyance_icon_48x48_round.png',
+  'crushing_waves': 'icons/technologies/crushing_waves_icon_48x48_round.png',
+  'crushingwaves': 'icons/technologies/crushing_waves_icon_48x48_round.png',
+  'divine_labor': 'icons/technologies/divine_labor_icon_48x48_round.png',
+  'divinelabor': 'icons/technologies/divine_labor_icon_48x48_round.png',
+  'empyrean_speed': 'icons/technologies/empyrean_speed_icon_48x48_round.png',
+  'empyreanspeed': 'icons/technologies/empyrean_speed_icon_48x48_round.png',
+  'eyes_in_the_forest': 'icons/technologies/eyes_in_the_forest_icon_48x48_round.png',
+  'eyesintheforest': 'icons/technologies/eyes_in_the_forest_icon_48x48_round.png',
+  'feast_of_tlaxochimaco': 'icons/technologies/feast_of_tlaxochimaco_icon_48x48_round.png',
+  'feastoftlaxochimaco': 'icons/technologies/feast_of_tlaxochimaco_icon_48x48_round.png',
+  'flood_of_the_nile': 'icons/technologies/flood_of_the_nile_icon_48x48_round.png',
+  'floodofthenile': 'icons/technologies/flood_of_the_nile_icon_48x48_round.png',
+  'freyrs_gift': 'icons/technologies/freyrs_gift_icon_48x48_round.png',
+  'freyrsgift': 'icons/technologies/freyrs_gift_icon_48x48_round.png',
+  'hamask': 'icons/technologies/hamask_icon_48x48_round.png',
+  'hammer_of_thunder': 'icons/technologies/hammer_of_thunder_icon_48x48_round.png',
+  'hammerofthunder': 'icons/technologies/hammer_of_thunder_icon_48x48_round.png',
+  'herbal_medicine': 'icons/technologies/herbal_medicine_icon_48x48_round.png',
+  'herbalmedicine': 'icons/technologies/herbal_medicine_icon_48x48_round.png',
+  'kagura': 'icons/technologies/kagura_icon_48x48_round.png',
+  'kuafu_chieftain': 'icons/technologies/kuafu_chieftain_icon_48x48_round.png',
+  'kuafuchieftain': 'icons/technologies/kuafu_chieftain_icon_48x48_round.png',
+  'lord_of_horses': 'icons/technologies/lord_of_horses_icon_48x48_round.png',
+  'lordofhorses': 'icons/technologies/lord_of_horses_icon_48x48_round.png',
+  'mountainous_might': 'icons/technologies/mountainous_might_icon_48x48_round.png',
+  'mountainousmight': 'icons/technologies/mountainous_might_icon_48x48_round.png',
+  'olympian_parentage': 'icons/technologies/olympian_parentage_icon_48x48_round.png',
+  'olympianparentage': 'icons/technologies/olympian_parentage_icon_48x48_round.png',
+  'peach_of_immortality': 'icons/technologies/peach_of_immortality_icon_48x48_round.png',
+  'peachofimmortality': 'icons/technologies/peach_of_immortality_icon_48x48_round.png',
+  'skin_of_the_rhino': 'icons/technologies/skin_of_the_rhino_icon_48x48_round.png',
+  'skinoftherhino': 'icons/technologies/skin_of_the_rhino_icon_48x48_round.png',
+  'tai_chi': 'icons/technologies/tai_chi_icon_48x48_round.png',
+  'taichi': 'icons/technologies/tai_chi_icon_48x48_round.png',
+  'temporal_chaos': 'icons/technologies/temporal_chaos_icon_48x48_round.png',
+  'temporalchaos': 'icons/technologies/temporal_chaos_icon_48x48_round.png',
+  'tenshu': 'icons/technologies/tenshu_icon_48x48_round.png',
+  'tepeyollotls_reach': 'icons/technologies/tepeyollotls_reach_icon_48x48_round.png',
+  'tepeyollotlsreach': 'icons/technologies/tepeyollotls_reach_icon_48x48_round.png',
+  'vaults_of_erebus': 'icons/technologies/vaults_of_erebus_icon_48x48_round.png',
+  'vaultsoferebus': 'icons/technologies/vaults_of_erebus_icon_48x48_round.png',
+  'wings_of_the_south': 'icons/technologies/wings_of_the_south_icon_48x48_round.png',
+  'wingsofthesouth': 'icons/technologies/wings_of_the_south_icon_48x48_round.png'
+};
+
+const PREVIEW_UNIT_ICON_FILES = {
+  'achilles': 'icons/units/achilles_icon_48x48_square.png',
+  'ajax': 'icons/units/ajax_icon_48x48_square.png',
+  'amazonarcher': 'icons/units/amazonarcher_icon_48x48_square.png',
+  'atalanta': 'icons/units/atalanta_icon_48x48_square.png',
+  'bellerophon': 'icons/units/bellerophon_icon_48x48_square.png',
+  'chiron': 'icons/units/chiron_icon_48x48_square.png',
+  'gastraphetoros': 'icons/units/gastraphetoros_icon_48x48_square.png',
+  'heracles': 'icons/units/heracles_icon_48x48_square.png',
+  'hetairos': 'icons/units/hetairos_icon_48x48_square.png',
+  'hippolyta': 'icons/units/hippolyta_icon_48x48_square.png',
+  'huitzilopochtli': 'icons/units/huitzilopochtli_icon_48x48_square.png',
+  'icarus': 'icons/units/icarus_icon_48x48_square.png',
+  'iolaus': 'icons/units/iolaus_icon_48x48_square.png',
+  'jason': 'icons/units/jason_icon_48x48_square.png',
+  'li_jing': 'icons/units/li_jing_icon_48x48_square.png',
+  'lijing': 'icons/units/li_jing_icon_48x48_square.png',
+  'midas': 'icons/units/midas_icon_48x48_square.png',
+  'myrmidon': 'icons/units/myrmidon_icon_48x48_square.png',
+  'odysseus': 'icons/units/odysseus_icon_48x48_square.png',
+  'orpheus': 'icons/units/orpheus_icon_48x48_square.png',
+  'perseus': 'icons/units/perseus_icon_48x48_square.png',
+  'polyphemus': 'icons/units/polyphemus_icon_48x48_square.png',
+  'quetzalcoatl': 'icons/units/quetzalcoatl_icon_48x48_square.png',
+  'teixiptla_huitz': 'icons/units/teixiptla_huitz_icon_48x48_square.png',
+  'teixiptla_quetz': 'icons/units/teixiptla_quetz_icon_48x48_square.png',
+  'teixiptla_tezca': 'icons/units/teixiptla_tezca_icon_48x48_square.png',
+  'teixiptlahuitz': 'icons/units/teixiptla_huitz_icon_48x48_square.png',
+  'teixiptlaquetz': 'icons/units/teixiptla_quetz_icon_48x48_square.png',
+  'teixiptlatezca': 'icons/units/teixiptla_tezca_icon_48x48_square.png',
+  'tezcatlipoca': 'icons/units/tezcatlipoca_icon_48x48_square.png',
+  'theseus': 'icons/units/theseus_icon_48x48_square.png',
+  'wen_zhong': 'icons/units/wen_zhong_icon_48x48_square.png',
+  'wenzhong': 'icons/units/wen_zhong_icon_48x48_square.png',
+  'yang_jian': 'icons/units/yang_jian_icon_48x48_square.png',
+  'yangjian': 'icons/units/yang_jian_icon_48x48_square.png'
+};
+
+function previewIconSlug(value) {
+  return String(value || "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[^a-zA-Z0-9]+/g, " ")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+}
+
+function previewIconLookupKeys(value) {
+  const raw = String(value || "").trim();
+  const displayed = displayTechName(raw);
+  const keys = [previewIconSlug(raw), previewIconSlug(displayed)];
+  return Array.from(new Set(keys.flatMap((key) => [key, key.replace(/_/g, "")]).filter(Boolean)));
+}
+
+function previewIconPathFromMap(map, value) {
+  for (const key of previewIconLookupKeys(value)) {
+    if (map[key]) return map[key];
+  }
+  return "";
+}
+
+function previewGodPowerIconPath(value) {
+  return previewIconPathFromMap(PREVIEW_GOD_POWER_ICON_FILES, value);
+}
+
+function previewTechIconPath(value) {
+  return previewIconPathFromMap(PREVIEW_TECH_ICON_FILES, value);
+}
+
+function previewUnitIconPath(value) {
+  return previewIconPathFromMap(PREVIEW_UNIT_ICON_FILES, value);
+}
+
 function previewMinorGodIconPath(god) {
   const rawName = String(god?.name || "");
   const key = rawName.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -13343,6 +13612,25 @@ function previewAgeHeader(age) {
   return header;
 }
 
+function previewAztecTeixiptlaIconPath(value) {
+  const key = previewIconSlug(value).replace(/_/g, "");
+  if (key.includes("quetz")) return PREVIEW_UNIT_ICON_FILES.teixiptla_quetz || "";
+  if (key.includes("huitz")) return PREVIEW_UNIT_ICON_FILES.teixiptla_huitz || "";
+  if (key.includes("tezca")) return PREVIEW_UNIT_ICON_FILES.teixiptla_tezca || "";
+  return previewUnitIconPath(value);
+}
+
+function previewExtraIconPath(label, value) {
+  const normalizedLabel = String(label || "").toLowerCase();
+  if (normalizedLabel.includes("teixiptla")) {
+    return previewAztecTeixiptlaIconPath(value);
+  }
+  if (normalizedLabel.includes("hero") || normalizedLabel.includes("unit") || normalizedLabel.includes("incarnate")) {
+    return previewUnitIconPath(value);
+  }
+  return "";
+}
+
 function previewAgeRow(age, minors, extras) {
   const row = previewElement("section", "preview-age-row");
   row.appendChild(previewAgeHeader(age));
@@ -13367,7 +13655,7 @@ function previewAgeRow(age, minors, extras) {
       const [rawLabel, ...rest] = String(item).split(":");
       const label = rest.length ? rawLabel : "Choice";
       const value = rest.length ? rest.join(":").trim() : item;
-      extrasWrap.appendChild(previewValueLine(label, value));
+      extrasWrap.appendChild(previewValueLine(label, value, previewExtraIconPath(label, value)));
     }
     body.appendChild(extrasWrap);
   }
@@ -13592,10 +13880,12 @@ function drawCircleImage(ctx, img, cx, cy, size) {
 
 function previewExportRowsForConfig(config) {
   const rows = [];
-  rows.push({ label: "Pantheon", value: config.baseCulture || "—" });
-  rows.push({ label: "God power", value: selectedGodPowerDisplay(config) || "—" });
-  const uniqueNames = uniqueTechEntries(config).map((group) => displayTechName(group.label || group.id));
-  rows.push({ label: "Unique tech", value: uniqueNames.join(", ") || "None" });
+  rows.push({ label: "Pantheon", value: config.baseCulture || "—", icon: "" });
+  rows.push({ label: "God power", value: selectedGodPowerDisplay(config) || "—", icon: previewGodPowerIconPath(config.godPower) });
+  const uniqueEntries = uniqueTechEntries(config);
+  const uniqueNames = uniqueEntries.map((group) => displayTechName(group.label || group.id));
+  const uniqueIcon = uniqueEntries.length === 1 ? previewTechIconPath(uniqueEntries[0].id || uniqueEntries[0].label) : "";
+  rows.push({ label: "Unique tech", value: uniqueNames.join(", ") || "None", icon: uniqueIcon });
   return rows;
 }
 
@@ -13614,10 +13904,9 @@ function previewExportAgesForConfig(config) {
 
 function previewExportSplitExtra(item) {
   const [rawLabel, ...rest] = String(item).split(":");
-  return {
-    label: rest.length ? rawLabel : "Choice",
-    value: rest.length ? rest.join(":").trim() : String(item),
-  };
+  const label = rest.length ? rawLabel : "Choice";
+  const value = rest.length ? rest.join(":").trim() : String(item);
+  return { label, value, icon: previewExtraIconPath(label, value) };
 }
 
 async function exportGodPreviewImage() {
@@ -13648,9 +13937,18 @@ async function exportGodPreviewImage() {
     const bonuses = selectedBonusEntries(config).map((entry) => dynamicBonusLabel(entry, config));
     const ages = previewExportAgesForConfig(config);
     const ageIcons = Object.fromEntries(await Promise.all(Object.entries(PREVIEW_AGE_ICONS).map(async ([age, src]) => [age, await waitForCanvasImage(src)])));
+    const rowIconEntries = [];
+    for (const row of rows) if (row.icon) rowIconEntries.push([row.icon, await waitForCanvasImage(row.icon)]);
+    const rowIcons = new Map(rowIconEntries);
     const minorIconEntries = [];
     for (const age of ages) for (const minor of age.minors || []) if (minor.icon) minorIconEntries.push([minor.icon, await waitForCanvasImage(minor.icon)]);
     const minorIcons = new Map(minorIconEntries);
+    const extraIconEntries = [];
+    for (const age of ages) for (const extra of age.extras || []) {
+      const parts = previewExportSplitExtra(extra);
+      if (parts.icon) extraIconEntries.push([parts.icon, await waitForCanvasImage(parts.icon)]);
+    }
+    const extraIcons = new Map(extraIconEntries);
     const majorIconDataUrl = await selectedMajorGodIconDataUrl();
     const majorIcon = majorIconDataUrl ? await waitForCanvasImage(majorIconDataUrl) : null;
 
@@ -13751,7 +14049,14 @@ async function exportGodPreviewImage() {
       const splitX = rowX + rowW / 2;
       const splitGap = 14;
       drawRightText(ctx, row.label.toUpperCase(), splitX - splitGap, rowY + 21, rowW / 2 - 34, canvasFont(14, 900), colors.label);
-      drawLeftText(ctx, row.value, splitX + splitGap, rowY + 21, rowW / 2 - 34, canvasFont(18, 800), colors.text);
+      const rowIcon = row.icon ? rowIcons.get(row.icon) : null;
+      const valueX = splitX + splitGap;
+      if (rowIcon) {
+        drawCircleImage(ctx, rowIcon, valueX + 18, rowY + 21, 32);
+        drawLeftText(ctx, row.value, valueX + 44, rowY + 21, rowW / 2 - 78, canvasFont(18, 800), colors.text);
+      } else {
+        drawLeftText(ctx, row.value, valueX, rowY + 21, rowW / 2 - 34, canvasFont(18, 800), colors.text);
+      }
       rowY += 52;
     }
     y += overviewHeight + gap;
@@ -13806,7 +14111,14 @@ async function exportGodPreviewImage() {
           const parts = previewExportSplitExtra(extra);
           fillRoundRect(ctx, bodyX, extraY, bodyW, 42, 12, colors.row, colors.softStroke);
           drawLeftText(ctx, parts.label.toUpperCase(), bodyX + 16, extraY + 21, 150, canvasFont(14, 900), colors.label);
-          drawLeftText(ctx, parts.value, bodyX + 176, extraY + 21, bodyW - 196, canvasFont(18, 800), colors.text);
+          const extraIcon = parts.icon ? extraIcons.get(parts.icon) : null;
+          const extraValueX = bodyX + 176;
+          if (extraIcon) {
+            drawCircleImage(ctx, extraIcon, extraValueX + 18, extraY + 21, 32);
+            drawLeftText(ctx, parts.value, extraValueX + 44, extraY + 21, bodyW - 240, canvasFont(18, 800), colors.text);
+          } else {
+            drawLeftText(ctx, parts.value, extraValueX, extraY + 21, bodyW - 196, canvasFont(18, 800), colors.text);
+          }
           extraY += 48;
         }
         ageY += rowH + 12;
@@ -13852,9 +14164,11 @@ function updatePreview() {
   const identity = previewCard("Overview");
   identity.classList.add("preview-overview-card");
   identity.appendChild(previewRow("Pantheon", config.baseCulture));
-  identity.appendChild(previewRow("God power", selectedGodPowerDisplay(config)));
-  const uniqueNames = uniqueTechEntries(config).map((group) => displayTechName(group.label || group.id));
-  identity.appendChild(previewRow("Unique tech", uniqueNames.join(", ") || "None"));
+  identity.appendChild(previewRow("God power", selectedGodPowerDisplay(config), previewGodPowerIconPath(config.godPower)));
+  const uniqueEntriesForPreview = uniqueTechEntries(config);
+  const uniqueNames = uniqueEntriesForPreview.map((group) => displayTechName(group.label || group.id));
+  const uniqueIcon = uniqueEntriesForPreview.length === 1 ? previewTechIconPath(uniqueEntriesForPreview[0].id || uniqueEntriesForPreview[0].label) : "";
+  identity.appendChild(previewRow("Unique tech", uniqueNames.join(", ") || "None", uniqueIcon));
   root.appendChild(identity);
 
   const bonuses = previewCard("God bonuses");
