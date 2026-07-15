@@ -31,11 +31,12 @@ It lets users choose a pantheon, god power, unique technology, bonuses, minor go
 
 ## Status
 
-Current version: **0.9.1**
+Current version: **0.9.2**
 
 The project is usable, but still open to balance, display, and edge-case improvements as more generated gods are tested.
 
 ## Community
 
-Join the **Discord** - link in the website 
+Join the **Discord** - link in the website.
+
 Contact: eskissaom@gmail.com
