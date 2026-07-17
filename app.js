@@ -3508,11 +3508,11 @@ function applyMajorGodSpecialBonusPatches(doc, civ, config) {
 
 
 const KRONOS_TIMESHIFT_FREE_BUILDINGS = {
-  shared: ["Farm", "FarmShennong", "Dock", "Temple", "Armory", "Market"],
+  shared: ["Farm", "FarmShennong", "Dock", "Temple", "Armory", "Market", "SkyPassage"],
   Greek: ["Storehouse", "Granary", "MilitaryAcademy", "Stable", "ArcheryRange"],
   Egyptian: ["LumberCamp", "MiningCamp", "Granary", "Barracks", "SiegeWorks", "Lighthouse", "MonumentToVillagers", "MonumentToSoldiers", "MonumentToPriests", "MonumentToPharaohs", "MonumentToGods"],
   Norse: ["Longhouse", "GreatHall", "DwarvenArmory"],
-  Atlantean: ["Manor", "EconomicGuild", "MilitaryBarracks", "CounterBarracks", "SkyPassage"],
+  Atlantean: ["Manor", "EconomicGuild", "MilitaryBarracks", "CounterBarracks"],
   Chinese: ["Silo", "MachineWorkshop", "MachineWorkshopTrainingYard", "MilitaryCamp", "MilitaryCampTrainingYard", "ImperialAcademy"],
   Japanese: ["Watermill", "MiningCampJapanese", "ShrineJapanese", "Guardhouse", "Dojo", "StableJapanese"],
   Aztec: ["Calpulli", "CalpulliLivestockPen", "CalpulliCraftWorkshop", "WarHut", "NoblesHut"],
