@@ -322,10 +322,12 @@ const els = {
   uniqueTech1: $("uniqueTech1"),
   uniqueTech2: $("uniqueTech2"),
   bonusPickers: $("bonusPickers"),
+  bonusCombinationWarning: $("bonusCombinationWarning"),
   bonus1: $("bonus1"),
   bonus2: $("bonus2"),
   bonus3: $("bonus3"),
   bonus4: $("bonus4"),
+  portraitFile: $("portraitFile"),
   iconFile: $("iconFile"),
   sameCultureOnly: $("sameCultureOnly"),
   minorPickers: $("minorPickers"),
@@ -1245,6 +1247,41 @@ function selectedBonusEntries(configOrIds) {
   return effectiveBonusIds(configOrIds).map(getBonusById).filter(Boolean);
 }
 
+const BONUS_DISPLAY_WARNING_IDS = new Set([
+  "bonus_43",
+  "bonus_63",
+  "bonus_67",
+  "bonus_71",
+  "bonus_75",
+  "bonus_79",
+  "bonus_83",
+]);
+
+function formatHumanList(items) {
+  const list = (items || []).filter(Boolean);
+  if (list.length <= 1) return list.join("");
+  if (list.length === 2) return `${list[0]} and ${list[1]}`;
+  return `${list.slice(0, -1).join(", ")}, and ${list[list.length - 1]}`;
+}
+
+function bonusDisplayWarningEntries(configOrIds) {
+  return selectedBonusEntries(configOrIds).filter((entry) => BONUS_DISPLAY_WARNING_IDS.has(entry.id));
+}
+
+function bonusDisplayWarningText(configOrIds) {
+  const entries = bonusDisplayWarningEntries(configOrIds);
+  if (entries.length < 2) return "";
+  const names = entries.map((entry) => `"${dynamicBonusLabel(entry, configOrIds)}"`);
+  return `The effects of ${formatHumanList(names)} together will work, but might not display properly in the in-game UI panel.`;
+}
+
+function updateBonusCombinationWarning(configOrIds = selectedBonusIds()) {
+  if (!els.bonusCombinationWarning) return;
+  const text = bonusDisplayWarningText(configOrIds);
+  els.bonusCombinationWarning.textContent = text;
+  els.bonusCombinationWarning.hidden = !text;
+}
+
 function bonusComboLabel(entry, pantheon = selectedPantheon()) {
   if (!entry) return "None";
   return `${entry.sourcePantheon} - ${dynamicBonusLabel(entry, pantheon)}`;
@@ -1314,6 +1351,7 @@ function enforceBonusDifference(changedSelect) {
     const entry = select.value ? getBonusById(select.value) : null;
     setComboDisplay(select, entry ? bonusComboLabel(entry) : "");
   }
+  updateBonusCombinationWarning();
 }
 
 const GAIA_ECON_GUILD_BONUS_ID = BONUS_IDS.GAIA_ECON_GUILD;
@@ -1598,19 +1636,17 @@ function raFortressHitpointsEffects(config) {
 }
 
 function zeusCounterCavalryInfantrySpeedEffects(config) {
-  const targetByPantheon = {
-    Greek: "Hoplite",
-    Egyptian: "Spearman",
-    Norse: "Hirdman",
-    Atlantean: "Katapeltes",
-    Chinese: "GeHalberdier",
-    Japanese: "YariSpearman",
-    Aztec: "TlamanihSpearman",
+  const targetsByPantheon = {
+    Greek: ["Hoplite"],
+    Egyptian: ["Spearman"],
+    Norse: ["Hirdman"],
+    Atlantean: ["Katapeltes", "KatapeltesHero"],
+    Chinese: ["GeHalberdier"],
+    Japanese: ["YariSpearman"],
+    Aztec: ["TlamanihSpearman"],
   };
-  const target = targetByPantheon[config.baseCulture] || "Hoplite";
-  return `<effect type="Data" amount="1.15" subtype="MaximumVelocity" relativity="BasePercent">
-	<target type="ProtoUnit">${target}</target>
-</effect>`;
+  const targets = targetsByPantheon[config.baseCulture] || targetsByPantheon.Greek;
+  return targets.map((target) => `<effect type="Data" amount="1.15" subtype="MaximumVelocity" relativity="BasePercent">\n\t<target type="ProtoUnit">${target}</target>\n</effect>`).join("\n");
 }
 
 const QUETZ_EAGLE_RANGE_LOS_AGE_EFFECTS = `<effect type="Data" action="RangedAttack" amount="1.0" subtype="MaximumRange" relativity="Absolute">
@@ -3337,17 +3373,22 @@ function validateConfig(config) {
     if (picks.length !== 2 || !picks[0] || !picks[1]) errors.push(`${age}: choose two minor gods.`);
     if (picks[0] === picks[1]) errors.push(`${age}: the two minor gods must be different.`);
   }
-  const icon = els.iconFile.files[0];
-  if (icon) {
+  const imageUploads = [
+    { file: els.portraitFile?.files?.[0], label: "Portrait" },
+    { file: els.iconFile?.files?.[0], label: "Icon" },
+  ];
+  for (const { file, label } of imageUploads) {
+    if (!file) continue;
     const allowedIconExts = new Set(["png", "jpg", "jpeg"]);
-    const ext = icon.name.split(".").pop().toLowerCase();
-    if (!allowedIconExts.has(ext)) errors.push("Icon must be PNG or JPEG.");
-    if (icon.size > 5 * 1024 * 1024) errors.push("Icon must be 5 MB or smaller.");
+    const ext = String(file.name || "").split(".").pop().toLowerCase();
+    const type = String(file.type || "").toLowerCase();
+    if (!allowedIconExts.has(ext) && type !== "image/png" && type !== "image/jpeg") errors.push(`${label} must be PNG or JPEG.`);
+    if (file.size > 5 * 1024 * 1024) errors.push(`${label} must be 5 MB or smaller.`);
   }
   return errors;
 }
 
-function generateMajorGodXmlFromPantheonTemplate(config, iconPath) {
+function generateMajorGodXmlFromPantheonTemplate(config, iconPath, portraitPath) {
   const templateXml = pantheonTemplateXml(config.baseCulture);
   if (!templateXml) throw new Error(`Missing clean major_gods template for ${config.baseCulture}.`);
 
@@ -3363,10 +3404,12 @@ function generateMajorGodXmlFromPantheonTemplate(config, iconPath) {
   setText(doc, civ, "displaynameid", config.stringPrefix);
   setText(doc, civ, "rollovernameid", `${config.stringPrefix}_LR`);
   setText(doc, civ, "titleid", `${config.stringPrefix}_T`);
-  if (iconPath) {
-    setText(doc, civ, "icon", iconPath);
-    setText(doc, civ, "portrait", iconPath);
-    setText(doc, civ, "breakoutportrait", iconPath);
+  const finalIconPath = iconPath || portraitPath || "";
+  const finalPortraitPath = portraitPath || iconPath || "";
+  if (finalIconPath) setText(doc, civ, "icon", finalIconPath);
+  if (finalPortraitPath) {
+    setText(doc, civ, "portrait", finalPortraitPath);
+    setText(doc, civ, "breakoutportrait", finalPortraitPath);
   }
   const ageTech = civ.querySelector("agetech[age='ArchaicAge'] tech") || civ.querySelector("agetech tech");
   if (ageTech) ageTech.textContent = config.ageTechs.archaic;
@@ -13140,6 +13183,11 @@ ${technologies ? "\n" + indentBlock(technologies, 3) + "\n" : ""}
 function generateReadme(config) {
   const presetFileName = `${config.internalName}-preset.json`;
   const bonusLines = selectedBonusEntries(config).map((entry) => `- ${entry.sourcePantheon} - ${dynamicBonusLabel(entry, config)}`);
+  const bonusDisplayWarning = bonusDisplayWarningText(config);
+  const bonusDisplayWarningBlock = bonusDisplayWarning ? `
+Display note:
+- ${bonusDisplayWarning}
+` : "";
   return `AoM:R Major God Builder export
 
 Major god: ${config.displayName}
@@ -13149,7 +13197,7 @@ Starting god power: ${config.godPower}${config.godPowerPantheon ? ` (${config.go
 Unique technology: ${uniqueTechNames(config).map(displayTechName).join(", ") || "None"}
 God bonuses:
 ${bonusLines.length ? bonusLines.join("\n") : "- None"}
-
+${bonusDisplayWarningBlock}
 How to install:
 1. Unzip the generated mod folder.
 2. Go to C:\Users\UserName\Games\Age of Mythology Retold\SteamID\mods\local
@@ -13169,23 +13217,53 @@ ${config.internalName}/game/ui_myth/content/pregame/techtree/TechTree_${config.b
 `;
 }
 
+async function resizeImageFileToPngBytes(file, width, height) {
+  if (!file) return null;
+  const dataUrl = await blobToDataUrl(file);
+  const img = await waitForCanvasImage(dataUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, width, height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  // Intentional: resize to the target dimensions without cropping, as requested.
+  ctx.drawImage(img, 0, 0, width, height);
+  const blob = await new Promise((resolve, reject) => {
+    canvas.toBlob((out) => out ? resolve(out) : reject(new Error("Could not resize image.")), "image/png");
+  });
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
 async function generateFiles(config) {
-  const icon = els.iconFile.files[0];
+  const portraitUpload = els.portraitFile?.files?.[0] || null;
+  const iconUpload = els.iconFile?.files?.[0] || null;
+  let portraitPath = null;
+  let portraitBytes = null;
+  let portraitName = "";
   let iconPath = null;
   let iconBytes = null;
   let iconName = "";
-  if (icon) {
-    const ext = icon.name.split(".").pop().toLowerCase();
-    iconName = `${config.internalName}_icon.${ext}`;
+
+  const portraitSource = portraitUpload || iconUpload;
+  const iconSource = iconUpload || portraitUpload;
+  if (portraitSource) {
+    portraitName = `${config.internalName}_portrait.png`;
+    portraitPath = `resources\\${config.lowerName}\\${portraitName}`;
+    portraitBytes = await resizeImageFileToPngBytes(portraitSource, 667, 774);
+  }
+  if (iconSource) {
+    iconName = `${config.internalName}_icon.png`;
     iconPath = `resources\\${config.lowerName}\\${iconName}`;
-    iconBytes = await icon.arrayBuffer();
+    iconBytes = await resizeImageFileToPngBytes(iconSource, 256, 256);
   }
 
   const root = `${config.internalName}/`;
   const files = [];
   files.push(textFile(`${root}README_INSTALL.txt`, generateReadme(config)));
   files.push(textFile(`${root}${config.internalName}-preset.json`, JSON.stringify(presetFromConfig(config), null, 2)));
-  files.push(textFile(`${root}game/data/gameplay/major_gods_mods.xml`, generateMajorGodXmlFromPantheonTemplate(config, iconPath)));
+  files.push(textFile(`${root}game/data/gameplay/major_gods_mods.xml`, generateMajorGodXmlFromPantheonTemplate(config, iconPath, portraitPath)));
   files.push(textFile(`${root}game/data/gameplay/minor_gods_mods.xml`, generateMinorGodsMods(config)));
   files.push(textFile(`${root}game/data/gameplay/techtree_mods.xml`, generateTechTreeMods(config)));
   files.push(textFile(`${root}game/data/gameplay/proto_mods.xml`, generateProtoMods(config)));
@@ -13193,6 +13271,7 @@ async function generateFiles(config) {
   files.push(textFile(`${root}game/data/strings/English/stringmods.txt`, generateStringMods(config)));
   files.push(textFile(`${root}game/ui_myth/content/pregame/godpicker/GodPicker_${config.baseCulture}_${config.internalName}.xaml`, generateGodPickerXaml(config)));
   files.push(textFile(`${root}game/ui_myth/content/pregame/techtree/TechTree_${config.baseCulture}_${config.internalName}.xaml`, generateTechTreeXaml(config)));
+  if (portraitBytes) files.push(binaryFile(`${root}game/ui_myth/resources/${config.lowerName}/${portraitName}`, portraitBytes));
   if (iconBytes) files.push(binaryFile(`${root}game/ui_myth/resources/${config.lowerName}/${iconName}`, iconBytes));
   return files;
 }
@@ -13480,8 +13559,8 @@ function previewImage(src, alt, className) {
   return img;
 }
 
-let previewMajorGodIconFile = null;
-let previewMajorGodIconUrl = "";
+let previewMajorGodPreviewFile = null;
+let previewMajorGodPreviewUrl = "";
 
 function isBrowserPreviewableIconFile(file) {
   if (!file) return false;
@@ -13490,20 +13569,28 @@ function isBrowserPreviewableIconFile(file) {
   return type === "image/png" || type === "image/jpeg" || ["png", "jpg", "jpeg"].includes(ext);
 }
 
+function selectedMajorGodPreviewFile() {
+  const portrait = els.portraitFile?.files?.[0];
+  if (portrait && isBrowserPreviewableIconFile(portrait)) return portrait;
+  const icon = els.iconFile?.files?.[0];
+  if (icon && isBrowserPreviewableIconFile(icon)) return icon;
+  return null;
+}
+
 function currentMajorGodIconPreviewUrl() {
-  const file = els.iconFile?.files?.[0];
-  if (!file || !isBrowserPreviewableIconFile(file)) {
-    if (previewMajorGodIconUrl) URL.revokeObjectURL(previewMajorGodIconUrl);
-    previewMajorGodIconFile = null;
-    previewMajorGodIconUrl = "";
+  const file = selectedMajorGodPreviewFile();
+  if (!file) {
+    if (previewMajorGodPreviewUrl) URL.revokeObjectURL(previewMajorGodPreviewUrl);
+    previewMajorGodPreviewFile = null;
+    previewMajorGodPreviewUrl = "";
     return "";
   }
-  if (previewMajorGodIconFile !== file) {
-    if (previewMajorGodIconUrl) URL.revokeObjectURL(previewMajorGodIconUrl);
-    previewMajorGodIconFile = file;
-    previewMajorGodIconUrl = URL.createObjectURL(file);
+  if (previewMajorGodPreviewFile !== file) {
+    if (previewMajorGodPreviewUrl) URL.revokeObjectURL(previewMajorGodPreviewUrl);
+    previewMajorGodPreviewFile = file;
+    previewMajorGodPreviewUrl = URL.createObjectURL(file);
   }
-  return previewMajorGodIconUrl;
+  return previewMajorGodPreviewUrl;
 }
 
 function makePreviewMajorGodIcon(src, alt) {
@@ -13514,12 +13601,12 @@ function makePreviewMajorGodIcon(src, alt) {
 }
 
 async function selectedMajorGodIconDataUrl() {
-  const file = els.iconFile?.files?.[0];
-  if (!file || !isBrowserPreviewableIconFile(file)) return "";
+  const file = selectedMajorGodPreviewFile();
+  if (!file) return "";
   try {
     return await blobToDataUrl(file);
   } catch (err) {
-    console.warn("Could not read selected major god icon for preview export:", err);
+    console.warn("Could not read selected major god image for preview export:", err);
     return "";
   }
 }
@@ -13928,7 +14015,7 @@ function makePreviewExportButton() {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "secondary preview-export-button";
-  button.textContent = "Export picture";
+  button.textContent = "Export preview";
   button.addEventListener("click", async () => {
     await exportGodPreviewImage();
   });
@@ -14355,6 +14442,7 @@ async function exportGodPreviewImage() {
 
 function updatePreview() {
   const config = getConfig();
+  updateBonusCombinationWarning(config);
   const root = els.configPreview;
   if (!root) return;
   root.replaceChildren();
@@ -14419,6 +14507,7 @@ function wireEvents() {
     els.majorFocus.addEventListener("change", updatePreview);
     els.majorFocus.addEventListener("blur", updatePreview);
   }
+  if (els.portraitFile) els.portraitFile.addEventListener("change", updatePreview);
   els.iconFile.addEventListener("change", updatePreview);
   els.godPower.addEventListener("change", () => { initUniqueTechSelects(true); updatePreview(); });
   for (const select of [els.greekHeroArchaic, els.greekHeroClassical, els.greekHeroHeroic, els.greekHeroMythic, els.greekUniqueUnit, els.chineseMythicHero, els.aztecClassicalForm, els.aztecMythicArrival]) {

@@ -80,6 +80,13 @@ button.compact {
 .warning { margin-bottom: 18px; color: #f5dfb8; }
 label { display: grid; gap: 6px; margin: 12px 0; font-weight: 700; }
 label small, .muted { color: #bba98e; font-weight: 400; }
+.field-heading {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .inline { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 input, select, button { font: inherit; }
 input, select { width: 100%; padding: 10px 12px; color: #fff9ef; background: #211a13; border: 1px solid #5b452b; border-radius: 10px; }
@@ -908,4 +915,19 @@ h3.preview-god-name {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+
+.bonus-combination-warning {
+  margin: -4px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(245, 217, 153, 0.38);
+  border-radius: 10px;
+  background: rgba(122, 82, 24, 0.22);
+  color: #f5dfb8;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.bonus-combination-warning[hidden] {
+  display: none;
 }

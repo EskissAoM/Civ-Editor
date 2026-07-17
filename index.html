@@ -12,7 +12,7 @@
   <main class="shell">
     <div class="top-meta" aria-label="Project information">
       <span>Made by Eskiss</span>
-      <span>Version 0.9.4</span>
+      <span>Version 0.9.5</span>
       <a href="#contact">Contact / Social</a>
     </div>
     <header class="hero">
@@ -46,9 +46,14 @@
           <select id="baseMajor"></select>
         </label>
         <label>
-          Optional major god icon PNG/JPEG
+          <span class="field-heading">Major god portrait PNG/JPEG <span class="muted">(optional)</span></span>
+          <input id="portraitFile" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" />
+          <small>Recommended: rectangular image with transparent background. Used for <code>&lt;portrait&gt;</code> and <code>&lt;breakoutportrait&gt;</code>.</small>
+        </label>
+        <label>
+          <span class="field-heading">Major god icon PNG/JPEG <span class="muted">(optional)</span></span>
           <input id="iconFile" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" />
-          <small>Stored inside the generated ZIP under <code>game/ui_myth/resources/&lt;major-god&gt;/</code>.</small>
+          <small>Recommended: square image, ideally 256×256 or 512×512. Used for <code>&lt;icon&gt;</code>.</small>
         </label>
         <div id="greekOptions" class="subpanel" hidden>
           <h3>Greek-only choices</h3>
@@ -117,6 +122,7 @@
 
         <h2>3. God bonuses</h2>
         <p class="muted">Choose up to four major-god bonuses.</p>
+        <div id="bonusCombinationWarning" class="bonus-combination-warning" hidden></div>
         <div id="bonusPickers" class="minor-grid">
           <label>
             God bonus 1

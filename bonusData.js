@@ -868,7 +868,7 @@ window.AOM_BONUS_DATA = [
     "id": "bonus_63",
     "sourcePantheon": "Chinese",
     "sourceMajor": "Fuxi",
-    "label": "Yin and Yang blessing alternates bonuses. Yin gives a +10% gather-rate boost. Yang gives human and siege units +10% damage boost.",
+    "label": "Yin and Yang blessing alternates bonuses. Yin gives a +10% gather-rate boost. Yang gives human and siege units a +10% damage boost.",
     "allowedPantheons": [
       "All"
     ],
