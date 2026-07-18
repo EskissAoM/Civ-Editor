@@ -31,7 +31,7 @@ It lets users choose a pantheon, god power, unique technology, bonuses, minor go
 
 ## Status
 
-Current version: **0.9.5**
+Current version: **1.0**
 
 The project is usable, but still open to balance, display, and edge-case improvements as more generated gods are tested.
 
