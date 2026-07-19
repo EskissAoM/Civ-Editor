@@ -1036,10 +1036,15 @@ window.AOM_BONUS_DATA = [
     "sourceMajor": "Amaterasu",
     "label": "Way of the Sun grants +1 passive gold by Bushidō tier.",
     "allowedPantheons": [
+      "Greek",
+      "Egyptian",
+      "Norse",
+      "Atlantean",
+      "Chinese",
       "Japanese"
     ],
-    "files": "techtree.xml",
-    "notes": "CreatePower enables BushidoAmaterasu; tier details likely in power files.",
+    "files": "major_gods.xml / techtree.xml / powers_mods.xml",
+    "notes": "Implemented by app.js: creates custom BushidoAmaterasu power, Combat XP major-god data, and pantheon line-upgrade tiers.",
     "majorXml": "",
     "techEffects": "<effect type=\"CreatePower\" protopower=\"BushidoAmaterasu\" />"
   },
@@ -1089,11 +1094,20 @@ window.AOM_BONUS_DATA = [
     "sourcePantheon": "Japanese",
     "sourceMajor": "Tsukuyomi",
     "label": "Way of the Moon gives cavalry and Shinobi +4% attack by Bushidō tier.",
+    "displayLabels": {
+      "Japanese": "Way of the Moon gives cavalry and Shinobi +4% attack by Bushidō tier.",
+      "default": "Way of the Moon gives cavalry +4% attack by Bushidō tier."
+    },
     "allowedPantheons": [
+      "Greek",
+      "Egyptian",
+      "Norse",
+      "Atlantean",
+      "Chinese",
       "Japanese"
     ],
-    "files": "techtree.xml",
-    "notes": "CreatePower enables BushidoTsukuyomi; tier attack internals likely in power files.",
+    "files": "major_gods.xml / techtree.xml / powers_mods.xml",
+    "notes": "Implemented by app.js: creates custom BushidoTsukuyomi power, Combat XP major-god data, and pantheon line-upgrade tiers.",
     "majorXml": "",
     "techEffects": "<effect type=\"CreatePower\" protopower=\"BushidoTsukuyomi\" />"
   },
@@ -1103,6 +1117,11 @@ window.AOM_BONUS_DATA = [
     "sourceMajor": "Tsukuyomi",
     "label": "Researching technologies grants Bushidō XP equal to their resource cost.",
     "allowedPantheons": [
+      "Greek",
+      "Egyptian",
+      "Norse",
+      "Atlantean",
+      "Chinese",
       "Japanese"
     ],
     "files": "major_gods.xml",
@@ -1144,10 +1163,15 @@ window.AOM_BONUS_DATA = [
     "sourceMajor": "Susanoo",
     "label": "Way of the Storm starts with 15 favor, granting increasingly more favor on Bushidō tier-ups.",
     "allowedPantheons": [
+      "Greek",
+      "Egyptian",
+      "Norse",
+      "Atlantean",
+      "Chinese",
       "Japanese"
     ],
-    "files": "major_gods.xml / techtree.xml",
-    "notes": "Starting favor is in major_gods; BushidoSusanoo is created in techtree.",
+    "files": "major_gods.xml / techtree.xml / powers_mods.xml",
+    "notes": "Implemented by app.js: creates custom BushidoSusanoo power, Combat XP major-god data, and pantheon line-upgrade tiers.",
     "majorXml": "",
     "techEffects": "<effect type=\"CreatePower\" protopower=\"BushidoSusanoo\" />"
   },
@@ -1157,6 +1181,11 @@ window.AOM_BONUS_DATA = [
     "sourceMajor": "Susanoo",
     "label": "Myth units generate Bushidō XP passively (between 0.5XP/s and 3Xp/s depending on their age) and in combat (equal to twice the hit point damage they inflict on enemy units).",
     "allowedPantheons": [
+      "Greek",
+      "Egyptian",
+      "Norse",
+      "Atlantean",
+      "Chinese",
       "Japanese"
     ],
     "files": "techtree.xml + major_gods.xml",
