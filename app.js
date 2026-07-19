@@ -4,6 +4,8 @@
 const AGES = ["ClassicalAge", "HeroicAge", "MythicAge"];
 const PREVIEW_AGES = ["ArchaicAge", ...AGES];
 const MAX_BONUS_CHOICES = 4;
+const APP_VERSION = "1.1";
+const UPDATE_NOTICE_STORAGE_KEY = "aomrBuilderSeenVersion";
 const EXCLUDED_MINOR_GOD_NAMES = new Set(["malinalxochitldummy"]);
 
 const PANTHEON_KEYS = {
@@ -48,15 +50,21 @@ const BONUS_IDS = Object.freeze({
   GAIA_LUSH: "bonus_59",
   GAIA_HERO_CITIZENS: "bonus_60",
   GAIA_ECON_GUILD: "bonus_62",
+  FUXI_FAVORED_LAND_RESEARCH: "bonus_64",
+  FUXI_FAVORED_LAND_ADDITIONS: "bonus_65",
   FUXI_NEZHA: "bonus_66",
   NUWA_CREATORS_AUSPICE: "bonus_67",
+  NUWA_FAVORED_LAND_AUTOBUILD: "bonus_68",
   NUWA_FAVORED_LAND_FARTHER: "bonus_69",
   SHENNONG_GIFT_OF_BEASTS: "bonus_71",
   SHENNONG_MYTH_REGEN_FAVORED_LAND: "bonus_72",
   SHENNONG_FARM_ARCHAIC: "bonus_73",
   SHENNONG_FARM_LINE_UPGRADES: "bonus_74",
+  AMATERASU_BUSHIDO: "bonus_75",
+  TSUKUYOMI_BUSHIDO: "bonus_79",
   TSUKUYOMI_RESEARCH_BUSHIDO_XP: "bonus_80",
   TSUKUYOMI_FREE_KITSUNE: "bonus_82",
+  SUSANOO_BUSHIDO: "bonus_83",
   SUSANOO_BUSHIDO_MYTH_XP: "bonus_84",
   SUSANOO_POWER_COST_FACTOR: "bonus_85",
   HUITZ_CONSTRUCTION_REFUND: "bonus_87",
@@ -1264,15 +1272,34 @@ function formatHumanList(items) {
   return `${list.slice(0, -1).join(", ")}, and ${list[list.length - 1]}`;
 }
 
+const BUSHIDO_DEPENDENT_BONUS_IDS = new Set([
+  "bonus_76",
+  "bonus_80",
+  "bonus_84",
+]);
+
 function bonusDisplayWarningEntries(configOrIds) {
   return selectedBonusEntries(configOrIds).filter((entry) => BONUS_DISPLAY_WARNING_IDS.has(entry.id));
 }
 
+function bushidoDependencyWarningEntries(configOrIds) {
+  const ids = new Set(effectiveBonusIds(configOrIds));
+  const hasBushidoCore = ids.has(BONUS_IDS.AMATERASU_BUSHIDO) || ids.has(BONUS_IDS.TSUKUYOMI_BUSHIDO) || ids.has(BONUS_IDS.SUSANOO_BUSHIDO);
+  if (hasBushidoCore) return [];
+  return selectedBonusEntries(configOrIds).filter((entry) => BUSHIDO_DEPENDENT_BONUS_IDS.has(entry.id));
+}
+
 function bonusDisplayWarningText(configOrIds) {
+  const warnings = [];
   const entries = bonusDisplayWarningEntries(configOrIds);
-  if (entries.length < 2) return "";
-  const names = entries.map((entry) => `"${dynamicBonusLabel(entry, configOrIds)}"`);
-  return `The effects of ${formatHumanList(names)} together will work, but might not display properly in the in-game UI panel.`;
+  if (entries.length >= 2) {
+    const names = entries.map((entry) => `"${dynamicBonusLabel(entry, configOrIds)}"`);
+    warnings.push(`The effects of ${formatHumanList(names)} together will work, but might not display properly in the in-game UI panel.`);
+  }
+  for (const entry of bushidoDependencyWarningEntries(configOrIds)) {
+    warnings.push(`No Bushidō progression bonus is selected: "${dynamicBonusLabel(entry, configOrIds)}" will not have any practical effect.`);
+  }
+  return warnings.join(" ");
 }
 
 function updateBonusCombinationWarning(configOrIds = selectedBonusIds()) {
@@ -1382,6 +1409,13 @@ const NUWA_FAVORED_LAND_FARTHER_BONUS_ID = BONUS_IDS.NUWA_FAVORED_LAND_FARTHER;
 const SHENNONG_MYTH_REGEN_FAVORED_LAND_BONUS_ID = BONUS_IDS.SHENNONG_MYTH_REGEN_FAVORED_LAND;
 const SHENNONG_GIFT_OF_BEASTS_BONUS_ID = BONUS_IDS.SHENNONG_GIFT_OF_BEASTS;
 const SHENNONG_FARM_LINE_UPGRADES_BONUS_ID = BONUS_IDS.SHENNONG_FARM_LINE_UPGRADES;
+const FAVORED_LAND_BUILDINGCHAIN_BONUS_IDS = new Set([
+  BONUS_IDS.FUXI_FAVORED_LAND_RESEARCH,
+  BONUS_IDS.NUWA_FAVORED_LAND_AUTOBUILD,
+  BONUS_IDS.NUWA_FAVORED_LAND_FARTHER,
+  BONUS_IDS.SHENNONG_MYTH_REGEN_FAVORED_LAND,
+  BONUS_IDS.SHENNONG_FARM_ARCHAIC,
+].filter(Boolean));
 const SET_ANIMALS_BONUS_ID = BONUS_IDS.SET_ANIMALS;
 const SET_PRIEST_CONVERT_ANIMALS_BONUS_ID = BONUS_IDS.SET_PRIEST_CONVERT_ANIMALS;
 const DEMETER_HERDABLES_TEMPLE_FAVOR_BONUS_ID = BONUS_IDS.DEMETER_HERDABLES_TEMPLE_FAVOR;
@@ -1556,10 +1590,10 @@ function oranosSkyPassageArchaicEffects(config) {
   }
   if (config.baseCulture === "Egyptian") {
     effects.push(`<effect type="Data" amount="0.00" subtype="cost" resource="Wood" relativity="Override">
-	<target type="ProtoUnit">DwarvenArmory</target>
+	<target type="ProtoUnit">SkyPassage</target>
 </effect>
 <effect type="Data" amount="25.00" subtype="cost" resource="Gold" relativity="Override">
-	<target type="ProtoUnit">DwarvenArmory</target>
+	<target type="ProtoUnit">SkyPassage</target>
 </effect>`);
   }
   return effects.join("\n");
@@ -2955,8 +2989,218 @@ function nuwaCreatorsAuspicePowerXml(config) {
 	</power>`;
 }
 
+
+const BUSHIDO_BONUS_GOD_BY_ID = Object.freeze({
+  [BONUS_IDS.AMATERASU_BUSHIDO]: "Amaterasu",
+  [BONUS_IDS.TSUKUYOMI_BUSHIDO]: "Tsukuyomi",
+  [BONUS_IDS.SUSANOO_BUSHIDO]: "Susanoo",
+});
+const BUSHIDO_ALLOWED_CULTURES = new Set(["Greek", "Egyptian", "Norse", "Atlantean", "Chinese", "Japanese"]);
+const BUSHIDO_COMBAT_XP_TIERS = Object.freeze(["1", "2200", "8800", "35200", "140800", "422400"]);
+const BUSHIDO_JAPANESE_EXTRA_REWARDS = Object.freeze([
+  { unittype: "Samurai", value: "1.25" },
+  { unittype: "Shinobi", value: "1.25" },
+  { unittype: "OnnaMusha", value: "1.25" },
+]);
+const BUSHIDO_TIER_UPGRADES_BY_CULTURE = Object.freeze({
+  Greek: {
+    2: ["MediumInfantry", "MediumArchers", "MediumCavalry"],
+    3: ["HeavyInfantry", "HeavyArchers", "HeavyCavalry"],
+    4: ["ChampionInfantry", "ChampionArchers", "ChampionCavalry"],
+  },
+  Atlantean: {
+    2: ["MediumInfantry", "MediumArchers", "MediumCavalry"],
+    3: ["HeavyInfantry", "HeavyArchers", "HeavyCavalry"],
+    4: ["ChampionInfantry", "ChampionArchers", "ChampionCavalry"],
+  },
+  Chinese: {
+    2: ["MediumInfantry", "MediumArchers", "MediumCavalry"],
+    3: ["HeavyInfantry", "HeavyArchers", "HeavyCavalry"],
+    4: ["ChampionInfantry", "ChampionArchers", "ChampionCavalry"],
+  },
+  Egyptian: {
+    2: ["MediumAxemen", "MediumSpearmen", "MediumSlingers"],
+    3: ["HeavyAxemen", "HeavySpearmen", "HeavySlingers", "HeavyChariotArchers", "HeavyCamelRiders", "HeavyWarElephants"],
+    4: ["ChampionAxemen", "ChampionSpearmen", "ChampionSlingers", "ChampionChariotArchers", "ChampionCamelRiders", "ChampionWarElephants"],
+  },
+  Norse: {
+    2: ["MediumInfantry", "MediumCavalry"],
+    3: ["HeavyInfantry", "HeavyCavalry"],
+    4: ["ChampionInfantry", "ChampionCavalry"],
+  },
+  Japanese: {
+    2: ["MediumGuardhouseSoldiers", "MediumStableSoldiers", "MediumDojoSoldiers"],
+    3: ["HeavyGuardhouseSoldiers", "HeavyStableSoldiers", "HeavyDojoSoldiers"],
+    4: ["ChampionGuardhouseSoldiers", "ChampionStableSoldiers", "ChampionDojoSoldiers"],
+    5: ["EliteDojoSoldiers"],
+  },
+});
+const BUSHIDO_GOD_EFFECT_VALUES = Object.freeze({
+  Amaterasu: ["0.0", "0.5", "1.5", "2.5", "3.5", "4.5", "5.5"],
+  Tsukuyomi: ["1.00", "1.04", "1.08", "1.12", "1.16", "1.20", "1.25"],
+  Susanoo: ["0.0", "15.0", "60.0", "75.0", "100.0", "150.0", "250.0"],
+});
+
+function isBushidoBonusId(id) {
+  return Boolean(BUSHIDO_BONUS_GOD_BY_ID[id]);
+}
+
+function hasBushidoEligibleCulture(config) {
+  return BUSHIDO_ALLOWED_CULTURES.has(config?.baseCulture || "");
+}
+
+function selectedBushidoGods(config) {
+  if (!hasBushidoEligibleCulture(config)) return [];
+  const gods = [];
+  const seen = new Set();
+  for (const entry of selectedBonusEntries(config)) {
+    const god = BUSHIDO_BONUS_GOD_BY_ID[entry.id];
+    if (god && !seen.has(god)) {
+      seen.add(god);
+      gods.push(god);
+    }
+  }
+  return gods;
+}
+
+function hasSelectedBushidoBonus(config) {
+  return selectedBushidoGods(config).length > 0;
+}
+
+function bushidoPowerName(god, config = null) {
+  const suffix = sanitizeId(config?.internalName || "CustomGod");
+  return `Bushido${god}${suffix || "CustomGod"}`;
+}
+
+function bushidoCreatePowerEffect(config, bonusId) {
+  if (!hasBushidoEligibleCulture(config)) return "";
+  const god = BUSHIDO_BONUS_GOD_BY_ID[bonusId];
+  if (!god) return "";
+  const powerName = escapeXml(bushidoPowerName(god, config));
+  return `<effect type="CreatePower" protopower="${powerName}"></effect>
+<effect type="Data" amount="1.00" subtype="CombatXP" relativity="Absolute">
+	<target type="Player"></target>
+</effect>`;
+}
+
+function bushidoTierUpgradeTechs(config, tier) {
+  const upgrades = BUSHIDO_TIER_UPGRADES_BY_CULTURE[config?.baseCulture || ""] || {};
+  return upgrades[tier] || [];
+}
+
+function bushidoTechActivateEffects(config, tier) {
+  return bushidoTierUpgradeTechs(config, tier)
+    .map((tech) => `<effect type="TechActivate" norevert="">\n\t<target type="Tech">${escapeXml(tech)}</target>\n</effect>`)
+    .join("\n");
+}
+
+function bushidoGodTierEffects(god, tier, config = null) {
+  const value = BUSHIDO_GOD_EFFECT_VALUES[god]?.[tier];
+  if (value == null) return "";
+  const hidden = tier === 0 ? " hidetooltip=\"\"" : "";
+  if (god === "Amaterasu") {
+    return `<effect type="ResourceTrickleRate" amount="${value}" resource="Gold" relativity="Absolute"${hidden}>\n\t<target type="Player"></target>\n</effect>`;
+  }
+  if (god === "Tsukuyomi") {
+    const effects = [`<effect type="Damage" amount="${value}" relativity="BasePercent"${hidden}>\n\t<target type="ProtoUnit">AbstractCavalry</target>\n</effect>`];
+    if (config?.baseCulture === "Japanese") {
+      effects.push(`<effect type="Damage" amount="${value}" relativity="BasePercent"${hidden}>\n\t<target type="ProtoUnit">Shinobi</target>\n</effect>`);
+    }
+    return effects.join("\n");
+  }
+  if (god === "Susanoo") {
+    return `<effect type="Resource" amount="${value}" resource="Favor" relativity="Absolute" hidetooltip="">\n\t<target type="Player"></target>\n</effect>`;
+  }
+  return "";
+}
+
+function bushidoNotificationSuffix(tier) {
+  if (tier === 2) return "MED";
+  if (tier === 3) return "HEV";
+  if (tier === 4) return "CHA";
+  if (tier === 5) return "ELI";
+  return String(tier);
+}
+
+function bushidoTierExtraTooltips(god, tier) {
+  const strings = [];
+  if (tier === 2) strings.push("STR_ABILITY_BUSHIDO_TROOPS_MEDIUM");
+  if (tier === 3) strings.push("STR_ABILITY_BUSHIDO_TROOPS_HEAVY");
+  if (tier === 4) strings.push("STR_ABILITY_BUSHIDO_TROOPS_CHAMPION");
+  if (tier === 5) {
+    strings.push("STR_ABILITY_BUSHIDO_TROOPS_CHAMPION");
+    strings.push("STR_ABILITY_BUSHIDO_TROOPS_ELITE");
+  }
+  if (god === "Susanoo" && tier >= 1 && tier <= 5) strings.push(`STR_ABILITY_BUSHIDO_SUSANOO_FAVOR_${tier}`);
+  if (!strings.length) return "";
+  return `<extratooltips>\n${strings.map((id) => `\t<string>${id}</string>`).join("\n")}\n</extratooltips>`;
+}
+
+function bushidoPowerEffectsBlock(god, config, tier) {
+  const godEffects = bushidoGodTierEffects(god, tier, config);
+  const techEffects = bushidoTechActivateEffects(config, tier);
+  const iconTier = tier >= 6 ? 5 : tier;
+  const godUpper = god.toUpperCase();
+  const notification = tier > 0
+    ? `<notificationsound>GodBlessingCircleComplete</notificationsound>\n<notificationmessageid>STR_ABILITY_BUSHIDO_${godUpper}_NOTIFICATION_${bushidoNotificationSuffix(tier)}</notificationmessageid>`
+    : "";
+  const extraTooltips = bushidoTierExtraTooltips(god, tier);
+  const body = [
+    godEffects,
+    techEffects,
+    `<combatxptierreq>${tier}</combatxptierreq>`,
+    `<icon>japanese\\static_color\\veterancy\\${god.toLowerCase()}_tier_${iconTier}_icon.png</icon>`,
+    `<displaynameid>STR_ABILITY_BUSHIDO_${tier}</displaynameid>`,
+    `<rolloverid>STR_ABILITY_BUSHIDO_${godUpper}</rolloverid>`,
+    notification,
+    extraTooltips,
+  ].filter(Boolean).join("\n");
+  return `\t\t<effects>\n${indentTabBlock(body, 3)}\n\t\t</effects>`;
+}
+
+function bushidoPowerXmlForGod(god, config) {
+  const godUpper = god.toUpperCase();
+  const powerName = escapeXml(bushidoPowerName(god, config));
+  const effects = Array.from({ length: 7 }, (_, tier) => bushidoPowerEffectsBlock(god, config, tier)).join("\n");
+  return `\t<power name="${powerName}" type="SwitchingEffects">
+\t\t<displaynameid>STR_ABILITY_BUSHIDO_${godUpper}_TECHTREE</displaynameid>
+\t\t<rolloverid>STR_ABILITY_BUSHIDO_${godUpper}_TECHTREE_LR</rolloverid>
+\t\t<placement>Skip</placement>
+\t\t<minimapeventtime sendalertto="None">0.0</minimapeventtime>
+\t\t<activetime>-1</activetime>
+\t\t<timerrolloverid>STR_ABILITY_BUSHIDO_PROG</timerrolloverid>
+\t\t<icon>japanese\\static_color\\veterancy\\${god.toLowerCase()}_neutral_icon.png</icon>
+\t\t<powerplayerrelation>Player</powerplayerrelation>
+\t\t<hideonactivegplist></hideonactivegplist>
+\t\t<tiertype>CombatXP</tiertype>
+\t\t<progresstype>SpawnReward</progresstype>
+${effects}
+\t</power>`;
+}
+
+function bushidoPowersXml(config) {
+  return selectedBushidoGods(config)
+    .map((god) => bushidoPowerXmlForGod(god, config))
+    .join("\n");
+}
+
+function bushidoCombatXpTierTechs(config) {
+  if (!hasSelectedBushidoBonus(config) || config.baseCulture === "Japanese") return "";
+  const entries = [];
+  const seen = new Set();
+  const upgrades = BUSHIDO_TIER_UPGRADES_BY_CULTURE[config.baseCulture] || {};
+  for (const [tier, techs] of Object.entries(upgrades)) {
+    for (const tech of techs) {
+      if (seen.has(tech)) continue;
+      seen.add(tech);
+      entries.push({ tech, tier });
+    }
+  }
+  return entries.map(({ tech, tier }) => `<tech name="${escapeXml(tech)}">\n\t\t<combatxptier>${escapeXml(tier)}</combatxptier>\n\t</tech>`).join("\n\n\t");
+}
+
 function generatePowersMods(config) {
-  const powers = [nuwaCreatorsAuspicePowerXml(config)].filter(Boolean);
+  const powers = [nuwaCreatorsAuspicePowerXml(config), bushidoPowersXml(config)].filter(Boolean);
   if (!powers.length) {
     return `<powersmod>\n\t<!-- Empty in this draft. -->\n</powersmod>\n`;
   }
@@ -2992,6 +3236,7 @@ function bonusTechEffects(config) {
       if (entry.id === BONUS_IDS.RA_FORTRESS_HP) return raFortressHitpointsEffects(config);
       if (entry.id === BONUS_IDS.POSEIDON_SPEED_BY_AGE) return POSEIDON_SPEED_BY_AGE_EFFECTS;
       if (entry.id === BONUS_IDS.POSEIDON_STABLE_MARKET_DISCOUNT) return poseidonStableMarketDiscountEffects(config);
+      if (entry.id === BONUS_IDS.FUXI_FAVORED_LAND_ADDITIONS && config.baseCulture !== "Chinese") return "";
       if (entry.id === BONUS_IDS.ORANOS_SKY_PASSAGE) return oranosSkyPassageArchaicEffects(config);
       if (entry.id === BONUS_IDS.TEZCAT_DEVOTE_FAVOR) return TEZCAT_DEVOTE_FAVOR_AGE_EFFECTS;
       if (entry.id === BONUS_IDS.KRONOS_EXTRA_MYTH_UNITS) return "";
@@ -3000,13 +3245,15 @@ function bonusTechEffects(config) {
       if (entry.id === BONUS_IDS.TEZCAT_TOWER_TRAPS || entry.id === "bonus_91") return tezcatTowerTrapEffects(config);
       if (entry.id === BONUS_IDS.TEZCAT_OBSIDIAN_SHARD) return "";
       if (entry.id === BONUS_IDS.FUXI_NEZHA) return fuxiNezhaTempleCommandEffects(config);
+      if (isBushidoBonusId(entry.id)) return bushidoCreatePowerEffect(config, entry.id);
       if (entry.id === BONUS_IDS.NUWA_CREATORS_AUSPICE || entry.id === "bonus_67") return nuwaCreatorsAuspiceCreatePowerEffect(config);
+      if (entry.id === BONUS_IDS.NUWA_FAVORED_LAND_AUTOBUILD) return nuwaFavoredLandAutoBuildEffects(config, sanitizeBonusTechEffects(entry.techEffects || ""));
       if (entry.id === BONUS_IDS.SHENNONG_GIFT_OF_BEASTS) return "";
       if (entry.id === BONUS_IDS.SHENNONG_FARM_LINE_UPGRADES) return "";
       if (entry.id === BONUS_IDS.SET_ANIMALS) return SET_ANIMALS_ARCHAIC_EFFECTS;
       if (entry.id === BONUS_IDS.SET_PRIEST_CONVERT_ANIMALS) return SET_PRIEST_CONVERT_ANIMALS_ARCHAIC_EFFECTS;
       if (entry.id === BONUS_IDS.SHENNONG_MYTH_REGEN_FAVORED_LAND) return SHENNONG_MYTH_REGEN_FAVORED_LAND_AGE_EFFECTS;
-      if (entry.id === BONUS_IDS.SUSANOO_BUSHIDO_MYTH_XP) return SUSANOO_BUSHIDO_MYTH_XP_ARCHAIC_EFFECTS;
+      if (entry.id === BONUS_IDS.SUSANOO_BUSHIDO_MYTH_XP) return susanooBushidoMythXpArchaicEffects(config);
       if (entry.id === BONUS_IDS.TSUKUYOMI_FREE_KITSUNE) return TSUKUYOMI_FREE_KITSUNE_EFFECT;
       if (entry.id === BONUS_IDS.THOR_ARMORY_TECH_DISCOUNT || entry.id === "bonus_38") return thorArmoryTechDiscountEffects(config);
       if (entry.id === BONUS_IDS.THOR_DWARVEN_ARMORY) return thorDwarvenArmoryArchaicEffects(config);
@@ -3153,7 +3400,7 @@ function sanitizeBonusTechEffects(xml) {
 
 function bonusMajorXml(config) {
   return selectedBonusEntries(config)
-    .filter((entry) => ![ZEUS_STARTING_FAVOR_BONUS_ID, KRONOS_TIMESHIFT_BONUS_ID, HUITZ_TONALLI_RESOURCES_BONUS_ID, HUITZ_SHORN_TONALLI_BONUS_ID, NUWA_FAVORED_LAND_FARTHER_BONUS_ID, SET_ANIMALS_BONUS_ID, SET_PRIEST_CONVERT_ANIMALS_BONUS_ID, SUSANOO_POWER_COST_FACTOR_BONUS_ID, SUSANOO_BUSHIDO_MYTH_XP_BONUS_ID, TSUKUYOMI_RESEARCH_BUSHIDO_XP_BONUS_ID, ODIN_GREAT_HALL_FAVOR_BONUS_ID].includes(entry.id))
+    .filter((entry) => ![ZEUS_STARTING_FAVOR_BONUS_ID, KRONOS_TIMESHIFT_BONUS_ID, HUITZ_TONALLI_RESOURCES_BONUS_ID, HUITZ_SHORN_TONALLI_BONUS_ID, NUWA_FAVORED_LAND_FARTHER_BONUS_ID, SET_ANIMALS_BONUS_ID, SET_PRIEST_CONVERT_ANIMALS_BONUS_ID, SUSANOO_POWER_COST_FACTOR_BONUS_ID, SUSANOO_BUSHIDO_MYTH_XP_BONUS_ID, TSUKUYOMI_RESEARCH_BUSHIDO_XP_BONUS_ID, ODIN_GREAT_HALL_FAVOR_BONUS_ID, BONUS_IDS.AMATERASU_BUSHIDO, BONUS_IDS.TSUKUYOMI_BUSHIDO, BONUS_IDS.SUSANOO_BUSHIDO].includes(entry.id))
     .map((entry) => entry.majorXml || "")
     .filter(Boolean)
     .join("\n");
@@ -3465,14 +3712,19 @@ function patchLokiSpawnContributorsForPantheon(doc, civ, config) {
 }
 
 function applyMajorGodSpecialBonusPatches(doc, civ, config) {
+  removeChineseTemplateBountyResourceEarning(civ, config);
+  if (config.baseCulture === "Chinese" && hasSelectedChiyouMinorGod(config) && !hasSelectedBushidoBonus(config)) {
+    replaceChineseChiyouBountyResourceEarning(doc, civ, config);
+  }
   if (selectedHasBonusId(config, BONUS_IDS.ZEUS_STARTING_FAVOR)) {
     addZeusStartingFavor(doc, civ);
   }
   if (selectedHasBonusId(config, BONUS_IDS.GAIA_HERO_CITIZENS)) {
     replaceAtlanteanStartingCitizensWithHeroes(civ);
   }
-  if (selectedHasBonusId(config, NUWA_FAVORED_LAND_FARTHER_BONUS_ID)) {
-    replaceBuildingChainFromSelectedBonus(doc, civ, config, BONUS_IDS.NUWA_FAVORED_LAND_FARTHER);
+  applyFavoredLandBuildingChainPatch(doc, civ, config);
+  if (hasSelectedBushidoBonus(config)) {
+    ensureBushidoCombatXpMajorGodData(doc, civ, config);
   }
   if (selectedHasBonusId(config, BONUS_IDS.HUITZ_TONALLI_RESOURCES)) {
     insertIntoBountyResourceEarning(doc, civ, HUITZ_TONALLI_RESOURCE_REWARDS);
@@ -3486,10 +3738,10 @@ function applyMajorGodSpecialBonusPatches(doc, civ, config) {
   if (selectedHasBonusId(config, BONUS_IDS.SUSANOO_POWER_COST_FACTOR)) {
     setOnCastPowerCostFactor(doc, civ, "0.80");
   }
-  if (selectedHasBonusId(config, BONUS_IDS.SUSANOO_BUSHIDO_MYTH_XP)) {
-    insertIntoBountyResourceEarning(doc, civ, SUSANOO_BUSHIDO_MYTH_XP_BOUNTY);
+  if (config.baseCulture !== "Aztec" && selectedHasBonusId(config, BONUS_IDS.SUSANOO_BUSHIDO_MYTH_XP)) {
+    insertIntoBountyResourceEarning(doc, civ, susanooBushidoMythXpBountyXml(config));
   }
-  if (selectedHasBonusId(config, BONUS_IDS.TSUKUYOMI_RESEARCH_BUSHIDO_XP)) {
+  if (config.baseCulture !== "Aztec" && selectedHasBonusId(config, BONUS_IDS.TSUKUYOMI_RESEARCH_BUSHIDO_XP)) {
     insertIntoBountyResourceEarning(doc, civ, TSUKUYOMI_RESEARCH_BUSHIDO_XP_BOUNTY);
   }
   if (selectedHasBonusId(config, BONUS_IDS.ODIN_GREAT_HALL_FAVOR)) {
@@ -3504,6 +3756,157 @@ function applyMajorGodSpecialBonusPatches(doc, civ, config) {
   if (selectedHasBonusId(config, KRONOS_TIMESHIFT_BONUS_ID)) {
     replaceTimeShiftingBlock(doc, civ, config);
   }
+}
+
+
+function directChildByTag(parent, tagName) {
+  const lower = String(tagName || "").toLowerCase();
+  return Array.from(parent?.children || []).find((node) => String(node.tagName || "").toLowerCase() === lower) || null;
+}
+
+function insertMajorGodDataNode(civ, node, preferredBeforeSelector = "") {
+  const before = preferredBeforeSelector ? civ.querySelector(preferredBeforeSelector) : null;
+  if (before) civ.insertBefore(node, before);
+  else civ.appendChild(node);
+}
+
+function ensureDirectChildText(doc, parent, tagName, text) {
+  let node = directChildByTag(parent, tagName);
+  if (!node) {
+    node = doc.createElement(tagName);
+    parent.appendChild(node);
+  }
+  node.textContent = text;
+  return node;
+}
+
+function ensureDirectChildTextValue(doc, parent, tagName, text) {
+  const existing = Array.from(parent.children || []).find((node) => String(node.tagName || "").toLowerCase() === String(tagName).toLowerCase() && (node.textContent || "").trim() === text);
+  if (existing) return existing;
+  const node = doc.createElement(tagName);
+  node.textContent = text;
+  parent.appendChild(node);
+  return node;
+}
+
+function ensureBountyReward(doc, bounty, attrs, text) {
+  const same = Array.from(bounty.children || []).find((node) => {
+    if (String(node.tagName || "").toLowerCase() !== "bountyreward") return false;
+    if ((node.textContent || "").trim() !== text) return false;
+    return Object.entries(attrs).every(([key, value]) => node.getAttribute(key) === value);
+  });
+  if (same) return same;
+  const node = doc.createElement("bountyreward");
+  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+  node.textContent = text;
+  bounty.appendChild(node);
+  return node;
+}
+
+function ensureBountyTargetMultiplier(doc, bounty, attrs, text) {
+  const same = Array.from(bounty.children || []).find((node) => {
+    if (String(node.tagName || "").toLowerCase() !== "bountytargetmultiplier") return false;
+    if ((node.textContent || "").trim() !== text) return false;
+    return Object.entries(attrs).every(([key, value]) => node.getAttribute(key) === value);
+  });
+  if (same) return same;
+  const node = doc.createElement("bountytargetmultiplier");
+  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+  node.textContent = text;
+  bounty.appendChild(node);
+  return node;
+}
+
+function hasSelectedChiyouMinorGod(config) {
+  return Object.values(config?.minorGods || {}).flat().includes("ClassicalAgeChiyou");
+}
+
+const CHINESE_CHIYOU_DESTROY_BOUNTIES = Object.freeze([
+  { attrs: { unittype: "Building", resourcetype: "Food", multiplybyunitcost: "true", condition: "Destroy" }, value: "0.000005" },
+  { attrs: { unittype: "Building", resourcetype: "Wood", multiplybyunitcost: "true", condition: "Destroy" }, value: "0.000005" },
+  { attrs: { unittype: "Building", resourcetype: "Gold", multiplybyunitcost: "true", condition: "Destroy" }, value: "0.000005" },
+  { attrs: { unittype: "OxCart", resourcetype: "Food", multiplybyunitcost: "true", condition: "Destroy" }, value: "0.000005" },
+  { attrs: { unittype: "OxCart", resourcetype: "Wood", multiplybyunitcost: "true", condition: "Destroy" }, value: "0.000005" },
+  { attrs: { unittype: "House", resourcetype: "Wood", condition: "Destroy" }, value: "0.000250" },
+  { attrs: { unittype: "Granary", resourcetype: "Wood", condition: "Destroy" }, value: "0.000250" },
+  { attrs: { unittype: "LumberCamp", resourcetype: "Wood", condition: "Destroy" }, value: "0.000250" },
+  { attrs: { unittype: "MiningCamp", resourcetype: "Wood", condition: "Destroy" }, value: "0.000250" },
+  { attrs: { unittype: "Market", resourcetype: "Wood", condition: "Destroy" }, value: "0.000750" },
+  { attrs: { unittype: "Armory", resourcetype: "Wood", condition: "Destroy" }, value: "0.000750" },
+]);
+
+function replaceChineseChiyouBountyResourceEarning(doc, civ, config) {
+  const existing = civ.querySelector("bountyresourceearning");
+  if (existing) existing.remove();
+
+  const bounty = doc.createElement("bountyresourceearning");
+  ensureDirectChildText(doc, bounty, "active", "true");
+  ensureDirectChildTextValue(doc, bounty, "excludedtarget", "AbstractWall");
+  for (const reward of CHINESE_CHIYOU_DESTROY_BOUNTIES) {
+    ensureBountyReward(doc, bounty, reward.attrs, reward.value);
+  }
+
+  if (hasSelectedBushidoBonus(config)) {
+    ensureDirectChildText(doc, bounty, "bountydamagegoal", "1.0");
+    ensureBountyReward(doc, bounty, { unittype: "HumanSoldier", condition: "Damage", combatxp: "" }, "1.0");
+    ensureBountyReward(doc, bounty, { unittype: "Hero", condition: "Damage", combatxp: "" }, "1.0");
+    ensureBountyTargetMultiplier(doc, bounty, { unittype: "Building", condition: "Damage", combatxp: "" }, "0.000001");
+    ensureBountyTargetMultiplier(doc, bounty, { unittype: "Resource", condition: "Damage", combatxp: "" }, "0.000001");
+  }
+
+  insertMajorGodDataNode(civ, bounty, "combatxp, timeshifting, oncastpowercostfactor");
+  return bounty;
+}
+
+function removeChineseTemplateBountyResourceEarning(civ, config) {
+  if (config?.baseCulture !== "Chinese") return;
+  const bounty = civ.querySelector("bountyresourceearning");
+  if (!bounty) return;
+  const active = (bounty.querySelector("active")?.textContent || "").trim().toLowerCase();
+  const hasCoinBurst = Array.from(bounty.children || []).some((node) => String(node.tagName || "").toLowerCase() === "vfx" && (node.textContent || "").trim() === "VFXCoinBurst");
+  if (active === "false" || hasCoinBurst) bounty.remove();
+}
+
+function ensureBushidoCombatXpMajorGodData(doc, civ, config) {
+  let bounty;
+  if (config.baseCulture === "Chinese" && hasSelectedChiyouMinorGod(config)) {
+    bounty = replaceChineseChiyouBountyResourceEarning(doc, civ, config);
+  } else {
+    bounty = civ.querySelector("bountyresourceearning");
+    if (!bounty) {
+      bounty = doc.createElement("bountyresourceearning");
+      insertMajorGodDataNode(civ, bounty, "combatxp, timeshifting, oncastpowercostfactor");
+    }
+    ensureDirectChildText(doc, bounty, "active", "true");
+  }
+  if (config.baseCulture === "Norse") {
+    ensureBountyReward(doc, bounty, { unittype: "HumanSoldier", condition: "Damage", combatxp: "" }, "80.0");
+    ensureBountyReward(doc, bounty, { unittype: "Hero", condition: "Damage", combatxp: "" }, "80.0");
+    ensureBountyTargetMultiplier(doc, bounty, { unittype: "Building", condition: "Damage", combatxp: "" }, "0.000001");
+    ensureBountyTargetMultiplier(doc, bounty, { unittype: "Resource", condition: "Damage", combatxp: "" }, "0.000001");
+  } else if (!(config.baseCulture === "Chinese" && hasSelectedChiyouMinorGod(config))) {
+    ensureDirectChildTextValue(doc, bounty, "excludedtarget", "Building");
+    ensureDirectChildTextValue(doc, bounty, "excludedtarget", "Resource");
+    ensureDirectChildText(doc, bounty, "bountydamagegoal", "1.0");
+    ensureBountyReward(doc, bounty, { unittype: "HumanSoldier", condition: "Damage", combatxp: "" }, "1.0");
+    ensureBountyReward(doc, bounty, { unittype: "Hero", condition: "Damage", combatxp: "" }, "1.0");
+    if (config.baseCulture === "Japanese") {
+      for (const reward of BUSHIDO_JAPANESE_EXTRA_REWARDS) {
+        ensureBountyReward(doc, bounty, { unittype: reward.unittype, condition: "Damage", combatxp: "" }, reward.value);
+      }
+    }
+  }
+
+  const combatXp = doc.createElement("combatxp");
+  for (const tierValue of BUSHIDO_COMBAT_XP_TIERS) {
+    const tier = doc.createElement("tier");
+    tier.textContent = tierValue;
+    combatXp.appendChild(tier);
+  }
+  const existingCombatXp = civ.querySelector("combatxp");
+  if (existingCombatXp) existingCombatXp.parentNode.replaceChild(combatXp, existingCombatXp);
+  else if (bounty.nextSibling) civ.insertBefore(combatXp, bounty.nextSibling);
+  else civ.appendChild(combatXp);
 }
 
 
@@ -3602,6 +4005,11 @@ function setOnCastPowerCostFactor(doc, civ, value) {
 const SUSANOO_POWER_COST_FACTOR_BONUS_ID = BONUS_IDS.SUSANOO_POWER_COST_FACTOR;
 const SUSANOO_BUSHIDO_MYTH_XP_BONUS_ID = BONUS_IDS.SUSANOO_BUSHIDO_MYTH_XP;
 const SUSANOO_BUSHIDO_MYTH_XP_BOUNTY = `<bountyreward unittype="MythUnit" condition="Damage" combatxp="">2.0</bountyreward>`;
+const SUSANOO_BUSHIDO_MYTH_XP_NORSE_BOUNTY = `<bountyreward unittype="MythUnit" condition="Damage" combatxp="">160.0</bountyreward>`;
+
+function susanooBushidoMythXpBountyXml(config) {
+  return config?.baseCulture === "Norse" ? SUSANOO_BUSHIDO_MYTH_XP_NORSE_BOUNTY : SUSANOO_BUSHIDO_MYTH_XP_BOUNTY;
+}
 
 const TSUKUYOMI_FREE_KITSUNE_BONUS_ID = BONUS_IDS.TSUKUYOMI_FREE_KITSUNE;
 const TSUKUYOMI_RESEARCH_BUSHIDO_XP_BONUS_ID = BONUS_IDS.TSUKUYOMI_RESEARCH_BUSHIDO_XP;
@@ -4082,6 +4490,14 @@ const SUSANOO_BUSHIDO_MYTH_XP_ARCHAIC_EFFECTS = `<effect type="Data" action="Aut
 	<target type="ProtoUnit">LogicalTypeMythicMythUnit</target>
 </effect>`;
 
+const SUSANOO_BUSHIDO_MYTH_XP_AUTOGATHER_SOURCE_EFFECT = `<effect type="Data" subtype="ProtoActionAdd" protoaction="AutoGather" amount="1.00" unittype="Kitsune" relativity="Assign">
+	<target type="ProtoUnit">LogicalTypeTrainableMythUnit</target>
+</effect>`;
+
+function susanooBushidoMythXpArchaicEffects(config) {
+  if (config?.baseCulture === "Aztec") return "";
+  return [SUSANOO_BUSHIDO_MYTH_XP_AUTOGATHER_SOURCE_EFFECT, SUSANOO_BUSHIDO_MYTH_XP_ARCHAIC_EFFECTS].join("\n");
+}
 
 function addSetBaboonToStartingUnits(doc, civ) {
   const normal = Array.from(civ.querySelectorAll("startingunits"))
@@ -4108,6 +4524,216 @@ function addSetBaboonToStartingUnitsBlock(doc, startingUnitsNode, label) {
   unit.setAttribute("z", "-4.00");
   unit.textContent = "BaboonOfSet";
   startingUnitsNode.appendChild(unit);
+}
+
+
+const FAVORED_LAND_CHAINABLE_BUILDINGS = Object.freeze({
+  shared: [
+    { unit: "TownCenter", radius: 20.0 },
+    { unit: "CitadelCenter", radius: 25.0 },
+    { unit: "VillageCenter", radius: 15.0 },
+    { unit: "Dock", radius: 10.0 },
+    { unit: "Temple", radius: 15.0 },
+    { unit: "SentryTower", radius: 12.0 },
+    { unit: "Armory", radius: 12.0 },
+    { unit: "Market", radius: 12.0 },
+    { unit: "Wonder", radius: 25.0 },
+  ],
+  sharedExceptAtlantean: [
+    { unit: "House", radius: 6.0 },
+  ],
+  Greek: [
+    { unit: "Storehouse", radius: 6.0 },
+    { unit: "Granary", radius: 6.0 },
+    { unit: "MilitaryAcademy", radius: 10.0 },
+    { unit: "ArcheryRange", radius: 10.0 },
+    { unit: "Stable", radius: 10.0 },
+    { unit: "Fortress", radius: 25.0 },
+  ],
+  Egyptian: [
+    { unit: "Granary", radius: 6.0 },
+    { unit: "LumberCamp", radius: 6.0 },
+    { unit: "MiningCamp", radius: 6.0 },
+    { unit: "Barracks", radius: 10.0 },
+    { unit: "SiegeWorks", radius: 10.0 },
+    { unit: "Lighthouse", radius: 12.0 },
+    { unit: "MigdolStronghold", radius: 25.0 },
+  ],
+  Norse: [
+    { unit: "Longhouse", radius: 10.0 },
+    { unit: "GreatHall", radius: 10.0 },
+    { unit: "HillFort", radius: 25.0 },
+    { unit: "AsgardianHillFort", radius: 25.0 },
+  ],
+  Atlantean: [
+    { unit: "Manor", radius: 6.0 },
+    { unit: "EconomicGuild", radius: 6.0 },
+    { unit: "MilitaryBarracks", radius: 10.0 },
+    { unit: "CounterBarracks", radius: 10.0 },
+    { unit: "Palace", radius: 25.0 },
+  ],
+  Chinese: [
+    { unit: "TentSPC", radius: 6.0 },
+    { unit: "Silo", radius: 6.0 },
+    { unit: "MachineWorkshop", radius: 12.0 },
+    { unit: "MachineWorkshopTower", radius: 12.0 },
+    { unit: "MachineWorkshopTrainingYard", radius: 12.0 },
+    { unit: "MilitaryCamp", radius: 10.0 },
+    { unit: "MilitaryCampTower", radius: 10.0 },
+    { unit: "MilitaryCampTrainingYard", radius: 10.0 },
+    { unit: "ImperialAcademy", radius: 12.0 },
+    { unit: "Baolei", radius: 25.0 },
+    { unit: "ThePeachBlossomSpring", radius: 15.0 },
+  ],
+  Japanese: [
+    { unit: "Watermill", radius: 6.0 },
+    { unit: "MiningCampJapanese", radius: 6.0 },
+    { unit: "Guardhouse", radius: 10.0 },
+    { unit: "Dojo", radius: 10.0 },
+    { unit: "StableJapanese", radius: 10.0 },
+    { unit: "Castle", radius: 25.0 },
+  ],
+  Aztec: [
+    { unit: "Calpulli", radius: 6.0 },
+    { unit: "CalpulliLivestockPen", radius: 6.0 },
+    { unit: "CalpulliLumberOutpost", radius: 6.0 },
+    { unit: "CalpulliCraftWorkshop", radius: 6.0 },
+    { unit: "WarHut", radius: 10.0 },
+    { unit: "NoblesHut", radius: 10.0 },
+    { unit: "GreatTemple", radius: 25.0 },
+  ],
+});
+
+function selectedHasFavoredLandBuildingChainBonus(config) {
+  return Array.from(FAVORED_LAND_BUILDINGCHAIN_BONUS_IDS).some((id) => selectedHasBonusId(config, id));
+}
+
+function shouldGenerateFavoredLandBuildingChain(config) {
+  return config?.baseCulture === "Chinese" || selectedHasFavoredLandBuildingChainBonus(config);
+}
+
+function favoredLandChainRadius(baseRadius, config) {
+  const bonus = selectedHasBonusId(config, NUWA_FAVORED_LAND_FARTHER_BONUS_ID) ? 2.0 : 0.0;
+  return (Number(baseRadius) + bonus).toFixed(1);
+}
+
+function favoredLandChainEntries(config) {
+  const entries = [
+    ...FAVORED_LAND_CHAINABLE_BUILDINGS.shared,
+    ...(config.baseCulture === "Atlantean" ? [] : FAVORED_LAND_CHAINABLE_BUILDINGS.sharedExceptAtlantean),
+    ...(FAVORED_LAND_CHAINABLE_BUILDINGS[config.baseCulture] || []),
+  ];
+  if (selectedHasBonusId(config, ORANOS_SKY_PASSAGE_BONUS_ID)) entries.push({ unit: "SkyPassage", radius: 10.0 });
+  if (selectedHasBonusId(config, THOR_DWARVEN_ARMORY_BONUS_ID)) entries.push({ unit: "DwarvenArmory", radius: 12.0 });
+
+  const seen = new Set();
+  const out = [];
+  for (const entry of entries) {
+    if (!entry?.unit || seen.has(entry.unit)) continue;
+    seen.add(entry.unit);
+    out.push(entry);
+  }
+  return out;
+}
+
+const FAVORED_LAND_AUTOBUILD_ALREADY_TYPED_UNITS = new Set([
+  "TownCenter",
+  "VillageCenter",
+  "Settlement",
+  "House",
+  "Dock",
+  "Granary",
+  "Temple",
+  "SentryTower",
+  "Armory",
+  "Market",
+  "Wonder",
+  "Silo",
+  "MachineWorkshop",
+  "MachineWorkshopTower",
+  "MachineWorkshopTrainingYard",
+  "MilitaryCamp",
+  "MilitaryCampTower",
+  "MilitaryCampTrainingYard",
+  "ImperialAcademy",
+  "Baolei",
+  "Calpulli",
+  "CalpulliLivestockPen",
+  "CalpulliLumberOutpost",
+  "CalpulliCraftWorkshop",
+  "ThePeachBlossomSpring",
+  "TentSPC",
+]);
+
+function favoredLandAutoBuildAffectedUnitTypeEffects(config) {
+  return favoredLandChainEntries(config)
+    .filter((entry) => entry?.unit && !FAVORED_LAND_AUTOBUILD_ALREADY_TYPED_UNITS.has(entry.unit))
+    .map((entry) => `<effect type="Data" amount="1.00" subtype="SetUnitType" unittype="LogicalTypeAffectedByBuildingChainAutoBuild" relativity="Absolute">
+	<target type="ProtoUnit">${escapeXml(entry.unit)}</target>
+</effect>`)
+    .join("\n");
+}
+
+function nuwaFavoredLandAutoBuildEffects(config, baseEffects = "") {
+  return [baseEffects, favoredLandAutoBuildAffectedUnitTypeEffects(config)].filter((part) => part && String(part).trim()).join("\n");
+}
+
+function buildFavoredLandBuildingChainNode(doc, config) {
+  const chain = doc.createElement("buildingchain");
+  const anchor = doc.createElement("anchor");
+  anchor.setAttribute("vfx", "VFXFavorGlow");
+  anchor.textContent = "AbstractTownCenter";
+  chain.appendChild(anchor);
+
+  const abundance = doc.createElement("abundancevfx");
+  abundance.setAttribute("small", "VFXAbundanceSmall");
+  abundance.setAttribute("medium", "VFXAbundanceMedium");
+  abundance.setAttribute("large", "VFXAbundanceLarge");
+  chain.appendChild(abundance);
+
+  if (selectedHasBonusId(config, BONUS_IDS.NUWA_FAVORED_LAND_AUTOBUILD)) {
+    const autoBuild = doc.createElement("autobuildvfx");
+    autoBuild.setAttribute("small", "VFXAutoBuild");
+    autoBuild.setAttribute("medium", "VFXAutoBuild");
+    autoBuild.setAttribute("large", "VFXAutoBuild");
+    chain.appendChild(autoBuild);
+  }
+
+  for (const entry of favoredLandChainEntries(config)) {
+    const node = doc.createElement("chainablebuilding");
+    node.setAttribute("chainradius", favoredLandChainRadius(entry.radius, config));
+    if (config.baseCulture === "Chinese") node.setAttribute("generationresource", "Favor");
+    node.textContent = entry.unit;
+    chain.appendChild(node);
+  }
+
+  if (config.baseCulture === "Chinese") {
+    const resourceGeneration = doc.createElement("resourcegeneration");
+    const tierLow = doc.createElement("tilerateperminutetier");
+    tierLow.setAttribute("resource", "Favor");
+    tierLow.setAttribute("mintiles", "0");
+    tierLow.textContent = "0.0075";
+    const tierHigh = doc.createElement("tilerateperminutetier");
+    tierHigh.setAttribute("resource", "Favor");
+    tierHigh.setAttribute("mintiles", "5000");
+    tierHigh.textContent = "0.0025";
+    resourceGeneration.appendChild(tierLow);
+    resourceGeneration.appendChild(tierHigh);
+    chain.appendChild(resourceGeneration);
+  }
+
+  return chain;
+}
+
+function applyFavoredLandBuildingChainPatch(doc, civ, config) {
+  const existing = civ.querySelector("buildingchain");
+  if (existing) existing.remove();
+  if (!shouldGenerateFavoredLandBuildingChain(config)) return;
+
+  const chain = buildFavoredLandBuildingChainNode(doc, config);
+  const before = civ.querySelector("bountyresourceearning") || civ.querySelector("timeshifting") || civ.querySelector("oncastpowercostfactor");
+  if (before) civ.insertBefore(chain, before);
+  else civ.appendChild(chain);
 }
 
 function replaceBuildingChainFromSelectedBonus(doc, civ, config, bonusId) {
@@ -4610,8 +5236,27 @@ ${effects}
 	</tech>`;
 }
 
+function chineseChiyouSpoilsOfWarTech(config) {
+  if (config?.baseCulture !== "Chinese" || !hasSelectedChiyouMinorGod(config)) return "";
+  return `<tech name="SpoilsOfWar" orderhint="0">
+		<effects mergemode="replace">
+			<effect type="Data" subtype="BountyResourceEarningMultiplier" condition="Destroy" unittype="Building" resourcetype="Wood" amount="100000.0" relativity="Absolute">
+				<target type="Player"></target>
+			</effect>
+			<effect type="Data" subtype="BountyResourceEarningMultiplier" condition="Destroy" unittype="Building" resourcetype="Gold" amount="100000.0" relativity="Absolute">
+				<target type="Player"></target>
+			</effect>
+			<effect type="Data" subtype="BountyResourceEarningMultiplier" condition="Destroy" unittype="Building" resourcetype="Food" amount="100000.0" relativity="Absolute">
+				<target type="Player"></target>
+			</effect>
+		</effects>
+	</tech>`;
+}
+
 function extraGeneratedTechs(config) {
   const extras = [];
+  const chiyouSpoilsTech = chineseChiyouSpoilsOfWarTech(config);
+  if (chiyouSpoilsTech) extras.push(chiyouSpoilsTech);
   const kronosTechs = kronosExtraMythUnitTechs(config);
   if (kronosTechs) extras.push(kronosTechs);
   const thorArmoryPrereqs = thorDwarvenArmoryMinorGodPrereqTechs(config);
@@ -4641,6 +5286,8 @@ function extraGeneratedTechs(config) {
     const aegirUniqueTechPatch = uniqueTechAegirTempleRepositionTechs(config);
     if (aegirUniqueTechPatch) extras.push(aegirUniqueTechPatch);
   }
+  const bushidoTierTechs = bushidoCombatXpTierTechs(config);
+  if (bushidoTierTechs) extras.push(bushidoTierTechs);
   return indentTabBlock(extras.join("\n\n"), 1);
 }
 
@@ -4862,9 +5509,9 @@ function godPickerArchaicBonusPowers(config) {
   if (selectedHasBonusId(config, "bonus_63")) powers.push("YinAndYangTechree");
   if (selectedHasBonusId(config, "bonus_67") || selectedHasBonusId(config, NUWA_CREATORS_AUSPICE_BONUS_ID)) powers.push("ShieldBlessingTechree");
   if (selectedHasBonusId(config, "bonus_71") || selectedHasBonusId(config, SHENNONG_GIFT_OF_BEASTS_BONUS_ID)) powers.push("SpawnRewardTechree");
-  if (selectedHasBonusId(config, "bonus_75")) powers.push("BushidoAmaterasu");
-  if (selectedHasBonusId(config, "bonus_83")) powers.push("BushidoSusanoo");
-  if (selectedHasBonusId(config, "bonus_79")) powers.push("BushidoTsukuyomi");
+  if (selectedHasBonusId(config, BONUS_IDS.AMATERASU_BUSHIDO)) powers.push(bushidoPowerName("Amaterasu", config));
+  if (selectedHasBonusId(config, BONUS_IDS.SUSANOO_BUSHIDO)) powers.push(bushidoPowerName("Susanoo", config));
+  if (selectedHasBonusId(config, BONUS_IDS.TSUKUYOMI_BUSHIDO)) powers.push(bushidoPowerName("Tsukuyomi", config));
   return uniqueList(powers);
 }
 
@@ -13180,8 +13827,47 @@ ${technologies ? "\n" + indentBlock(technologies, 3) + "\n" : ""}
         </local:TechTreeAge>`;
 }
 
+const THOTH_PRIEST_MODS_TACTICS = `<tacticsmods>
+	<action>
+		<name>Empower</name>
+		<type>Empower</type>
+		<empowerdata mergemode="replace">
+			<logicaltypebuildingempoweredforlos>
+				<empowerrate modifytype="BuildRate">1.45</empowerrate>
+				<empowerrate modifytype="ResearchRate">1.45</empowerrate>
+				<empowerrate modifytype="LOSFactor">1.45</empowerrate>
+			</logicaltypebuildingempoweredforlos>
+			<logicaltypeaffectedbyvalleyofthekings>
+				<empowerrate modifytype="BuildRate">1.45</empowerrate>
+				<empowerrate modifytype="ResearchRate">1.45</empowerrate>
+				<empowerrate modifytype="MilitaryTrainingRate">1.45</empowerrate>
+				<empowerrate modifytype="ROF">0.85</empowerrate>
+				<modelattachment>vfx\\glow\\empower_priest.xml</modelattachment>
+				<modelattachmentbone>bonethatdoesntexist</modelattachmentbone>
+			</logicaltypeaffectedbyvalleyofthekings>
+			<logicaltypebuildingthatcanbeempowered>
+				<empowerrate modifytype="BuildRate">1.45</empowerrate>
+				<empowerrate modifytype="ResearchRate">1.45</empowerrate>
+				<empowerrate modifytype="MilitaryTrainingRate">1.45</empowerrate>
+				<empowerrate modifytype="ROF">0.85</empowerrate>
+				<empowerrate modifytype="FavorGatherRate">1.12</empowerrate>
+				<empowerrate modifytype="DropsiteRate">1.12</empowerrate>
+				<empowerrate modifytype="GodPowerBlockRadius">1.2</empowerrate>
+				<modelattachment>vfx\\glow\\empower_priest.xml</modelattachment>
+				<modelattachmentbone>bonethatdoesntexist</modelattachmentbone>
+			</logicaltypebuildingthatcanbeempowered>
+		</empowerdata>
+	</action>
+</tacticsmods>`;
+
+function hasSelectedThothMinorGod(config) {
+  return Object.values(config?.minorGods || {}).flat().includes("MythicAgeThoth");
+}
+
 function generateReadme(config) {
   const presetFileName = `${config.internalName}-preset.json`;
+  const thothTacticsLine = hasSelectedThothMinorGod(config) ? `
+${config.internalName}/game/data/gameplay/tactics/priest_mods.tactics` : "";
   const bonusLines = selectedBonusEntries(config).map((entry) => `- ${entry.sourcePantheon} - ${dynamicBonusLabel(entry, config)}`);
   const bonusDisplayWarning = bonusDisplayWarningText(config);
   const bonusDisplayWarningBlock = bonusDisplayWarning ? `
@@ -13210,7 +13896,7 @@ ${config.internalName}/game/data/gameplay/major_gods_mods.xml
 ${config.internalName}/game/data/gameplay/minor_gods_mods.xml
 ${config.internalName}/game/data/gameplay/techtree_mods.xml
 ${config.internalName}/game/data/gameplay/proto_mods.xml
-${config.internalName}/game/data/gameplay/powers_mods.xml
+${config.internalName}/game/data/gameplay/powers_mods.xml${thothTacticsLine}
 ${config.internalName}/game/data/strings/English/stringmods.txt
 ${config.internalName}/game/ui_myth/content/pregame/godpicker/GodPicker_${config.baseCulture}_${config.internalName}.xaml
 ${config.internalName}/game/ui_myth/content/pregame/techtree/TechTree_${config.baseCulture}_${config.internalName}.xaml
@@ -13268,6 +13954,10 @@ async function generateFiles(config) {
   files.push(textFile(`${root}game/data/gameplay/techtree_mods.xml`, generateTechTreeMods(config)));
   files.push(textFile(`${root}game/data/gameplay/proto_mods.xml`, generateProtoMods(config)));
   files.push(textFile(`${root}game/data/gameplay/powers_mods.xml`, generatePowersMods(config)));
+  files.push(directoryEntry(`${root}game/data/gameplay/tactics/`));
+  if (hasSelectedThothMinorGod(config)) {
+    files.push(textFile(`${root}game/data/gameplay/tactics/priest_mods.tactics`, THOTH_PRIEST_MODS_TACTICS));
+  }
   files.push(textFile(`${root}game/data/strings/English/stringmods.txt`, generateStringMods(config)));
   files.push(textFile(`${root}game/ui_myth/content/pregame/godpicker/GodPicker_${config.baseCulture}_${config.internalName}.xaml`, generateGodPickerXaml(config)));
   files.push(textFile(`${root}game/ui_myth/content/pregame/techtree/TechTree_${config.baseCulture}_${config.internalName}.xaml`, generateTechTreeXaml(config)));
@@ -13281,6 +13971,9 @@ function textFile(path, text) {
 }
 function binaryFile(path, arrayBuffer) {
   return { path, data: new Uint8Array(arrayBuffer) };
+}
+function directoryEntry(path) {
+  return { path: path.endsWith("/") ? path : `${path}/`, data: new Uint8Array() };
 }
 
 // Tiny ZIP writer using STORE method. No CDN or server needed.
@@ -14497,6 +15190,33 @@ function updatePreview() {
 }
 
 
+function maybeShowUpdateNotice() {
+  const notice = document.getElementById("updateNotice");
+  if (!notice) return;
+  const closeButtons = [
+    document.getElementById("updateNoticeClose"),
+    document.getElementById("updateNoticeOk"),
+    document.getElementById("updateNoticeChangelog"),
+  ].filter(Boolean);
+  const closeNotice = () => {
+    notice.hidden = true;
+  };
+  closeButtons.forEach((button) => button.addEventListener("click", closeNotice));
+  notice.addEventListener("click", (event) => {
+    if (event.target === notice) closeNotice();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (!notice.hidden && event.key === "Escape") closeNotice();
+  });
+  try {
+    if (window.localStorage && localStorage.getItem(UPDATE_NOTICE_STORAGE_KEY) === APP_VERSION) return;
+    notice.hidden = false;
+    if (window.localStorage) localStorage.setItem(UPDATE_NOTICE_STORAGE_KEY, APP_VERSION);
+  } catch (err) {
+    notice.hidden = false;
+  }
+}
+
 function wireEvents() {
   els.baseMajor.addEventListener("change", () => { initGreekSpecificSelects(true); initChineseSpecificSelects(true); initAztecSpecificSelects(true); initGodPowerSelect(true); initUniqueTechSelects(true); initBonusSelects(true); refreshMinorOptions(true); });
   if (els.sameCultureOnly) els.sameCultureOnly.addEventListener("change", () => refreshMinorOptions(true));
@@ -14555,3 +15275,4 @@ initBonusSelects(false);
 initMinorPickers();
 wireEvents();
 updatePreview();
+maybeShowUpdateNotice();

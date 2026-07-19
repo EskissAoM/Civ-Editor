@@ -883,7 +883,7 @@ window.AOM_BONUS_DATA = [
     "sourceMajor": "Fuxi",
     "label": "Buildings on Favored Land research 300% faster.",
     "allowedPantheons": [
-      "Chinese"
+      "All"
     ],
     "files": "techtree.xml",
     "notes": "BuildingChainEffect modifies ResearchRate for connected Buildings.",
@@ -937,7 +937,7 @@ window.AOM_BONUS_DATA = [
     "sourceMajor": "Nüwa",
     "label": "Buildings on Favored Land self-construct at 25% speed.",
     "allowedPantheons": [
-      "Chinese"
+      "All"
     ],
     "files": "techtree.xml",
     "notes": "BuildingChainEffect modifies AutoBuildRate for affected buildings in range.",
@@ -950,11 +950,11 @@ window.AOM_BONUS_DATA = [
     "sourceMajor": "Nüwa",
     "label": "Buildings spread Favored Land 2 range farther.",
     "allowedPantheons": [
-      "Chinese"
+      "All"
     ],
     "files": "major_gods.xml",
-    "notes": "Nuwa uses larger chainradius values in buildingchain entries, spreading Favored Land farther.",
-    "majorXml": "<buildingchain>\n\t<anchor vfx=\"VFXFavorGlow\">AbstractTownCenter</anchor>\n\t<abundancevfx small=\"VFXAbundanceSmall\" medium=\"VFXAbundanceMedium\" large=\"VFXAbundanceLarge\" />\n\t<autobuildvfx small=\"VFXAutoBuild\" medium=\"VFXAutoBuild\" large=\"VFXAutoBuild\" />\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"22.0\">TownCenter</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"22.0\">CitadelCenter</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"17.0\">VillageCenter</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"8.0\">House</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"8.0\">TentSPC</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"12.0\">Dock</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"17.0\">Temple</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"14.0\">SentryTower</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"14.0\">Armory</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"14.0\">Market</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"27.0\">Wonder</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"27.0\">CitadelCenter</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"8.0\">Silo</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"14.0\">MachineWorkshop</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"14.0\">MachineWorkshopTower</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"14.0\">MachineWorkshopTrainingYard</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"12.0\">MilitaryCamp</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"12.0\">MilitaryCampTower</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"12.0\">MilitaryCampTrainingYard</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"14.0\">ImperialAcademy</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"27.0\">Baolei</chainablebuilding>\n\t<chainablebuilding generationresource=\"Favor\" chainradius=\"17.0\">ThePeachBlossomSpring</chainablebuilding>\n\t<resourcegeneration>\n\t\t<tilerateperminutetier resource=\"Favor\" mintiles=\"0\">0.0075</tilerateperminutetier>\n\t\t<tilerateperminutetier resource=\"Favor\" mintiles=\"5000\">0.0025</tilerateperminutetier>\n\t</resourcegeneration>\n</buildingchain>",
+    "notes": "Handled by app.js favored-land buildingchain generator. Adds +2 to generated chainradius values.",
+    "majorXml": "",
     "techEffects": ""
   },
   {
@@ -991,7 +991,7 @@ window.AOM_BONUS_DATA = [
     "sourceMajor": "Shennong",
     "label": "Myth units regenerate +1.5 hit points by age on Favored Land up to +6hp/s.",
     "allowedPantheons": [
-      "Chinese"
+      "All"
     ],
     "files": "techtree.xml",
     "notes": "BuildingChainEffect gives LogicalTypeMythUnitNotTitan a HealRate while in range/on Favored Land.Age techs adjust/stack the BuildingChainEffect HealRate. Raw XML cleared: implemented by app.js special handler.",
@@ -1036,10 +1036,15 @@ window.AOM_BONUS_DATA = [
     "sourceMajor": "Amaterasu",
     "label": "Way of the Sun grants +1 passive gold by Bushidō tier.",
     "allowedPantheons": [
+      "Greek",
+      "Egyptian",
+      "Norse",
+      "Atlantean",
+      "Chinese",
       "Japanese"
     ],
-    "files": "techtree.xml",
-    "notes": "CreatePower enables BushidoAmaterasu; tier details likely in power files.",
+    "files": "major_gods.xml / techtree.xml / powers_mods.xml",
+    "notes": "Implemented by app.js: creates custom BushidoAmaterasu power, Combat XP major-god data, and pantheon line-upgrade tiers.",
     "majorXml": "",
     "techEffects": "<effect type=\"CreatePower\" protopower=\"BushidoAmaterasu\" />"
   },
@@ -1089,11 +1094,20 @@ window.AOM_BONUS_DATA = [
     "sourcePantheon": "Japanese",
     "sourceMajor": "Tsukuyomi",
     "label": "Way of the Moon gives cavalry and Shinobi +4% attack by Bushidō tier.",
+    "displayLabels": {
+      "Japanese": "Way of the Moon gives cavalry and Shinobi +4% attack by Bushidō tier.",
+      "default": "Way of the Moon gives cavalry +4% attack by Bushidō tier."
+    },
     "allowedPantheons": [
+      "Greek",
+      "Egyptian",
+      "Norse",
+      "Atlantean",
+      "Chinese",
       "Japanese"
     ],
-    "files": "techtree.xml",
-    "notes": "CreatePower enables BushidoTsukuyomi; tier attack internals likely in power files.",
+    "files": "major_gods.xml / techtree.xml / powers_mods.xml",
+    "notes": "Implemented by app.js: creates custom BushidoTsukuyomi power, Combat XP major-god data, and pantheon line-upgrade tiers.",
     "majorXml": "",
     "techEffects": "<effect type=\"CreatePower\" protopower=\"BushidoTsukuyomi\" />"
   },
@@ -1103,6 +1117,11 @@ window.AOM_BONUS_DATA = [
     "sourceMajor": "Tsukuyomi",
     "label": "Researching technologies grants Bushidō XP equal to their resource cost.",
     "allowedPantheons": [
+      "Greek",
+      "Egyptian",
+      "Norse",
+      "Atlantean",
+      "Chinese",
       "Japanese"
     ],
     "files": "major_gods.xml",
@@ -1144,10 +1163,15 @@ window.AOM_BONUS_DATA = [
     "sourceMajor": "Susanoo",
     "label": "Way of the Storm starts with 15 favor, granting increasingly more favor on Bushidō tier-ups.",
     "allowedPantheons": [
+      "Greek",
+      "Egyptian",
+      "Norse",
+      "Atlantean",
+      "Chinese",
       "Japanese"
     ],
-    "files": "major_gods.xml / techtree.xml",
-    "notes": "Starting favor is in major_gods; BushidoSusanoo is created in techtree.",
+    "files": "major_gods.xml / techtree.xml / powers_mods.xml",
+    "notes": "Implemented by app.js: creates custom BushidoSusanoo power, Combat XP major-god data, and pantheon line-upgrade tiers.",
     "majorXml": "",
     "techEffects": "<effect type=\"CreatePower\" protopower=\"BushidoSusanoo\" />"
   },
@@ -1157,6 +1181,11 @@ window.AOM_BONUS_DATA = [
     "sourceMajor": "Susanoo",
     "label": "Myth units generate Bushidō XP passively (between 0.5XP/s and 3Xp/s depending on their age) and in combat (equal to twice the hit point damage they inflict on enemy units).",
     "allowedPantheons": [
+      "Greek",
+      "Egyptian",
+      "Norse",
+      "Atlantean",
+      "Chinese",
       "Japanese"
     ],
     "files": "techtree.xml + major_gods.xml",

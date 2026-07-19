@@ -1,0 +1,12 @@
+AoM:R Major God Builder Changelog
+
+Version 1.1
+
+Features:
+- Favored Land related bonuses can now be used by all pantheons.
+- Bushidō can now be used by all pantheons except Aztec.
+- Favored Land does not produce Favor, and Bushidō is earned more slowly by non-Japanese pantheons, so Chinese and Japanese still make the strongest use of those tools while other pantheons gain more creative build options.
+
+Fixes:
+- Fixed Priests not being able to trigger Valley of the Kings tech.
+- Fixed Sky Passage still costing Wood with Egyptian gods.

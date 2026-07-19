@@ -12,7 +12,7 @@
   <main class="shell">
     <div class="top-meta" aria-label="Project information">
       <span>Made by Eskiss</span>
-      <span>Version 1.0</span>
+      <a class="version-link" href="#changelog">Version 1.1</a>
       <a href="#contact">Contact / Social</a>
     </div>
     <header class="hero">
@@ -171,11 +171,46 @@
       </aside>
     </section>
 
-    <section id="contact" class="panel contact-panel">
-      <h2>Join us / Contact</h2>
-      <p>Join us on <a href="https://discord.gg/WgTyWduZgs" target="_blank" rel="noopener noreferrer">Discord</a>.</p>
-      <p>Contact us for any issue <a href="mailto:eskissaom@gmail.com">here</a>.</p>
+    <section class="bottom-panels" aria-label="Project updates and contact">
+      <section id="contact" class="panel contact-panel">
+        <h2>Join us / Contact</h2>
+        <p>Join us on <a href="https://discord.gg/WgTyWduZgs" target="_blank" rel="noopener noreferrer">Discord</a>.</p>
+        <p>Contact us for any issue <a href="mailto:eskissaom@gmail.com">here</a>.</p>
+      </section>
+
+      <section id="changelog" class="panel changelog-panel">
+        <h2>Quick changelog</h2>
+        <h3>Version 1.1</h3>
+        <h4>Features</h4>
+        <ul>
+          <li>Favored Land related bonuses can now be used by all pantheons.</li>
+          <li>Bushidō can now be used by all pantheons except Aztec.</li>
+        </ul>
+        <p><em>I first wanted to keep some flavor for Japanese and Chinese by making those bonuses exclusive to them. Some players were theorycrafting around them, so I decided to let their full creativity bloom. Favored Land does not produce Favor and Bushidō is earned more slowly by other pantheons, meaning Chinese and Japanese will still make the strongest use of those tools.</em></p>
+        <h4>Fixes</h4>
+        <ul>
+          <li>Fixed Priests not being able to trigger Valley of the Kings tech.</li>
+          <li>Fixed Sky Passage still costing Wood with Egyptian gods.</li>
+        </ul>
+      </section>
     </section>
+
+    <div id="updateNotice" class="update-notice" hidden role="dialog" aria-modal="true" aria-labelledby="updateNoticeTitle">
+      <div class="update-notice-card">
+        <button type="button" id="updateNoticeClose" class="update-notice-close" aria-label="Close update notice">×</button>
+        <p class="eyebrow">Updated</p>
+        <h2 id="updateNoticeTitle">What’s new in version 1.1</h2>
+        <ul>
+          <li>Favored Land bonuses are now usable by all pantheons.</li>
+          <li>Bushidō is now usable by all pantheons except Aztec.</li>
+          <li>Priest / Valley of the Kings and Egyptian Sky Passage cost fixes.</li>
+        </ul>
+        <div class="update-notice-actions">
+          <a id="updateNoticeChangelog" class="button-link" href="#changelog">View changelog</a>
+          <button type="button" id="updateNoticeOk" class="secondary">Close</button>
+        </div>
+      </div>
+    </div>
   </main>
   <script src="aomData.js"></script>
   <script src="bonusData.js"></script>
